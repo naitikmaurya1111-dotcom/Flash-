@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global safety net (default deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Support connection validation test without requiring auth
+    match /test/{testId} {
+      allow read: if true;
+    }
+
+    // Phase 3: Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn();
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper functions for entity validations
+    function isValidUser(data, userId) {
+      return data.userId == userId
+        && data.email is string
+        && data.email.size() <= 150
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
+        && (data.dailyTargetMinutes == null || (data.dailyTargetMinutes is number && data.dailyTargetMinutes >= 0));
+    }
+
+    function isValidSubject(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.name is string
+        && data.name.size() <= 100
+        && data.color is string
+        && data.color.size() <= 100
+        && data.icon is string
+        && data.icon.size() <= 100
+        && data.totalMinutes is number
+        && data.totalMinutes >= 0
+        && data.goalMinutes is number
+        && data.goalMinutes >= 0;
+    }
+
+    function isValidTask(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.title is string
+        && data.title.size() <= 500
+        && data.isCompleted is bool
+        && data.subjectId is string
+        && data.subjectId.size() <= 128;
+    }
+
+    function isValidStudyLog(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.date is string
+        && data.date.size() <= 20
+        && data.subjectId is string
+        && data.subjectId.size() <= 128
+        && data.subjectName is string
+        && data.subjectName.size() <= 100
+        && data.durationMinutes is number
+        && data.durationMinutes >= 0
+        && data.timestamp is string;
+    }
+
+    function isValidStudyRoom(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.name is string
+        && data.name.size() <= 100
+        && data.category is string
+        && data.category.size() <= 100
+        && data.description is string
+        && data.description.size() <= 500
+        && (data.creatorId == null || (data.creatorId is string && data.creatorId.size() <= 128))
+        && (data.icon == null || (data.icon is string && data.icon.size() <= 100))
+        && (data.currentUsersCount == null || (data.currentUsersCount is number && data.currentUsersCount >= 0));
+    }
+
+    function isValidRoomMember(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.name is string
+        && data.name.size() <= 100
+        && data.avatarSeed is string
+        && data.avatarSeed.size() <= 100
+        && data.isStudying is bool
+        && data.activeSubjectName is string
+        && data.activeSubjectName.size() <= 100
+        && data.studyDurationTodayMinutes is number
+        && data.studyDurationTodayMinutes >= 0
+        && data.activeSeconds is number
+        && data.activeSeconds >= 0
+        && (data.updatedAt == null || data.updatedAt is string);
+    }
+
+    function isValidRoomChat(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.userId is string
+        && data.userId.size() <= 128
+        && data.userName is string
+        && data.userName.size() <= 100
+        && data.text is string
+        && data.text.size() <= 500
+        && (data.userAvatarSeed == null || (data.userAvatarSeed is string && data.userAvatarSeed.size() <= 100))
+        && (data.timestamp == null || data.timestamp is string);
+    }
+
+    // 2. Collection matches for Users and Subcollections
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isEmailVerified() && isValidUser(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data, userId)
+                    && request.resource.data.userId == resource.data.userId; // Immutable User ID
+      allow delete: if isOwner(userId);
+
+      // Subcollection matches
+      match /subjects/{subjectId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(subjectId) && isValidSubject(request.resource.data);
+        allow update: if isOwner(userId) && isValidSubject(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Subject ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /tasks/{taskId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(taskId) && isValidTask(request.resource.data);
+        allow update: if isOwner(userId) && isValidTask(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Task ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /studyLogs/{logId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidStudyLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidStudyLog(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Log ID
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // 3. Collection matches for Study Rooms, Members and chats (YPT Multi-user features)
+    match /studyRooms/{roomId} {
+      allow list, get: if true; // Public study lobbies can be browsed by all clients
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(roomId) && isValidStudyRoom(request.resource.data);
+      allow update: if isSignedIn() && isValidStudyRoom(request.resource.data);
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow list, get: if isSignedIn();
+        allow create: if isSignedIn() && request.auth.uid == memberId && isValidId(memberId) && isValidRoomMember(request.resource.data);
+        allow update: if isSignedIn() && request.auth.uid == memberId && isValidRoomMember(request.resource.data);
+        allow delete: if isSignedIn() && request.auth.uid == memberId;
+      }
+
+      match /chats/{chatId} {
+        allow list, get: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidId(chatId) && isValidRoomChat(request.resource.data);
+        allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      }
+    }
+  }
+}
