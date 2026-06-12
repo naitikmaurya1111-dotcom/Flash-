@@ -9,6 +9,7 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "dailyTargetMinutes": { "type": "integer" },
+        "xp": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -53,6 +54,49 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "date", "subjectId", "subjectName", "durationMinutes", "timestamp"]
+    },
+    "GiftReward": {
+      "title": "GiftReward",
+      "description": "A motivational self-reward item purchasable by user's study XP",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "costXp": { "type": "integer" },
+        "purchaseUrl": { "type": "string" },
+        "category": { "type": "string", "enum": ["Tech Gadget", "Desk Setup", "Daily Treats", "Books & Supplies", "Custom Reward"] },
+        "isUnlocked": { "type": "boolean" },
+        "isClaimed": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "costXp", "purchaseUrl", "category", "isUnlocked", "isClaimed", "createdAt"]
+    },
+    "QuestChallenge": {
+      "title": "QuestChallenge",
+      "description": "Accountability study quests that award extra progress XP",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "condition": { "type": "string" },
+        "xpReward": { "type": "integer" },
+        "isCompleted": { "type": "boolean" },
+        "category": { "type": "string", "enum": ["daily", "weekly", "milestone"] }
+      },
+      "required": ["id", "title", "condition", "xpReward", "isCompleted", "category"]
+    },
+    "XpGainLog": {
+      "title": "XpGainLog",
+      "description": "History logs tracking visual points of XP milestones",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reason": { "type": "string" },
+        "amount": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "reason", "amount", "timestamp"]
     },
     "StudyRoom": {
       "title": "StudyRoom",
@@ -116,6 +160,18 @@
     "/users/{userId}/studyLogs/{logId}": {
       "schema": "StudyLog",
       "description": "Daily study history logs"
+    },
+    "/users/{userId}/rewards/{rewardId}": {
+      "schema": "GiftReward",
+      "description": "Self-rewards goals tracked per student user"
+    },
+    "/users/{userId}/quests/{questId}": {
+      "schema": "QuestChallenge",
+      "description": "Daily/weekly accountability quests synced in real time"
+    },
+    "/users/{userId}/xpLogs/{logId}": {
+      "schema": "XpGainLog",
+      "description": "Detailed XP log transaction records of study sessions"
     },
     "/studyRooms/{roomId}": {
       "schema": "StudyRoom",

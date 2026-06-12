@@ -77,6 +77,43 @@ service cloud.firestore {
         && data.timestamp is string;
     }
 
+    function isValidGiftReward(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.title is string
+        && data.title.size() <= 200
+        && data.costXp is number
+        && data.costXp >= 0
+        && data.purchaseUrl is string
+        && data.category is string
+        && data.isUnlocked is bool
+        && data.isClaimed is bool
+        && (data.notes == null || (data.notes is string && data.notes.size() <= 1000))
+        && data.createdAt is string;
+    }
+
+    function isValidQuestChallenge(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.title is string
+        && data.title.size() <= 200
+        && data.condition is string
+        && data.xpReward is number
+        && data.xpReward >= 0
+        && data.isCompleted is bool
+        && data.category is string;
+    }
+
+    function isValidXpGainLog(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.reason is string
+        && data.reason.size() <= 300
+        && data.amount is number
+        && data.amount >= 0
+        && data.timestamp is string;
+    }
+
     function isValidStudyRoom(data) {
       return data.id is string
         && data.id.size() <= 128
@@ -150,6 +187,30 @@ service cloud.firestore {
         allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidStudyLog(request.resource.data);
         allow update: if isOwner(userId) && isValidStudyLog(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Log ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /rewards/{rewardId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(rewardId) && isValidGiftReward(request.resource.data);
+        allow update: if isOwner(userId) && isValidGiftReward(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Reward ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /quests/{questId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(questId) && isValidQuestChallenge(request.resource.data);
+        allow update: if isOwner(userId) && isValidQuestChallenge(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Quest ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /xpLogs/{logId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidXpGainLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidXpGainLog(request.resource.data)
                       && request.resource.data.id == resource.data.id; // Immutable Log ID
         allow delete: if isOwner(userId);
       }

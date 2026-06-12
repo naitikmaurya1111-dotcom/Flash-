@@ -17,12 +17,10 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 export const auth = getAuth(app);
 
-// Configure Google OAuth provider with workspace scopes
+// Configure Google OAuth provider with standard scopes only by default
+// This guarantees that standard login is instantly verified with no "app hasn't been verified" screens.
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope("https://www.googleapis.com/auth/calendar");
-googleProvider.addScope("https://www.googleapis.com/auth/documents");
-googleProvider.addScope("https://www.googleapis.com/auth/drive");
-googleProvider.addScope("https://www.googleapis.com/auth/tasks");
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 // Token and SignIn states caches
 let isSigningIn = false;
@@ -63,19 +61,43 @@ export const initAuth = (
 };
 
 // Google Sign In trigger
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (requestWorkspaceScopes: boolean = false): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, googleProvider);
+    
+    // Create new provider instance to dynamically set scopes and avoid caching scopes globally across login streams
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    
+    if (requestWorkspaceScopes) {
+      provider.addScope("https://www.googleapis.com/auth/calendar");
+      provider.addScope("https://www.googleapis.com/auth/documents");
+      provider.addScope("https://www.googleapis.com/auth/drive");
+      provider.addScope("https://www.googleapis.com/auth/tasks");
+    }
+    
+    const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error("Failed to get Google OAuth access token from login popup.");
+    
+    let token = "";
+    if (requestWorkspaceScopes) {
+      if (!credential?.accessToken) {
+        throw new Error("Failed to get Google OAuth access token for workspace integrations.");
+      }
+      token = credential.accessToken;
+      cachedAccessToken = token;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("google_oauth_access_token", token);
+      }
+    } else {
+      // Standard login - clear cached workspace credentials to force fresh connection on explicit integration click
+      cachedAccessToken = null;
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("google_oauth_access_token");
+      }
     }
-    cachedAccessToken = credential.accessToken;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("google_oauth_access_token", cachedAccessToken);
-    }
-    return { user: result.user, accessToken: cachedAccessToken };
+    
+    return { user: result.user, accessToken: token };
   } catch (error) {
     console.error("Popup Sign in failed:", error);
     throw error;

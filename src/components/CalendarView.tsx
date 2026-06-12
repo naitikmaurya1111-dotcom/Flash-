@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { Filter, Calendar, Sparkles, AlertCircle, ChevronLeft, ChevronRight, Check } from "lucide-react";
-import { StudyLog } from "../types";
+import React, { useState } from "react";
+import { Filter, Calendar, Sparkles, AlertCircle, ChevronLeft, ChevronRight, Check, X, Plus, Clock } from "lucide-react";
+import { StudyLog, Subject } from "../types";
 
 interface CalendarViewProps {
   studyLogs: StudyLog[];
+  subjects?: Subject[];
+  onAddStudyMinutes?: (subjectId: string, minutes: number, customDate?: string) => Promise<void>;
 }
 
 interface CalendarEventItem {
@@ -13,11 +15,17 @@ interface CalendarEventItem {
   color: string; // Tailwind class
 }
 
-export default function CalendarView({ studyLogs }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date("2026-05-20")); // Lock date to match user mockup matching May 2026
+export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes }: CalendarViewProps) {
+  const [currentDate, setCurrentDate] = useState(() => new Date()); // Dynamic current date to support current month (June)
   const [selectedLogsDate, setSelectedLogsDate] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "high" | "low">("all");
+
+  // Form states for adding manual backdated study hours
+  const [submittingLog, setSubmittingLog] = useState(false);
+  const [manualSubjectId, setManualSubjectId] = useState(subjects[0]?.id || "");
+  const [manualMinutes, setManualMinutes] = useState(45);
+  const [logSuccessText, setLogSuccessText] = useState<string | null>(null);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -27,21 +35,20 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
   // Hardcoded mockup holidays / other YPT events from the user images:
   // Buddha Purnima on Fri 1st, Birthday of Rabindranath, Google I/O event, etc.
   const presetEvents: CalendarEventItem[] = [
-    { id: "e1-1", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e1-2", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e1-3", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e1-4", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e9-1", day: 9, title: "Birthday of Rabindranath", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e9-2", day: 9, title: "Birthday of Rabindranath", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e9-3", day: 9, title: "Birthday of Rabindranath", color: "bg-[#181818]/80 text-[#1abb9c] font-medium" },
-    { id: "e9-4", day: 9, title: "Birthday of Rabindranath", color: "bg-emerald-950/40 text-[#16a085] font-medium" },
-    { id: "e11-1", day: 11, title: "Study only maths lecture 4", color: "bg-slate-800 text-slate-300" },
-    { id: "e19-1", day: 19, title: "Google I/O event", color: "bg-cyan-950/50 text-cyan-400 font-bold" },
-    { id: "e20-1", day: 20, title: "Diary 📓 Fill", color: "bg-slate-800 text-slate-300" },
-    { id: "e27-1", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e27-2", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e27-3", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
-    { id: "e27-4", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-400 font-medium" },
+    { id: "e1-1", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e1-2", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e1-3", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e1-4", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e9-1", day: 9, title: "Birthday of Rabindranath", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e9-2", day: 9, title: "Birthday of Rabindranath", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e9-3", day: 9, title: "Birthday of Rabindranath", color: "bg-slate-100 dark:bg-[#181818]/80 text-[#1abb9c] font-medium" },
+    { id: "e11-1", day: 11, title: "Study only maths lecture 4", color: "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
+    { id: "e19-1", day: 19, title: "Google I/O event", color: "bg-cyan-100 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-400 font-bold" },
+    { id: "e20-1", day: 20, title: "Diary 📓 Fill", color: "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
+    { id: "e27-1", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e27-2", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e27-3", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
+    { id: "e27-4", day: 27, title: "Bakrid (tentative)", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
   ];
 
   // Hardcoded mockup study block label records to populate the calendar (matching user mockups)
@@ -102,33 +109,74 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
     setCurrentDate(new Date(year, month + 1, 1));
   };
 
+  const handleOpenDayModal = (dateStr: string) => {
+    setSelectedLogsDate(dateStr);
+    setLogSuccessText(null);
+    // Auto-select first subject
+    if (subjects.length > 0 && !manualSubjectId) {
+      setManualSubjectId(subjects[0].id);
+    }
+  };
+
+  const submitManualStudyLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLogsDate || !onAddStudyMinutes) return;
+    const targetSubId = manualSubjectId || subjects[0]?.id;
+    if (!targetSubId) {
+      alert("Please create at least one Subject in the custom Planner or Study workspace tab first.");
+      return;
+    }
+    setSubmittingLog(true);
+    try {
+      await onAddStudyMinutes(targetSubId, manualMinutes, selectedLogsDate);
+      const chosenSubject = subjects.find(s => s.id === targetSubId);
+      setLogSuccessText(`Successfully logged ${manualMinutes}m in ${chosenSubject?.name || "Subject"} for ${selectedLogsDate}! You gained +${manualMinutes * 10} XP. 🚀`);
+      setTimeout(() => {
+        setLogSuccessText(null);
+      }, 5000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingLog(false);
+    }
+  };
+
   return (
-    <div className="relative text-white font-sans bg-[#0d0d0d] flex flex-col h-full rounded-3xl overflow-hidden border border-slate-900/50" id="ypt-calendar-canvas">
+    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-x3l rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="ypt-calendar-canvas">
       
       {/* Upper Month Header */}
-      <div className="flex items-center justify-between px-6 pt-5 pb-3">
-        <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white">{months[month]}</h2>
-        <div className="flex gap-2">
-          <button onClick={handlePrevMonth} className="p-1 px-2.5 rounded-lg bg-slate-800/40 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button onClick={handleNextMonth} className="p-1 px-2.5 rounded-lg bg-slate-800/40 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
-            <ChevronRight className="w-4 h-4" />
-          </button>
+      <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100 dark:border-slate-900/10">
+        <div className="flex items-center gap-2.5">
+          <Calendar className="w-5 h-5 text-[#f26419]" />
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            {months[month]} <span className="text-xs text-slate-400 dark:text-slate-500 font-mono font-normal">({year})</span>
+          </h2>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:block">Click any calendar cell to backdate or view logs!</p>
+          <div className="flex gap-1 bg-slate-100 dark:bg-[#151515] p-1 rounded-xl border border-slate-200 dark:border-slate-900">
+            <button onClick={handlePrevMonth} className="p-1 px-2 rounded-lg bg-white dark:bg-slate-800/20 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-colors cursor-pointer">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={handleNextMonth} className="p-1 px-2 rounded-lg bg-white dark:bg-slate-800/20 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-colors cursor-pointer">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Week Header Index Row */}
-      <div className="grid grid-cols-7 border-b border-slate-900/20 text-center py-2 bg-[#0d0d0d]">
+      <div className="grid grid-cols-7 border-b border-slate-150 dark:border-slate-900/20 text-center py-2 bg-slate-50 dark:bg-[#090909]">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((dayName) => (
-          <div key={dayName} className="text-xs font-semibold text-slate-500 font-mono">
+          <div key={dayName} className="text-xs font-semibold text-slate-400 dark:text-slate-500 font-mono">
             {dayName}
           </div>
         ))}
       </div>
 
       {/* Calendar Grid Area */}
-      <div className="grid grid-cols-7 flex-1 border-b border-slate-900/20 min-h-[350px]">
+      <div className="grid grid-cols-7 flex-1 border-b border-slate-150 dark:border-slate-900/20 min-h-[380px]">
         {gridCells.map((cell, idx) => {
           const isCurrentMonth = cell.month === "current";
           
@@ -166,37 +214,48 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
           return (
             <div 
               key={idx} 
-              onClick={() => setSelectedLogsDate(cell.dateStr)}
-              className={`p-1.5 border-r border-b border-slate-900/20 flex flex-col items-stretch space-y-1 hover:bg-[#161616]/40 cursor-pointer min-h-[85px] transition-all relative ${
-                isCurrentMonth ? "text-slate-100" : "text-slate-650 opacity-30"
+              onClick={() => handleOpenDayModal(cell.dateStr)}
+              className={`p-1.5 border-r border-b border-slate-150 dark:border-slate-900/25 flex flex-col items-stretch space-y-1 hover:bg-slate-100/70 dark:hover:bg-[#151515]/80 cursor-pointer min-h-[90px] transition-all relative ${
+                isCurrentMonth ? "text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0d0d0d]" : "text-slate-300 dark:text-slate-700 bg-slate-50/50 dark:bg-black/40 opacity-40"
               }`}
             >
               {/* Day Number Header */}
               <div className="flex justify-between items-center px-1">
                 {isSpecialDay ? (
-                  <span className="w-5 h-5 rounded-full bg-white text-slate-950 font-black text-[10px] flex items-center justify-center font-mono leading-none shadow-sm">
+                  <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-black text-[10px] flex items-center justify-center font-mono leading-none shadow-sm">
                     {cell.day}
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono font-bold">{cell.day}</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-405 dark:text-slate-500">{cell.day}</span>
                 )}
 
                 {/* Study block pills (e.g., 2:45, 0:56) */}
                 {(customStudyLabel || activeHoursMins) && (
-                  <span className={`text-[9.5px] font-mono leading-none px-1.5 py-0.5 rounded-sm ${
-                    customStudyLabel === "0:56" ? "bg-amber-600/35 text-amber-300 font-bold" : "bg-slate-800/80 text-slate-350"
+                  <span className={`text-[9px] font-mono leading-none px-1 py-0.5 rounded-sm font-bold ${
+                    activeHoursMins 
+                      ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50" 
+                      : customStudyLabel === "0:56" 
+                        ? "bg-amber-100 dark:bg-amber-650/35 text-amber-700 dark:text-amber-300 font-bold" 
+                        : "bg-slate-100 dark:bg-slate-800/80 text-emerald-600 dark:text-emerald-400 font-bold"
                   }`}>
-                    {customStudyLabel || formatTotalStudyShort(matchedTotalMinutes)}
+                    {activeHoursMins ? formatTotalStudyShort(matchedTotalMinutes) : customStudyLabel}
                   </span>
                 )}
               </div>
 
               {/* Day plot events stack */}
               <div className="flex-1 overflow-y-auto no-scrollbar space-y-0.5">
-                {dayEvents.slice(0, 4).map((evt) => (
+                {/* Dynamically added study logs as tiny tags */}
+                {dateLogs.map((lg) => (
+                  <div key={lg.id} className="text-[8px] bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-slate-350 border border-indigo-100 dark:border-indigo-900/20 rounded px-1 text-left truncate">
+                    ⏱️ {lg.subjectName} ({lg.durationMinutes}m)
+                  </div>
+                ))}
+                
+                {dayEvents.slice(0, 3).map((evt) => (
                   <div 
                     key={evt.id} 
-                    className={`text-[8.5px] truncate px-1 py-0.5 rounded-xs leading-tight w-full font-bold select-none tracking-tight ${evt.color}`}
+                    className={`text-[8.5px] truncate px-1 py-0.5 rounded leading-tight w-full font-bold select-none tracking-tight ${evt.color}`}
                   >
                     {evt.title}
                   </div>
@@ -208,22 +267,177 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
       </div>
 
       {/* Companion Filter Button inside bottom-right */}
-      <div className="absolute bottom-[20px] right-[24px] z-30">
+      <div className="absolute bottom-[20px] right-[24px] z-20">
         <button
           onClick={() => setShowFilterModal(true)}
-          className="w-13 h-13 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer cursor-and-touch"
+          className="w-13 h-13 rounded-full bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-850 flex items-center justify-center text-slate-800 dark:text-white hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer cursor-and-touch"
           title="Filter Calendar Plots"
         >
-          <Filter className="w-5 h-5 text-slate-200" />
+          <Filter className="w-5 h-5 text-slate-600 dark:text-slate-200" />
         </button>
       </div>
 
+      {/* Dynamic Drawer / Dialog Overlay for selected date */}
+      {selectedLogsDate && (
+        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-30 animate-fade-in">
+          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-900 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl relative text-slate-850 dark:text-slate-100">
+            
+            {/* Header */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900 flex justify-between items-center">
+              <div>
+                <p className="text-[10px] uppercase font-mono tracking-wider text-indigo-500 dark:text-indigo-400 font-bold">Study Insights & Manual log</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
+                  <Calendar className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                  Logs for {new Date(selectedLogsDate + "T00:00:00").toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </h4>
+              </div>
+              <button 
+                onClick={() => setSelectedLogsDate(null)}
+                className="p-1 px-2.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Inner scrollable area */}
+            <div className="p-6 overflow-y-auto no-scrollbar space-y-6">
+
+              {/* Success Notification */}
+              {logSuccessText && (
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs py-3 px-4 rounded-xl border border-emerald-200 dark:border-emerald-900/40 flex items-center gap-2 animate-pulse">
+                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <p>{logSuccessText}</p>
+                </div>
+              )}
+
+              {/* 1. Mapped study logs list for this specific date */}
+              <div className="space-y-2.5 text-left">
+                <h5 className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Recorded Study Blocks ({studyLogs.filter(l => l.date === selectedLogsDate).length})</h5>
+                {studyLogs.filter(l => l.date === selectedLogsDate).length === 0 ? (
+                  <p className="text-slate-500 text-xs italic bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl text-center border border-slate-100 dark:border-transparent">
+                    No active study sessions logged for this calendar date. Set focus goals on the Dashboard tab to earn points, or backdate them manually!
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1 no-scrollbar">
+                    {studyLogs.filter(l => l.date === selectedLogsDate).map((log) => (
+                      <div key={log.id} className="p-2.5 bg-slate-50 dark:bg-slate-950/50 hover:bg-slate-100 dark:hover:bg-[#1a1a1a] border border-slate-150 dark:border-slate-900 rounded-xl flex justify-between items-center text-xs transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">{log.subjectName}</span>
+                        </div>
+                        <span className="font-mono text-slate-600 dark:text-slate-400 font-bold bg-white dark:bg-[#141414] px-2 py-0.5 rounded-md border border-slate-150 dark:border-slate-900">
+                          {log.durationMinutes} Minutes studied
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-slate-150 dark:border-slate-cd bg-slate-900"></div>
+
+              {/* 2. Manual backdating entry form */}
+              <form onSubmit={submitManualStudyLog} className="space-y-4 text-left">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5 text-[#f26419]" />
+                    Backdate Manual Study Work
+                  </h5>
+                  <span className="text-[9px] font-mono bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-300 rounded px-1.5 py-0.5">10 XP per minute</span>
+                </div>
+
+                {subjects.length === 0 ? (
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs text-yellow-500 dark:text-yellow-450 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <div>
+                      <p className="font-bold">No Subjects created yet</p>
+                      <p className="opacity-90">Please first add subject folders (e.g. "Maths", "Chemistry") in your Planner or Focus clock tab before creating backdated logs.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Subject dropdown selection */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">Target Subject</label>
+                      <select 
+                        required
+                        value={manualSubjectId}
+                        onChange={(e) => setManualSubjectId(e.target.value)}
+                        className="w-full text-xs p-3 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-900 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 focus:outline-none"
+                      >
+                        {subjects.map((sub) => (
+                          <option key={sub.id} value={sub.id} className="text-slate-800 dark:text-slate-205">
+                            📂 {sub.name} (Goal: {sub.goalMinutes % 60 === 0 ? `${sub.goalMinutes/60}h` : `${sub.goalMinutes}m`})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Study duration picker selection */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">Study Duration</label>
+                        <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">{manualMinutes} minutes</span>
+                      </div>
+                      
+                      <input 
+                        type="range" 
+                        min={5} 
+                        max={480} 
+                        step={5}
+                        value={manualMinutes}
+                        onChange={(e) => setManualMinutes(parseInt(e.target.value))}
+                        className="w-full justify-center text-indigo-500" 
+                      />
+
+                      <div className="flex justify-between gap-1 mt-1 font-mono">
+                        {[15, 30, 45, 60, 120, 180].map((mins) => (
+                          <button 
+                            key={mins}
+                            type="button"
+                            onClick={() => setManualMinutes(mins)}
+                            className={`flex-1 text-[10px] py-1 rounded bg-slate-50 dark:bg-slate-950 border hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-white cursor-pointer ${manualMinutes === mins ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 font-bold" : "border-slate-200 dark:border-slate-900 text-slate-450 dark:text-slate-500"}`}
+                          >
+                            {mins >= 60 ? `${mins/60}h` : `${mins}m`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action button */}
+                    <button
+                      type="submit"
+                      disabled={submittingLog}
+                      className="w-full bg-[#f26419] hover:bg-[#d6510d] disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex justify-center items-center gap-2 cursor-pointer cursor-and-touch transition-all shadow-lg active:scale-[0.98]"
+                    >
+                      {submittingLog ? "Writing study index..." : `Log Study Session & Claim +${manualMinutes * 10} XP!`}
+                    </button>
+                  </>
+                )}
+              </form>
+            </div>
+            
+            {/* Modal Footer block */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900 text-center">
+              <button 
+                onClick={() => setSelectedLogsDate(null)}
+                className="w-full bg-slate-200 hover:bg-slate-300 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-xl text-xs cursor-pointer border border-slate-300 dark:border-slate-900"
+              >
+                Done viewing
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Floating Filter dialog modal popup */}
       {showFilterModal && (
-        <div className="absolute inset-0 bg-[#0a0a0a]/85 backdrop-blur-sm flex items-center justify-center p-5 z-40 animate-fade-in">
-          <div className="bg-[#121212] border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-6 shadow-xl">
-            <h3 className="font-bold text-base text-slate-100 mb-3.5">Filter Logs</h3>
-            <p className="text-xs text-slate-400 mb-4 font-sans lead-relaxed">Filter the logs plotted inside the calendar days depending on active criteria:</p>
+        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-sm flex items-center justify-center p-5 z-40 animate-fade-in">
+          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-6 shadow-xl text-slate-805 dark:text-slate-200">
+            <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-3.5">Filter Logs</h3>
+            <p className="text-xs text-slate-450 dark:text-slate-400 mb-4 font-sans leading-relaxed">Filter the logs plotted inside the calendar days depending on active criteria:</p>
             
             <div className="space-y-2.5">
               {[
@@ -239,8 +453,8 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
                   }}
                   className={`w-full text-left px-4 py-3 rounded-xl border text-xs font-semibold flex items-center justify-between cursor-pointer transition-all ${
                     filterType === opt.id 
-                      ? "bg-slate-800 border-slate-700 text-white" 
-                      : "bg-[#181818] border-slate-900 text-slate-400 hover:bg-slate-800/50"
+                      ? "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold" 
+                      : "bg-slate-50 dark:bg-[#181818] border-slate-150 dark:border-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50"
                   }`}
                 >
                   <span>{opt.label}</span>
@@ -251,7 +465,7 @@ export default function CalendarView({ studyLogs }: CalendarViewProps) {
 
             <button
               onClick={() => setShowFilterModal(false)}
-              className="mt-5 bg-slate-900 border border-slate-800 hover:bg-slate-800 font-bold py-2.5 rounded-xl text-xs text-slate-300 cursor-pointer"
+              className="mt-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 font-bold py-2.5 rounded-xl text-xs text-slate-600 dark:text-slate-300 cursor-pointer"
             >
               Close Menu
             </button>

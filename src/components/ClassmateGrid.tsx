@@ -77,6 +77,9 @@ export default function ClassmateGrid({
   // 5. Search filtering state
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotification, setShowNotification] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [sandboxGuestName, setSandboxGuestName] = useState<string>(() => {
+    return localStorage.getItem("study_sandbox_guest_name") || "Pioneer Student";
+  });
 
   // Simulated AI bots for empty rooms to demonstrate YPT desk floors
   const [simulatedMates, setSimulatedMates] = useState<RoomMember[]>([
@@ -141,6 +144,25 @@ export default function ClassmateGrid({
   // Sync rooms directory in Real-time from Firestore
   useEffect(() => {
     setLoadingRooms(true);
+
+    const defaultFallbacks: StudyRoom[] = [
+      { id: "global-cafe", name: "Global Tech Cafe ✨", category: "STEM", description: "Learn computer science, math & algorithms synchronously with peers.", icon: "Coffee", currentUsersCount: 12 },
+      { id: "quiet-lib", name: "Virtual Main Library 📚", category: "Silent Reading", description: "Strictly quiet study desks. Perfect for exam revisions.", icon: "Library", currentUsersCount: 18 },
+      { id: "night-owls", name: "Night Owls Study Den 🌙", category: "Unisex", description: "Late-night grinding under gentle ambient moonbeams.", icon: "Moon", currentUsersCount: 6 }
+    ];
+
+    if (!currentUser) {
+      const savedSandboxRooms = localStorage.getItem("sandbox_study_rooms");
+      if (savedSandboxRooms) {
+        setRooms(JSON.parse(savedSandboxRooms));
+      } else {
+        setRooms(defaultFallbacks);
+        localStorage.setItem("sandbox_study_rooms", JSON.stringify(defaultFallbacks));
+      }
+      setLoadingRooms(false);
+      return;
+    }
+
     const roomsCol = collection(db, "studyRooms");
     
     // Subscribe to rooms snapshot
@@ -152,23 +174,15 @@ export default function ClassmateGrid({
 
       // Default backup rooms to seed directory if database is currently empty
       if (loaded.length === 0) {
-        const fallbacks: StudyRoom[] = [
-          { id: "global-cafe", name: "Global Tech Cafe ✨", category: "STEM", description: "Learn computer science, math & algorithms synchronously with peers.", icon: "Coffee", currentUsersCount: 12 },
-          { id: "quiet-lib", name: "Virtual Main Library 📚", category: "Silent Reading", description: "Strictly quiet study desks. Perfect for exam revisions.", icon: "Library", currentUsersCount: 18 },
-          { id: "night-owls", name: "Night Owls Study Den 🌙", category: "Unisex", description: "Late-night grinding under gentle ambient moonbeams.", icon: "Moon", currentUsersCount: 6 }
-        ];
-        
         // Write defaults to Firestore for multi-user sync on first boot if signed in
-        if (currentUser) {
-          fallbacks.forEach(async (f) => {
-            try {
-              await setDoc(doc(db, "studyRooms", f.id), f);
-            } catch (err) {
-              console.warn("Could not seed study room: ", f.id, err);
-            }
-          });
-        }
-        setRooms(fallbacks);
+        defaultFallbacks.forEach(async (f) => {
+          try {
+            await setDoc(doc(db, "studyRooms", f.id), f);
+          } catch (err) {
+            console.warn("Could not seed study room: ", f.id, err);
+          }
+        });
+        setRooms(defaultFallbacks);
       } else {
         setRooms(loaded);
       }
@@ -179,13 +193,42 @@ export default function ClassmateGrid({
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   // Sync joined Room Members block in Realwork snapshot
   useEffect(() => {
     if (!joinedRoomId) {
       setRoomMembers([]);
       setChats([]);
+      return;
+    }
+
+    if (!currentUser) {
+      // Local sandbox virtual guest join setup
+      const localGuest: RoomMember = {
+        id: "local-sandbox-guest-id",
+        name: sandboxGuestName,
+        avatarSeed: "bg-indigo-600",
+        isStudying,
+        activeSubjectName: isStudying ? activeSubjectName : "Resting",
+        studyDurationTodayMinutes: totalStudiedTodayMins,
+        activeSeconds,
+        updatedAt: new Date().toISOString()
+      };
+      setRoomMembers([localGuest]);
+
+      const localKeyChats = `sandbox_chat_room_${joinedRoomId}`;
+      const savedChats = localStorage.getItem(localKeyChats);
+      setChats(savedChats ? JSON.parse(savedChats) : [
+        {
+          id: "welcome-chat",
+          userId: "bot-1",
+          userName: "Jun-Woo Kim",
+          userAvatarSeed: "bg-teal-500",
+          text: `Welcome to the multi-study desk! Let's hit our focus targets today. 💪`,
+          timestamp: new Date(Date.now() - 60000).toISOString()
+        }
+      ]);
       return;
     }
 
@@ -218,11 +261,29 @@ export default function ClassmateGrid({
       unsubscribeMembers();
       unsubscribeChats();
     };
-  }, [joinedRoomId]);
+  }, [joinedRoomId, currentUser, sandboxGuestName]);
 
   // Synchronize dynamic ticking active stopwatch elements when isStudying or values update
   useEffect(() => {
-    if (!currentUser || !joinedRoomId) return;
+    if (!joinedRoomId) return;
+
+    if (!currentUser) {
+      setRoomMembers(prev => prev.map(m => {
+        if (m.id === "local-sandbox-guest-id") {
+          return {
+            ...m,
+            name: sandboxGuestName,
+            isStudying,
+            activeSubjectName: isStudying ? activeSubjectName : "Resting",
+            studyDurationTodayMinutes: totalStudiedTodayMins,
+            activeSeconds,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return m;
+      }));
+      return;
+    }
 
     const syncOurStatusToRoom = async () => {
       const myRef = doc(db, "studyRooms", joinedRoomId, "members", currentUser.uid);
@@ -247,15 +308,10 @@ export default function ClassmateGrid({
     // Debounce status synchronization or run on tick
     syncOurStatusToRoom();
 
-  }, [currentUser, joinedRoomId, isStudying, activeSeconds, activeSubjectName, totalStudiedTodayMins]);
+  }, [currentUser, joinedRoomId, isStudying, activeSeconds, activeSubjectName, totalStudiedTodayMins, sandboxGuestName]);
 
   // Join selected study room
   const handleJoinRoom = async (roomId: string) => {
-    if (!currentUser) {
-      triggerNotify("Please log in with Google Auth on top or main page to unlock online multiplayer desks!", "error");
-      return;
-    }
-
     try {
       // 1. If currently inside previous room, remove our desk first
       if (joinedRoomId) {
@@ -264,6 +320,12 @@ export default function ClassmateGrid({
 
       // 2. Set active state
       setJoinedRoomId(roomId);
+
+      if (!currentUser) {
+        // sandbox guest join
+        triggerNotify(`Welcome to sandbox study desk! Enjoy co-studying at desk floor!`);
+        return;
+      }
 
       // 3. Increment room count safely
       const roomRef = doc(db, "studyRooms", roomId);
@@ -298,10 +360,19 @@ export default function ClassmateGrid({
 
   // Leave active study room
   const handleLeaveRoom = async (triggerNotification = true) => {
-    if (!currentUser || !joinedRoomId) return;
+    if (!joinedRoomId) return;
 
     const roomIdToLeave = joinedRoomId;
     setJoinedRoomId(null);
+
+    if (!currentUser) {
+      setRoomMembers([]);
+      setChats([]);
+      if (triggerNotification) {
+        triggerNotify("Returned back to private focus cabin.");
+      }
+      return;
+    }
 
     try {
       // 1. Delete member document
@@ -328,16 +399,56 @@ export default function ClassmateGrid({
   // Post live motivation chat to the room board
   const handleSendChatMsg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !joinedRoomId || !newMessage.trim()) return;
+    if (!joinedRoomId || !newMessage.trim()) return;
+
+    const myName = currentUser ? (currentUser.displayName || currentUser.email || "Anonymous Student") : sandboxGuestName;
+    const mySeed = currentUser ? getAvatarSeed(currentUser.email) : "bg-indigo-600";
+    const myId = currentUser ? currentUser.uid : "local-sandbox-guest-id";
 
     const msgPayload: RoomChat = {
       id: `chat-${Date.now()}`,
-      userId: currentUser.uid,
-      userName: currentUser.displayName || currentUser.email || "Anonymous Student",
-      userAvatarSeed: getAvatarSeed(currentUser.email),
+      userId: myId,
+      userName: myName,
+      userAvatarSeed: mySeed,
       text: newMessage.trim(),
       timestamp: new Date().toISOString()
     };
+
+    if (!currentUser) {
+      const nextChats = [...chats, msgPayload];
+      setChats(nextChats);
+      const localKeyChats = `sandbox_chat_room_${joinedRoomId}`;
+      localStorage.setItem(localKeyChats, JSON.stringify(nextChats));
+      setNewMessage("");
+
+      // Trigger interactive classmate bot reply simulation
+      setTimeout(() => {
+        const activeBots = simulatedMates.filter(b => b.isStudying);
+        if (activeBots.length === 0) return;
+        const randomBot = activeBots[Math.floor(Math.random() * activeBots.length)];
+        const comments = [
+          "Nice focus! Keep grinding!",
+          "Let's put in another solid Pomodoro round.",
+          "Awesome work. Consistency is everything.",
+          "We got this, stay in the zone!",
+          "Yes! Checking off study items is so rewarding today."
+        ];
+        const botReply: RoomChat = {
+          id: `chat-bot-${Date.now()}`,
+          userId: randomBot.id,
+          userName: randomBot.name,
+          userAvatarSeed: randomBot.avatarSeed,
+          text: comments[Math.floor(Math.random() * comments.length)],
+          timestamp: new Date().toISOString()
+        };
+        setChats(curr => {
+          const loaded = [...curr, botReply];
+          localStorage.setItem(localKeyChats, JSON.stringify(loaded));
+          return loaded;
+        });
+      }, 1000);
+      return;
+    }
 
     try {
       await setDoc(doc(db, "studyRooms", joinedRoomId, "chats", msgPayload.id), msgPayload);
@@ -351,10 +462,6 @@ export default function ClassmateGrid({
   // Create a brand new customized study group like YPT style
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) {
-      triggerNotify("Please log in first to host a study room!", "error");
-      return;
-    }
     if (!newRoomName.trim() || !newRoomDesc.trim()) {
       triggerNotify("Please supply room name and target theme description.", "error");
       return;
@@ -367,9 +474,26 @@ export default function ClassmateGrid({
       category: newRoomCategory,
       description: newRoomDesc.trim(),
       icon: newRoomIcon,
-      currentUsersCount: 0,
-      creatorId: currentUser.uid
+      currentUsersCount: 1,
+      creatorId: currentUser ? currentUser.uid : "local-sandbox-guest-id"
     };
+
+    if (!currentUser) {
+      const savedSandboxRooms = localStorage.getItem("sandbox_study_rooms");
+      const currentRooms = savedSandboxRooms ? JSON.parse(savedSandboxRooms) : rooms;
+      const updatedRooms = [...currentRooms, newRoom];
+      setRooms(updatedRooms);
+      localStorage.setItem("sandbox_study_rooms", JSON.stringify(updatedRooms));
+
+      setNewRoomName("");
+      setNewRoomDesc("");
+      setIsCreateOpen(false);
+
+      // Join the newly hosted room
+      setJoinedRoomId(newId);
+      triggerNotify(`Congratulations! Room "${newRoomName}" is created in your guest workspace!`);
+      return;
+    }
 
     try {
       await setDoc(doc(db, "studyRooms", newId), newRoom);
@@ -449,6 +573,32 @@ export default function ClassmateGrid({
       {/* 1. Browse Rooms Carousel & Create Control */}
       {!joinedRoomId && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800 space-y-4">
+          
+          {/* Mock guest Identity Banner if not authenticated */}
+          {!currentUser && (
+            <div className="p-4 bg-indigo-500/10 border border-indigo-500/15 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left">
+              <div className="flex items-center gap-3">
+                <span className="shrink-0 text-xl bg-indigo-500/10 p-2.5 rounded-xl">🎓</span>
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-xs text-indigo-900 dark:text-indigo-400">Sandbox Student Card Issued</p>
+                  <p className="text-[11px] text-slate-500">Edit your card's custom nickname to join desk floors and interact with classmate bots below!</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text"
+                  value={sandboxGuestName}
+                  onChange={(e) => {
+                    const nextVal = e.target.value.substring(0, 18);
+                    setSandboxGuestName(nextVal);
+                    localStorage.setItem("study_sandbox_guest_name", nextVal);
+                  }}
+                  className="bg-white dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800 text-xs px-3 py-1.5 rounded-xl font-medium w-full sm:max-w-[155px]"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-600 text-white rounded-2xl shadow-sm">

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { 
   BarChart2, Trophy, Clock, ShieldCheck, Dumbbell, BookOpen, Music, 
   Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, 
-  Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell
+  Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
+  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight
 } from "lucide-react";
 
 interface FeatureSidebarProps {
@@ -36,6 +37,18 @@ export default function FeatureSidebar({
   };
   
   // Audio state
+  interface CustomTrack {
+    name: string;
+    url: string;
+    isCustom?: boolean;
+  }
+
+  const [customTracks, setCustomTracks] = useState<CustomTrack[]>([]);
+  const [trackCurrentTime, setTrackCurrentTime] = useState(0);
+  const [trackDuration, setTrackDuration] = useState(0);
+  const [audioVolume, setAudioVolume] = useState(0.8);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const [currentTracksIdx, setCurrentTracksIdx] = useState(0);
   const [isPlayingAud, setIsPlayingAud] = useState(false);
   const [allowedApps, setAllowedApps] = useState([
@@ -52,7 +65,147 @@ export default function FeatureSidebar({
     { name: "Cozy Study Waves", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }
   ];
 
-  if (!isOpen) return null;
+  const playlist = [...soundPresets, ...customTracks];
+
+  // Sync volume
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = audioVolume;
+    }
+  }, [audioVolume]);
+
+  // Load and play track
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+
+    const audio = audioRef.current;
+    const currentTrack = playlist[currentTracksIdx];
+
+    if (currentTrack) {
+      // Create comparison URL that works with browser href mapping
+      const isSameSource = audio.src === currentTrack.url || audio.src.endsWith(currentTrack.url);
+      if (!isSameSource) {
+        audio.src = currentTrack.url;
+        audio.load();
+      }
+
+      if (isPlayingAud) {
+        audio.play().catch((err) => {
+          console.warn("Audio play blocked by browser:", err);
+          setIsPlayingAud(false);
+        });
+      } else {
+        audio.pause();
+      }
+    } else {
+      audio.pause();
+      setIsPlayingAud(false);
+    }
+  }, [currentTracksIdx, isPlayingAud, customTracks]);
+
+  // Sync progress and handle metadata
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => {
+      setTrackCurrentTime(audio.currentTime);
+    };
+
+    const onLoadedMetadata = () => {
+      setTrackDuration(audio.duration || 0);
+    };
+
+    const onEnded = () => {
+      if (playlist.length > 0) {
+        setCurrentTracksIdx((prev) => (prev + 1) % playlist.length);
+      } else {
+        setIsPlayingAud(false);
+      }
+    };
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("ended", onEnded);
+
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, [playlist.length]);
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const loaded: CustomTrack[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith("audio/") || file.name.endsWith(".mp3") || file.name.endsWith(".flac") || file.name.endsWith(".wav") || file.name.endsWith(".m4a") || file.name.endsWith(".aac")) {
+        const url = URL.createObjectURL(file);
+        loaded.push({
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          url,
+          isCustom: true
+        });
+      }
+    }
+
+    if (loaded.length > 0) {
+      setCustomTracks((prev) => {
+        const nextCustom = [...prev, ...loaded];
+        triggerStatus(`Successfully loaded ${loaded.length} private audio tracks!`);
+        return nextCustom;
+      });
+    } else {
+      triggerStatus("No valid audio files found.");
+    }
+  };
+
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const loaded: CustomTrack[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const url = URL.createObjectURL(file);
+      loaded.push({
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        url,
+        isCustom: true
+      });
+    }
+
+    setCustomTracks((prev) => {
+      const nextCustom = [...prev, ...loaded];
+      triggerStatus(`Successfully loaded ${loaded.length} private audio tracks!`);
+      return nextCustom;
+    });
+  };
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return "00:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
 
   const handleSubViewSelect = (viewName: string) => {
     setActiveSubView(viewName);
@@ -64,7 +217,9 @@ export default function FeatureSidebar({
   };
 
   return (
-    <div className="absolute right-0 top-16 bottom-0 w-full sm:w-[380px] bg-white/80 dark:bg-[#121212]/80 backdrop-blur-xl border-l border-slate-200/50 dark:border-slate-900/60 z-50 flex flex-col hover:shadow-2xl animate-slide-in justify-between shadow-2xl overflow-y-auto no-scrollbar sm:rounded-l-3xl p-6 text-slate-800 dark:text-slate-100">
+    <div className={`fixed sm:absolute right-0 top-16 bottom-0 w-full sm:w-[380px] bg-white/80 dark:bg-[#121212]/85 backdrop-blur-xl border-l border-slate-250 dark:border-slate-800/85 z-50 flex flex-col hover:shadow-2xl justify-between shadow-2xl overflow-y-auto no-scrollbar sm:rounded-l-3xl p-6 text-slate-800 dark:text-slate-100 transition-all duration-300 ease-in-out ${
+      isOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
+    }`}>
       
       {activeSubView === null ? (
         <div className="space-y-6">
@@ -200,11 +355,11 @@ export default function FeatureSidebar({
               </button>
 
               <button 
-                onClick={() => handleSubViewSelect("store")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                onClick={() => handleActionClick("rewards")}
+                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-[#f26419]/25 hover:border-[#f26419]"
               >
-                <Store className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-                <span className="text-xs font-semibold">Stickers Store</span>
+                <Trophy className="w-4 h-4 text-[#f26419] animate-pulse" />
+                <span className="text-xs font-black">Wishlist Store</span>
               </button>
             </div>
           </div>
@@ -290,62 +445,233 @@ export default function FeatureSidebar({
 
             {/* Sub-view: Lofi Music Player */}
             {activeSubView === "music" && (
-              <div className="space-y-5">
+              <div className="space-y-4" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 <div className="text-center">
-                  <Music className="w-12 h-12 text-[#f26419] mx-auto animate-pulse mb-2" />
-                  <h4 className="font-bold text-sm text-slate-100">Study Sound Player</h4>
-                  <p className="text-[10px] text-slate-500">Relaxing background tracks for deep focus sessions</p>
+                  <Music className="w-10 h-10 text-[#f26419] mx-auto animate-pulse mb-1.5" />
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Acoustic Study Player</h4>
+                  <p className="text-[10px] text-slate-500">Play local high-quality FLAC, MP3 files securely</p>
                 </div>
 
-                <div className="bg-[#171717] rounded-2xl p-4 border border-slate-800/80 space-y-3.5">
-                  <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl">
-                    <span className="text-xs truncate font-bold">{soundPresets[currentTracksIdx].name}</span>
-                    <span className="text-[9px] bg-indigo-505/25 text-[#f26419] px-2 py-0.5 rounded-md uppercase font-black">lo-fi</span>
-                  </div>
+                {/* Current Track Display Card */}
+                {playlist[currentTracksIdx] ? (
+                  <div className="bg-slate-50 dark:bg-[#161616] rounded-2xl p-4 border border-slate-200 dark:border-slate-800/60 space-y-3">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-[10px] uppercase tracking-widest font-mono text-slate-450">
+                          {playlist[currentTracksIdx].isCustom ? "My Private Track" : "Lofi Preset"}
+                        </p>
+                        <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5" title={playlist[currentTracksIdx].name}>
+                          {playlist[currentTracksIdx].name}
+                        </h5>
+                      </div>
+                      <span className="text-[9px] bg-[#f26419]/10 text-[#f26419] px-2 py-0.5 rounded uppercase font-black shrink-0">
+                        {playlist[currentTracksIdx].isCustom ? "Imported" : "Lofi"}
+                      </span>
+                    </div>
 
-                  <div className="flex justify-center gap-4 py-1.5">
-                    <button 
-                      onClick={() => setCurrentTracksIdx(prev => (prev - 1 + soundPresets.length) % soundPresets.length)}
-                      className="p-2 hover:bg-slate-800 rounded-full text-slate-300 cursor-pointer"
-                    >
-                      ⏮
-                    </button>
-                    <button 
-                      onClick={() => setIsPlayingAud(!isPlayingAud)}
-                      className="p-3 bg-[#f26419] w-12 h-12 flex items-center justify-center rounded-full text-white cursor-pointer hover:scale-105"
-                    >
-                      {isPlayingAud ? "⏸" : "▶"}
-                    </button>
-                    <button 
-                      onClick={() => setCurrentTracksIdx(prev => (prev + 1) % soundPresets.length)}
-                      className="p-2 hover:bg-slate-800 rounded-full text-slate-300 cursor-pointer"
-                    >
-                      ⏭
-                    </button>
-                  </div>
-                </div>
+                    {/* Animated Equalizer Waves */}
+                    {isPlayingAud && (
+                      <div className="flex items-end justify-center gap-1 h-6 py-0.5">
+                        <div className="w-1 bg-[#f26419] rounded-full animate-[bounce_0.8s_infinite_0.1s] h-3"></div>
+                        <div className="w-1 bg-[#f26419] rounded-full animate-[bounce_0.6s_infinite_0.3s] h-5"></div>
+                        <div className="w-1 bg-[#f26419] rounded-full animate-[bounce_0.9s_infinite_0.2s] h-2"></div>
+                        <div className="w-1 bg-[#f26419] rounded-full animate-[bounce_0.7s_infinite_0.4s] h-4"></div>
+                        <div className="w-1 bg-[#f26419] rounded-full animate-[bounce_0.5s_infinite_0.1s] h-3"></div>
+                      </div>
+                    )}
 
-                {isPlayingAud && (
-                  <div className="flex items-center gap-2 bg-rose-500/10 border border-current text-rose-300 p-2.5 rounded-xl text-[10.5px]">
-                    <span className="animate-ping block w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                    <p>Playing local browser music stream securely</p>
+                    {/* Progress slider and labels */}
+                    <div className="space-y-1">
+                      <input 
+                        type="range"
+                        min="0"
+                        max={trackDuration || 100}
+                        value={trackCurrentTime}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (audioRef.current) {
+                            audioRef.current.currentTime = val;
+                            setTrackCurrentTime(val);
+                          }
+                        }}
+                        className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                        style={{ accentColor: "#f26419" }}
+                      />
+                      <div className="flex justify-between items-center text-[9px] font-mono text-slate-400">
+                        <span>{formatTime(trackCurrentTime)}</span>
+                        <span>{formatTime(trackDuration)}</span>
+                      </div>
+                    </div>
+
+                    {/* Volume control */}
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-xl">
+                      <button 
+                        onClick={() => setAudioVolume(prev => (prev === 0 ? 0.8 : 0))}
+                        className="text-slate-400 hover:text-[#f26419]"
+                      >
+                        {audioVolume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      </button>
+                      <input 
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={audioVolume}
+                        onChange={(e) => setAudioVolume(Number(e.target.value))}
+                        className="flex-1 h-1 bg-slate-300 dark:bg-slate-700 rounded appearance-none cursor-pointer"
+                        style={{ accentColor: "#6366f1" }}
+                      />
+                    </div>
+
+                    {/* Buttons block */}
+                    <div className="flex justify-center items-center gap-4 pt-1">
+                      <button 
+                        onClick={() => setCurrentTracksIdx(prev => (prev - 1 + playlist.length) % playlist.length)}
+                        className="p-2 hover:bg-slate-200 dark:hover:bg-slate-805 rounded-full text-slate-600 dark:text-slate-300 cursor-pointer"
+                        title="Previous Track"
+                      >
+                        ⏮
+                      </button>
+                      <button 
+                        onClick={() => setIsPlayingAud(!isPlayingAud)}
+                        className="p-3 bg-[#f26419] w-12 h-12 flex items-center justify-center rounded-full text-white cursor-pointer hover:scale-105 transition-transform"
+                      >
+                        {isPlayingAud ? <Pause className="w-5 h-5 fill-current text-white stroke-none" /> : <Play className="w-5 h-5 fill-current text-white stroke-none ml-0.5" />}
+                      </button>
+                      <button 
+                        onClick={() => setCurrentTracksIdx(prev => (prev + 1) % playlist.length)}
+                        className="p-2 hover:bg-slate-200 dark:hover:bg-slate-805 rounded-full text-slate-600 dark:text-slate-300 cursor-pointer"
+                        title="Next Track"
+                      >
+                        ⏭
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <p className="text-xs text-center text-slate-500">No tracks loaded inside player</p>
                 )}
+
+                {/* Import private music selection panel */}
+                <div className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all ${
+                  isDragging ? "border-[#f26419] bg-[#f26419]/5" : "border-slate-300 dark:border-slate-800 hover:border-[#f26419]/70"
+                }`}>
+                  <input 
+                    id="audio-upload"
+                    type="file"
+                    multiple
+                    accept=".mp3,.flac,.wav,.aac,.m4a,audio/*"
+                    className="hidden"
+                    onChange={handleAudioUpload}
+                  />
+                  <Upload className="w-7 h-7 mx-auto text-slate-400 mb-1 animate-bounce" />
+                  <p className="text-[11px] font-bold text-slate-750 dark:text-slate-200">Drag & Drop Private Music</p>
+                  <p className="text-[9px] text-slate-500 mb-2">Supports high fidelity FLAC, MP3, etc. securely</p>
+                  <label 
+                    htmlFor="audio-upload"
+                    className="inline-block bg-[#f26419] hover:opacity-90 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-all"
+                  >
+                    Select Multiple Files
+                  </label>
+                </div>
+
+                {/* Playlist list view */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-[11px] font-bold text-slate-450 font-mono uppercase">Study Tracklist ({playlist.length})</span>
+                    {customTracks.length > 0 && (
+                      <button 
+                        onClick={() => {
+                          setCustomTracks([]);
+                          setCurrentTracksIdx(0);
+                          triggerStatus("Cleared custom uploaded tracks list.");
+                        }}
+                        className="text-[9px] text-rose-500 hover:underline cursor-pointer"
+                      >
+                        Clear Custom
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="max-h-[160px] overflow-y-auto space-y-1.5 pr-1 no-scrollbar text-left font-sans">
+                    {playlist.map((track, idx) => {
+                      const isActive = idx === currentTracksIdx;
+                      return (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            setCurrentTracksIdx(idx);
+                            setIsPlayingAud(true);
+                          }}
+                          className={`flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer text-left ${
+                            isActive 
+                              ? "bg-slate-100 dark:bg-slate-900 border-[#f26419]" 
+                              : "bg-slate-55/40 dark:bg-[#141414]/40 border-slate-200 dark:border-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {isActive && isPlayingAud ? (
+                              <span className="flex gap-0.5 items-end justify-center h-3.5 w-3.5 shrink-0">
+                                <span className="w-0.5 bg-[#f26419] rounded-full animate-[bounce_0.6s_infinite_0.1s] h-1.5"></span>
+                                <span className="w-0.5 bg-[#f26419] rounded-full animate-[bounce_0.5s_infinite_0.3s] h-2.5"></span>
+                                <span className="w-0.5 bg-[#f26419] rounded-full animate-[bounce_0.7s_infinite_0.2s] h-1"></span>
+                              </span>
+                            ) : (
+                              <Music className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-[#f26419]" : "text-slate-400"}`} />
+                            )}
+                            <span className={`text-[11px] truncate ${isActive ? "font-bold text-[#f26419]" : "text-slate-700 dark:text-slate-300"}`}>
+                              {track.name}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 pl-2">
+                            <span className={`text-[8px] font-sans px-1.5 py-0.5 rounded uppercase font-bold shrink-0 ${
+                              track.isCustom ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/10" : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-400"
+                            }`}>
+                              {track.isCustom ? "Mine" : "Lofi"}
+                            </span>
+                            
+                            {track.isCustom && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCustomTracks(prev => {
+                                    const nextTracklist = prev.filter(t => t.url !== track.url);
+                                    if (isActive) {
+                                      setCurrentTracksIdx(0);
+                                    } else if (idx < currentTracksIdx) {
+                                      setCurrentTracksIdx(currentTracksIdx - 1);
+                                    }
+                                    return nextTracklist;
+                                  });
+                                  triggerStatus("Private track deleted.");
+                                }}
+                                className="text-slate-400 hover:text-rose-500 p-0.5 rounded cursor-pointer shrink-0"
+                              >
+                                <Trash className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Sub-view: Theme Picker */}
+             {/* Sub-view: Theme Picker */}
             {activeSubView === "themes" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Color Themes Preset</h4>
-                <p className="text-xs text-slate-400">Match the visual interface to fit your current study vibe:</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Color Themes Preset</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Match the visual interface to fit your current study vibe:</p>
                 
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   {[
-                    { id: "dark-classic", name: "YPT Slate Black", bg: "bg-[#0a0a0a]" },
-                    { id: "amoled", name: "Pitch Black OLED", bg: "bg-black" },
-                    { id: "forest", name: "Cozy Forest Matcha", bg: "bg-[#0b1c15]" },
-                    { id: "crimson", name: "Crimson Red Sunset", bg: "bg-[#210206]" }
+                    { id: "dark-classic", name: "Classic Steel & Slate", bg: "bg-slate-500", desc: "Crisp corporate elegance" },
+                    { id: "amoled", name: "Modern High Contrast / OLED", bg: "bg-black", desc: "Pitch black or vivid white" },
+                    { id: "forest", name: "Matcha Forest & Mint", bg: "bg-[#0b1c15]", desc: "Cozy focus greens" },
+                    { id: "crimson", name: "Sunset Crimson & Cherry", bg: "bg-[#210206]", desc: "Deep study warmth" },
+                    { id: "honey", name: "Amber Honey & Vanilla", bg: "bg-[#fca311]", desc: "Golden hour coziness" }
                   ].map((preset) => (
                     <button
                       key={preset.id}
@@ -353,13 +679,16 @@ export default function FeatureSidebar({
                         onThemeSelect(preset.id);
                         onClose();
                       }}
-                      className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-800 hover:border-slate-700 bg-[#161616] cursor-pointer hover:scale-[1.01] transition-all"
+                      className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/65 dark:border-slate-800 hover:border-[#f26419]/50 dark:hover:border-slate-700 bg-[#fbfbfc]/85 dark:bg-[#161616]/80 cursor-pointer hover:scale-[1.01] transition-all text-left"
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`w-4 h-4 rounded-full border border-slate-700 ${preset.bg}`}></span>
-                        <span className="text-xs font-semibold">{preset.name}</span>
+                        <span className={`w-4 h-4 rounded-full border border-slate-300 dark:border-slate-700 shrink-0 ${preset.bg}`}></span>
+                        <div>
+                          <span className="text-xs font-black block text-slate-800 dark:text-slate-100 leading-none">{preset.name}</span>
+                          <span className="text-[9.5px] text-slate-450 dark:text-slate-505 font-mono mt-0.5 block">{preset.desc}</span>
+                        </div>
                       </div>
-                      <span className="text-[10px] text-slate-500">Apply</span>
+                      <span className="text-[10px] text-[#f26419] font-black uppercase tracking-wider">Apply</span>
                     </button>
                   ))}
                 </div>

@@ -45,7 +45,7 @@ interface WorkspaceHubProps {
   streak: number;
   aiCoachAdvice: { quote: string; rating: string; scheduleTip: string } | null;
   globalCurrentUser: User | null;
-  onGlobalLogin: () => Promise<void>;
+  onGlobalLogin: (requestWorkspace?: boolean) => Promise<void>;
   onGlobalLogout: () => Promise<void>;
 }
 
@@ -89,6 +89,87 @@ export default function WorkspaceHub({
   const [keepNotes, setKeepNotes] = useState<GKeepNote[]>([]);
   const [newKeepTitle, setNewKeepTitle] = useState("");
   const [newKeepBody, setNewKeepBody] = useState("");
+
+  // Simulated Local Sandbox states for offline/non-auth users
+  const [sandboxEvents, setSandboxEvents] = useState<GCalendarEvent[]>(() => {
+    const cached = localStorage.getItem("sandbox_calendar_events");
+    return cached ? JSON.parse(cached) : [
+      {
+        id: "sb-ev-1",
+        summary: "Chemistry Lab Prep Session (Local Sandbox)",
+        description: "Review buffer solutions and acid-base curves",
+        start: { dateTime: new Date(Date.now() + 60*60*1000).toISOString() },
+        end: { dateTime: new Date(Date.now() + 1.75*60*60*1000).toISOString() }
+      },
+      {
+        id: "sb-ev-2",
+        summary: "Discrete Mathematics Proof Sprint",
+        description: "Solve induction proofs",
+        start: { dateTime: new Date(Date.now() + 24*60*60*1000).toISOString() },
+        end: { dateTime: new Date(Date.now() + 25.5*60*60*1000).toISOString() }
+      }
+    ];
+  });
+
+  const [sandboxDriveFiles, setSandboxDriveFiles] = useState<GDriveFile[]>(() => {
+    const cached = localStorage.getItem("sandbox_drive_files");
+    return cached ? JSON.parse(cached) : [
+      {
+        id: "sb-dr-1",
+        name: "World_History_Thesis_First_Draft.docx",
+        mimeType: "document",
+        webViewLink: "#"
+      },
+      {
+        id: "sb-dr-2",
+        name: "Chemistry_Syllabus_Fall2026.pdf",
+        mimeType: "application/pdf",
+        webViewLink: "#"
+      },
+      {
+        id: "sb-dr-3",
+        name: "Calculus_Limits_Cheat_Sheet.pages",
+        mimeType: "text/plain",
+        webViewLink: "#"
+      }
+    ];
+  });
+
+  const [sandboxTaskLists, setSandboxTaskLists] = useState<GTaskList[]>([
+    { id: "sb-list-default", title: "My Study Tasks" },
+    { id: "sb-list-exams", title: "Upcoming Finals Goals" }
+  ]);
+  const [selectedSandboxTaskListId, setSelectedSandboxTaskListId] = useState<string>("sb-list-default");
+
+  const [sandboxTasks, setSandboxTasks] = useState<GTask[]>(() => {
+    const cached = localStorage.getItem("sandbox_tasks");
+    return cached ? JSON.parse(cached) : [
+      { id: "sb-tsk-1", title: "Read Chapter 4 of Sociology text", status: "needsAction" },
+      { id: "sb-tsk-2", title: "Complete Calculus homework sheet #3", status: "completed" },
+      { id: "sb-tsk-3", title: "Draft introductory paragraph for History term paper", status: "needsAction" }
+    ];
+  });
+
+  // States for viewing/copying created mock Google Docs in sandbox
+  const [simulatedDocContent, setSimulatedDocContent] = useState("");
+  const [simulatedDocTitle, setSimulatedDocTitle] = useState("");
+  const [showSimulatedDocModal, setShowSimulatedDocModal] = useState(false);
+
+  // local sandbox file creation
+  const [sandboxUploadName, setSandboxUploadName] = useState("");
+
+  // Sandbox data persistence synchronizers
+  useEffect(() => {
+    localStorage.setItem("sandbox_calendar_events", JSON.stringify(sandboxEvents));
+  }, [sandboxEvents]);
+
+  useEffect(() => {
+    localStorage.setItem("sandbox_drive_files", JSON.stringify(sandboxDriveFiles));
+  }, [sandboxDriveFiles]);
+
+  useEffect(() => {
+    localStorage.setItem("sandbox_tasks", JSON.stringify(sandboxTasks));
+  }, [sandboxTasks]);
 
   // New Google Keep and dynamic Docs states
   const [docsMode, setDocsMode] = useState<"strategy" | "custom" | "compile">("strategy");
@@ -205,11 +286,11 @@ export default function WorkspaceHub({
     }
   };
 
-  // Trigger Google Sign In API
+  // Trigger Google Sign In API with Google Workspace sensitive integration scopes
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      await onGlobalLogin();
+      await onGlobalLogin(true);
     } catch (err) {
       console.error(err);
       showNotification("Authorization incomplete. Ensure popup blockers are disabled.", "error");
@@ -287,13 +368,33 @@ export default function WorkspaceHub({
 
   // Add event to Google Calendar
   const handleAddCalendarEvent = async () => {
-    if (!accessToken || !calSummary.trim()) return;
+    if (!calSummary.trim()) return;
+    if (needsAuth) {
+      setLoading(true);
+      const start = new Date();
+      const end = new Date(start.getTime() + calMinutes * 60 * 1000);
+      const newEv: GCalendarEvent = {
+        id: `sb-ev-${Date.now()}`,
+        summary: `[Sandbox] ${calSummary.trim()}`,
+        description: "Focus Work Session. (Simulated Calendar Block)",
+        start: { dateTime: start.toISOString() },
+        end: { dateTime: end.toISOString() }
+      };
+      setTimeout(() => {
+        setSandboxEvents(prev => [newEv, ...prev]);
+        showNotification("Calendar block successfully generated in persistent offline sandbox!");
+        setCalSummary("");
+        setLoading(false);
+      }, 500);
+      return;
+    }
+    
     setLoading(true);
     try {
       const start = new Date();
       const end = new Date(start.getTime() + calMinutes * 60 * 1000);
       await createCalendarEvent(
-        accessToken,
+        accessToken!,
         `[StudyPulse] ${calSummary.trim()}`,
         `Focus Work Session. Streak bonus active: ${streak} days. Stay consistent!`,
         start.toISOString(),
@@ -302,7 +403,7 @@ export default function WorkspaceHub({
       showNotification("Calendar focus block successfully created!");
       setCalSummary("");
       // reload
-      const evs = await fetchCalendarEvents(accessToken);
+      const evs = await fetchCalendarEvents(accessToken!);
       setEvents(evs);
     } catch (err) {
       console.error(err);
@@ -314,18 +415,13 @@ export default function WorkspaceHub({
 
   // Google Docs Study Blueprint exporter
   const handleExportAdviceToDoc = async () => {
-    if (!accessToken) {
-      showNotification("Please authorize Google Workspace first.", "error");
-      return;
-    }
     if (!localAdvice) {
       showNotification("Generate AI Coach advice first on the main AI Coach tab!", "error");
       return;
     }
-    setLoading(true);
-    try {
-      const docTitle = `StudyPulse - Personal Study Strategy (${new Date().toLocaleDateString()})`;
-      const mdContent = `# ${docTitle}
+
+    const docTitle = `StudyPulse - Personal Study Strategy (${new Date().toLocaleDateString()})`;
+    const mdContent = `# ${docTitle}
       
 ## Academic Personality Rating
 *${localAdvice.rating}*
@@ -346,6 +442,31 @@ ${localAdvice.scheduleTip}
 ---
 *Created inside StudyPulse Productivity Center.*`;
 
+    if (needsAuth) {
+      setLoading(true);
+      setTimeout(() => {
+        setSimulatedDocContent(mdContent);
+        setSimulatedDocTitle("AI_Habit_Strategy_Report.docx");
+        setShowSimulatedDocModal(true);
+        showNotification("Blueprint exported! Opening secure built-in document previewer...", "success");
+        
+        // Save file record to Drive
+        const fId = `sb-dr-${Date.now()}`;
+        setSandboxDriveFiles(prev => [
+          { id: fId, name: "AI_Habit_Strategy_Report.docx", mimeType: "document", webViewLink: "#" },
+          ...prev
+        ]);
+        setLoading(false);
+      }, 700);
+      return;
+    }
+
+    if (!accessToken) {
+      showNotification("Please authorize Google Workspace first.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
       const result = await createGoogleDoc(accessToken, docTitle, mdContent);
       showNotification("Google Doc successfully created!");
       window.open(result.webViewLink, "_blank");
@@ -359,12 +480,34 @@ ${localAdvice.scheduleTip}
 
   // Create a brand new custom Google Doc with manual contents
   const handleCreateCustomDoc = async () => {
-    if (!accessToken) {
-      showNotification("Please authorize Google Workspace first.", "error");
-      return;
-    }
     if (!customDocTitle.trim() || !customDocBody.trim()) {
       showNotification("Please fill in both the document title and content body.", "error");
+      return;
+    }
+
+    if (needsAuth) {
+      setLoading(true);
+      setTimeout(() => {
+        setSimulatedDocContent(customDocBody.trim());
+        setSimulatedDocTitle(customDocTitle.trim() + ".docx");
+        setShowSimulatedDocModal(true);
+        showNotification("Document created in local sandbox! Opening preview...", "success");
+
+        // Add file record to Drive
+        const fId = `sb-dr-${Date.now()}`;
+        setSandboxDriveFiles(prev => [
+          { id: fId, name: customDocTitle.trim() + ".docx", mimeType: "document", webViewLink: "#" },
+          ...prev
+        ]);
+        setCustomDocTitle("");
+        setCustomDocBody("");
+        setLoading(false);
+      }, 600);
+      return;
+    }
+
+    if (!accessToken) {
+      showNotification("Please authorize Google Workspace first.", "error");
       return;
     }
     setLoading(true);
@@ -384,27 +527,47 @@ ${localAdvice.scheduleTip}
 
   // Compile selected pinboard notes into a structured Google Doc study guide
   const handleExportNotesToDoc = async () => {
-    if (!accessToken) {
-      showNotification("Please authorize Google Workspace first.", "error");
-      return;
-    }
     if (selectedNotesForDoc.length === 0) {
       showNotification("Select at least one study note to compile.", "error");
       return;
     }
+
+    const docTitle = `StudyPulse Compiled Notes (${new Date().toLocaleDateString()})`;
+    let contentMarkdown = `# ${docTitle}\n\n`;
+    contentMarkdown += `Compiled seamlessly inside StudyPulse Workspace Center.\n\n`;
+
+    const selected = keepNotes.filter(n => selectedNotesForDoc.includes(n.id));
+    selected.forEach((note, idx) => {
+      contentMarkdown += `## Section ${idx + 1}: ${note.title}\n`;
+      contentMarkdown += `${note.body}\n\n`;
+      contentMarkdown += `*Pinned Timestamp: ${new Date(note.timestamp).toLocaleDateString()}*\n\n---\n\n`;
+    });
+
+    if (needsAuth) {
+      setLoading(true);
+      setTimeout(() => {
+        setSimulatedDocContent(contentMarkdown);
+        setSimulatedDocTitle(docTitle + ".docx");
+        setShowSimulatedDocModal(true);
+        showNotification("Notes combined! Saved as document relative to your Drive storage.", "success");
+
+        const fId = `sb-dr-${Date.now()}`;
+        setSandboxDriveFiles(prev => [
+          { id: fId, name: docTitle + ".docx", mimeType: "document", webViewLink: "#" },
+          ...prev
+        ]);
+        setSelectedNotesForDoc([]);
+        setLoading(false);
+      }, 800);
+      return;
+    }
+
+    if (!accessToken) {
+      showNotification("Please authorize Google Workspace first.", "error");
+      return;
+    }
     setLoading(true);
     try {
-      const docTitle = `StudyPulse Compiled Notes (${new Date().toLocaleDateString()})`;
-      let contentMarkdown = `# ${docTitle}\n\n`;
-      contentMarkdown += `Compiled seamlessly inside StudyPulse Workspace Center.\n\n`;
-
-      const selected = keepNotes.filter(n => selectedNotesForDoc.includes(n.id));
-      selected.forEach((note, idx) => {
-        contentMarkdown += `## Section ${idx + 1}: ${note.title}\n`;
-        contentMarkdown += `${note.body}\n\n`;
-        contentMarkdown += `*Pinned Timestamp: ${new Date(note.timestamp).toLocaleDateString()}*\n\n---\n\n`;
-      });
-
       const result = await createGoogleDoc(accessToken, docTitle, contentMarkdown);
       showNotification("Compiled study guide successfully generated in Google Docs!");
       setSelectedNotesForDoc([]);
@@ -419,7 +582,25 @@ ${localAdvice.scheduleTip}
 
   // Add Google Task
   const handleAddTaskToGoogle = async () => {
-    if (!accessToken || !taskTitle.trim()) return;
+    if (!taskTitle.trim()) return;
+
+    if (needsAuth) {
+      setLoading(true);
+      const newTask: GTask = {
+        id: `sb-tsk-${Date.now()}`,
+        title: taskTitle.trim(),
+        status: "needsAction"
+      };
+      setTimeout(() => {
+        setSandboxTasks(prev => [newTask, ...prev]);
+        showNotification("Study Task added to Sandbox collection!");
+        setTaskTitle("");
+        setLoading(false);
+      }, 300);
+      return;
+    }
+
+    if (!accessToken) return;
     setLoading(true);
     try {
       await createGoogleTask(accessToken, taskTitle.trim(), selectedTaskListId, "Created from StudyPulse workspace hub");
@@ -437,8 +618,15 @@ ${localAdvice.scheduleTip}
 
   // Toggle Google Task status
   const handleToggleGoogleTask = async (gTaskId: string, currentStatus: string) => {
-    if (!accessToken) return;
     const isCompleted = currentStatus === "needsAction";
+
+    if (needsAuth) {
+      setSandboxTasks(prev => prev.map(t => t.id === gTaskId ? { ...t, status: isCompleted ? "completed" : "needsAction" } : t));
+      showNotification(isCompleted ? "Simulated Task completed! Great persistence!" : "Simulated Task marked active.");
+      return;
+    }
+
+    if (!accessToken) return;
     // Optimistic Update
     setGTasks(prev => prev.map(t => t.id === gTaskId ? { ...t, status: isCompleted ? "completed" : "needsAction" } : t));
     try {
@@ -456,6 +644,13 @@ ${localAdvice.scheduleTip}
   const filteredDriveFiles = driveFiles.filter(f => 
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const currentEvents = needsAuth ? sandboxEvents : events;
+  const currentDriveFiles = needsAuth 
+    ? sandboxDriveFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : filteredDriveFiles;
+  const currentTaskLists = needsAuth ? sandboxTaskLists : taskLists;
+  const currentTasks = needsAuth ? sandboxTasks : gTasks;
 
   return (
     <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900 rounded-3xl p-6 shadow-xs space-y-6">
@@ -560,23 +755,27 @@ ${localAdvice.scheduleTip}
         
         {/* Auth prompt if not logged in for Google APIs */}
         {needsAuth && activeWorkspaceTab !== "keep" && (
-          <div className="py-14 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[250px] flex flex-col justify-center items-center space-y-3">
-            <FolderOpen className="w-10 h-10 text-slate-350 dark:text-slate-650" />
-            <p className="text-sm font-semibold text-slate-500">Google Workspace Connection Required</p>
-            <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
-              To write work sessions directly to calendar, view files, or manage Google Tasks, securely sign in to your Google Account above.
-            </p>
+          <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-left text-xs text-amber-700 dark:text-amber-400 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 bg-amber-500 text-white rounded-xl p-2 flex items-center justify-center font-bold font-sans text-xs w-6 h-6">💡</span>
+              <div className="space-y-0.5">
+                <p className="font-bold text-xs text-amber-800 dark:text-amber-400">Offline Sandbox Workspace Connection Active</p>
+                <p className="leading-relaxed text-[11px] text-slate-500 dark:text-slate-400">
+                  You are viewing and logging study blocks to your browser's local sandbox safely. Press <strong>Sign in with Google</strong> above to sync actual live accounts anytime!
+                </p>
+              </div>
+            </div>
             <button 
-              onClick={handleGoogleLogin}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer"
+              onClick={handleGoogleLogin} 
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-705 text-white text-[11px] font-bold rounded-xl shrink-0 transition-all cursor-pointer hover:shadow-xs"
             >
-              Verify OAuth Sandbox
+              Log in to sync
             </button>
           </div>
         )}
 
         {/* 1. Google Calendar Panel */}
-        {!needsAuth && activeWorkspaceTab === "calendar" && (
+        {activeWorkspaceTab === "calendar" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Left Col: Create event block */}
@@ -646,15 +845,16 @@ ${localAdvice.scheduleTip}
                 <div className="py-12 flex justify-center text-slate-400">
                   <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                 </div>
-              ) : events.length === 0 ? (
+              ) : currentEvents.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-12">
                   No scheduled StudyPulse calendar blocks found. Protect your hours using the scheduler!
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1 no-scrollbar">
-                  {events.map((ev, index) => {
-                    const startT = new Date(ev.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const startD = new Date(ev.start.dateTime).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                  {currentEvents.map((ev, index) => {
+                    const dt = ev.start?.dateTime || ev.start?.date || new Date().toISOString();
+                    const startT = new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const startD = new Date(dt).toLocaleDateString([], { month: 'short', day: 'numeric' });
                     return (
                       <div key={ev.id || index} className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl flex justify-between items-center text-xs">
                         <div className="space-y-0.5">
@@ -676,7 +876,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 2. Google Drive Panel (Elegantly satisfies File browsing & Google Picker requirement) */}
-        {!needsAuth && activeWorkspaceTab === "drive" && (
+        {activeWorkspaceTab === "drive" && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
@@ -705,13 +905,13 @@ ${localAdvice.scheduleTip}
               <div className="py-14 text-center">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
               </div>
-            ) : filteredDriveFiles.length === 0 ? (
+            ) : currentDriveFiles.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-12">
                 No matching study documents or resource folders found in Google Drive.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
-                {filteredDriveFiles.map(file => (
+                {currentDriveFiles.map(file => (
                   <div key={file.id} className="p-3 bg-slate-50 hover:bg-slate-100/50 dark:bg-slate-950/20 dark:hover:bg-slate-850/20 border border-slate-105 dark:border-slate-800/80 rounded-xl flex items-center justify-between text-xs space-y-1">
                     <div className="flex items-center gap-2 overflow-hidden mr-2">
                       <div className="p-1.5 bg-blue-100/40 text-blue-600 rounded-lg">
@@ -722,7 +922,7 @@ ${localAdvice.scheduleTip}
                         <p className="text-[9px] text-slate-400 truncate">{file.mimeType.split("/").pop()}</p>
                       </div>
                     </div>
-                    {file.webViewLink && (
+                    {file.webViewLink && file.webViewLink !== "#" ? (
                       <a 
                         href={file.webViewLink} 
                         target="_blank" 
@@ -731,16 +931,57 @@ ${localAdvice.scheduleTip}
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
+                    ) : (
+                      <span className="text-[9px] bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded text-slate-500 italic scale-90">
+                        Local File
+                      </span>
                     )}
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Simulated uploader for Sandbox Mode */}
+            {needsAuth && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <h5 className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-blue-500 animate-bounce" />
+                  Link Study Guides & Classroom PDF Resources
+                </h5>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Bio_Chapter_3_Lecture_Notes.pdf" 
+                    value={sandboxUploadName} 
+                    onChange={e => setSandboxUploadName(e.target.value)}
+                    className="flex-1 text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl"
+                  />
+                  <button 
+                    onClick={() => {
+                      if (!sandboxUploadName.trim()) return;
+                      const newFile = {
+                        id: `sb-dr-${Date.now()}`,
+                        name: sandboxUploadName.trim(),
+                        mimeType: sandboxUploadName.trim().endsWith(".pdf") ? "application/pdf" : "document",
+                        webViewLink: "#"
+                      };
+                      setSandboxDriveFiles(prev => [newFile, ...prev]);
+                      setSandboxUploadName("");
+                      showNotification("Simulated worksheet document linked successfully to classroom explorer!");
+                    }}
+                    className="bg-blue-600 hover:bg-blue-705 text-white font-bold px-4 py-2 rounded-xl text-xs flex justify-center items-center cursor-pointer scale-98 active:scale-95 transition-all text-center"
+                  >
+                    Simulate Upload
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
         {/* 3. Google Tasks Panel */}
-        {!needsAuth && activeWorkspaceTab === "tasks" && (
+        {activeWorkspaceTab === "tasks" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Left Column: Quick list setup */}
@@ -754,15 +995,15 @@ ${localAdvice.scheduleTip}
               </p>
 
               <div className="space-y-4 pt-1">
-                {taskLists.length > 0 && (
+                {currentTaskLists.length > 0 && (
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-mono tracking-wider text-slate-400">Google Task List</label>
                     <select 
-                      value={selectedTaskListId}
-                      onChange={e => setSelectedTaskListId(e.target.value)}
+                      value={needsAuth ? selectedSandboxTaskListId : selectedTaskListId}
+                      onChange={e => needsAuth ? setSelectedSandboxTaskListId(e.target.value) : setSelectedTaskListId(e.target.value)}
                       className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-slate-800 rounded-xl"
                     >
-                      {taskLists.map(lst => (
+                      {currentTaskLists.map(lst => (
                         <option key={lst.id} value={lst.id}>{lst.title}</option>
                       ))}
                     </select>
@@ -811,13 +1052,13 @@ ${localAdvice.scheduleTip}
                 <div className="py-12 flex justify-center text-slate-400">
                   <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
                 </div>
-              ) : gTasks.length === 0 ? (
+              ) : currentTasks.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-12">
                   No active Google Tasks found in this directory. Add items to track them here!
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1 no-scrollbar">
-                  {gTasks.map(task => {
+                  {currentTasks.map(task => {
                     const isDone = task.status === "completed";
                     return (
                       <div 
@@ -938,7 +1179,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 5. Google Docs Exporter */}
-        {!needsAuth && activeWorkspaceTab === "docs" && (
+        {activeWorkspaceTab === "docs" && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 max-w-xl mx-auto space-y-6">
             
             {/* Docs sub-navigation */}
@@ -1132,6 +1373,53 @@ ${localAdvice.scheduleTip}
         )}
 
       </div>
+
+      {/* Sandbox Simulated Document Viewer Modal */}
+      {showSimulatedDocModal && (
+        <div className="fixed inset-0 bg-slate-900/85 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-slate-850">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-500 animate-pulse" />
+                <h3 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-105">
+                  {simulatedDocTitle || "Untitled Simulated Study Doc"}
+                </h3>
+              </div>
+              <span className="text-[10px] uppercase font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-full font-bold">
+                Sandbox Doc Preview
+              </span>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/55 rounded-2xl border border-slate-150 dark:border-slate-850 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[40vh] text-left text-slate-650 dark:text-slate-400 no-scrollbar select-text">
+              {simulatedDocContent || "No content generated yet."}
+            </div>
+
+            <div className="flex flex-wrap gap-3.5 justify-end pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(simulatedDocContent);
+                    showNotification("Copied study compilation content to clipboard! Ready to paste into Google Docs!");
+                  } catch (err) {
+                    showNotification("Copy triggered. Highlight contents inside preview box.", "error");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-transform scale-98 hover:scale-100 active:scale-95"
+              >
+                Copy Content 📋
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSimulatedDocModal(false)}
+                className="bg-slate-100 hover:bg-slate-150 dark:bg-slate-800 dark:hover:bg-slate-755 text-slate-750 dark:text-slate-350 font-semibold py-2 px-4.5 rounded-xl text-xs cursor-pointer active:scale-95 transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
