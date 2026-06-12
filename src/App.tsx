@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Layers, Maximize2, Minimize2 } from "lucide-react";
+import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon } from "lucide-react";
 import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
@@ -12,7 +12,7 @@ import {
   getDocs, 
   getDocFromServer 
 } from "firebase/firestore";
-import { db, auth, initAuth, googleSignIn, logout, getAccessToken } from "./lib/googleApi";
+import { db, auth, initAuth, googleSignIn, logout, getAccessToken, emailPasswordSignUp, emailPasswordSignIn } from "./lib/googleApi";
 import { User } from "firebase/auth";
 
 // Import modules
@@ -795,19 +795,98 @@ export default function App() {
   };
 
 
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  const handleEmailAuth = async (e: any) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthSuccessMsg(null);
+
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthError("Please fill in all details.");
+      setAuthLoading(false);
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      if (authMode === "signup") {
+        if (!authDisplayName.trim()) {
+          setAuthError("Please provide a display name.");
+          setAuthLoading(false);
+          return;
+        }
+        const user = await emailPasswordSignUp(authEmail, authPassword, authDisplayName);
+        setCurrentUser(user);
+        setAuthSuccessMsg("Account created successfully!");
+        setAuthEmail("");
+        setAuthPassword("");
+        setAuthDisplayName("");
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthSuccessMsg(null);
+        }, 1500);
+      } else {
+        const user = await emailPasswordSignIn(authEmail, authPassword);
+        setCurrentUser(user);
+        setAuthSuccessMsg("Signed in successfully!");
+        setAuthEmail("");
+        setAuthPassword("");
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthSuccessMsg(null);
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error("Email auth error:", err);
+      let errMsg = err?.message || String(err);
+      if (errMsg.includes("auth/invalid-credential") || errMsg.includes("auth/wrong-password") || errMsg.includes("auth/user-not-found")) {
+        errMsg = "Invalid email or password. Please verify and try again.";
+      } else if (errMsg.includes("auth/email-already-in-use")) {
+        errMsg = "This email is already registered. Try logging in instead.";
+      } else if (errMsg.includes("auth/weak-password")) {
+        errMsg = "Password is too weak. Choose at least 6 characters.";
+      } else if (errMsg.includes("auth/invalid-email")) {
+        errMsg = "Please format your email correctly (e.g. name@domain.com).";
+      } else if (errMsg.includes("auth/operation-not-allowed")) {
+        errMsg = "Please enable Email/Password authentication in your Firebase console.";
+      }
+      setAuthError(errMsg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   // Combined authentications triggers
   const [authLoading, setAuthLoading] = useState(false);
   const handleHeaderLogin = async (requestWorkspace: boolean = false) => {
-    setAuthLoading(true);
-    try {
-      const res = await googleSignIn(requestWorkspace);
-      if (res) {
-        setCurrentUser(res.user);
+    if (requestWorkspace) {
+      setAuthLoading(true);
+      try {
+        const res = await googleSignIn(requestWorkspace);
+        if (res) {
+          setCurrentUser(res.user);
+        }
+      } catch (err) {
+        console.error("Popup authentication failed:", err);
+      } finally {
+        setAuthLoading(false);
       }
-    } catch (err) {
-      console.error("Popup authentication failed:", err);
-    } finally {
-      setAuthLoading(false);
+    } else {
+      setShowAuthModal(true);
+      setAuthError(null);
+      setAuthSuccessMsg(null);
     }
   };
 
@@ -1353,12 +1432,12 @@ export default function App() {
               </div>
             ) : (
               <button
-                onClick={handleHeaderLogin}
+                onClick={() => handleHeaderLogin(false)}
                 disabled={authLoading}
                 className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-50 dark:text-[#0a0a0a] text-xs font-black py-1.5 px-3.5 rounded-full cursor-pointer active:scale-95 transition-all select-none border border-slate-200 dark:border-white/10"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Google Login</span>
+                <span>Sign In</span>
               </button>
             )}
           </div>
@@ -1697,6 +1776,232 @@ export default function App() {
       <footer className="w-full text-center text-slate-650 text-[10px] select-none pb-4 font-mono opacity-50">
         <p>© 2026 StudyPulse. Built for consistent habit builders.</p>
       </footer>
+
+      {/* Modern, Adaptive multi-method Authentication Hub Modal */}
+      {showAuthModal && (
+        <div 
+          id="auth-modal-overlay"
+          className="fixed inset-0 bg-[#0a0a0ade]/90 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in"
+          onClick={() => {
+            if (!authLoading) {
+              setShowAuthModal(false);
+              setAuthError(null);
+              setAuthSuccessMsg(null);
+            }
+          }}
+        >
+          <div 
+            id="auth-modal-card"
+            className="w-full max-w-[420px] bg-white dark:bg-[#151515] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 md:p-7 shadow-2xl relative text-left animate-slide-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              id="auth-modal-close-btn"
+              onClick={() => {
+                setShowAuthModal(false);
+                setAuthError(null);
+                setAuthSuccessMsg(null);
+              }}
+              disabled={authLoading}
+              className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100 rounded-full cursor-pointer transition-colors disabled:opacity-50"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="mb-6">
+              <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#f26419]" />
+                {authMode === "signin" ? "Sign In to StudyPulse" : "Create StudyPulse Account"}
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {authMode === "signin" 
+                  ? "Access your synced notes, schedules, focus logs, and multiplayer rooms." 
+                  : "Start logging your habits, earn rewards, and level up with global classmates."}
+              </p>
+            </div>
+
+            {/* Email/Password Form */}
+            <form id="auth-email-form" onSubmit={handleEmailAuth} className="space-y-4">
+              {authMode === "signup" && (
+                <div className="space-y-1">
+                  <label htmlFor="auth-display-name-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
+                    Display Name
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                      <UserIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <input 
+                      id="auth-display-name-input"
+                      type="text"
+                      placeholder="e.g. Marie Curie"
+                      value={authDisplayName}
+                      onChange={(e) => setAuthDisplayName(e.target.value)}
+                      disabled={authLoading}
+                      required
+                      className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                    <Mail className="w-3.5 h-3.5" />
+                  </span>
+                  <input 
+                    id="auth-email-input"
+                    type="email"
+                    placeholder="name@gmail.com"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    disabled={authLoading}
+                    required
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
+                  Password
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                    <Lock className="w-3.5 h-3.5" />
+                  </span>
+                  <input 
+                    id="auth-password-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    disabled={authLoading}
+                    required
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                  />
+                </div>
+              </div>
+
+              {/* Status Alerts */}
+              {authError && (
+                <div id="auth-error-box" className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px] leading-relaxed transition-all">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {authSuccessMsg && (
+                <div id="auth-success-box" className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-[10.5px] font-bold transition-all">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-500 animate-pulse" />
+                  <span>{authSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Email Button */}
+              <button
+                id="auth-submit-action-btn"
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-2 bg-[#f26419] hover:bg-[#d85312] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 disabled:hover:bg-[#f26419] disabled:pointer-events-none flex items-center justify-center gap-2 shadow-lg"
+              >
+                {authLoading ? (
+                  <span className="flex items-center gap-1.5 justify-center">
+                    <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Authenticating...
+                  </span>
+                ) : (
+                  <span>{authMode === "signin" ? "Sign In with Password" : "Create Account"}</span>
+                )}
+              </button>
+            </form>
+
+            {/* Subtle Divider */}
+            <div className="my-5 flex items-center justify-center gap-3">
+              <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
+              <span className="text-[10px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via</span>
+              <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
+            </div>
+
+            {/* Google Federated Sign In */}
+            <button
+              id="auth-google-auth-btn"
+              type="button"
+              disabled={authLoading}
+              onClick={async () => {
+                setAuthLoading(true);
+                setAuthError(null);
+                setAuthSuccessMsg(null);
+                try {
+                  const res = await googleSignIn(false);
+                  if (res) {
+                    setCurrentUser(res.user);
+                    setAuthSuccessMsg("Signed in with Google!");
+                    setTimeout(() => {
+                      setShowAuthModal(false);
+                      setAuthSuccessMsg(null);
+                    }, 1000);
+                  }
+                } catch (err: any) {
+                  console.error("Google authentication error:", err);
+                  setAuthError(err?.message || "Google Authentication popup failed.");
+                } finally {
+                  setAuthLoading(false);
+                }
+              }}
+              className="w-full py-2 bg-slate-50 hover:bg-slate-100 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
+                />
+              </svg>
+              <span>Google Account</span>
+            </button>
+
+            {/* Form Toggle Mode */}
+            <div className="mt-4 text-center">
+              <button
+                id="auth-toggle-mode-btn"
+                type="button"
+                disabled={authLoading}
+                onClick={() => {
+                  setAuthMode(authMode === "signin" ? "signup" : "signin");
+                  setAuthError(null);
+                  setAuthSuccessMsg(null);
+                }}
+                className="text-xs text-slate-500 hover:text-[#f26419] dark:hover:text-[#f26419] underline cursor-pointer disabled:opacity-50"
+              >
+                {authMode === "signin" 
+                  ? "Don't have an account? Sign Up" 
+                  : "Already have an account? Sign In"}
+              </button>
+            </div>
+
+            {/* Interactive Firebase Console Diagnostic Footnote Info Box */}
+            <div 
+              id="auth-config-guideline-box"
+              className="mt-5 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-start gap-2.5"
+            >
+              <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+              <div className="text-[9.5px] leading-relaxed text-slate-500 dark:text-slate-400">
+                <strong className="text-slate-700 dark:text-slate-300">Firebase Console Setup:</strong>
+                <p className="mt-0.5">
+                  To ensure standard email/password login is fully active, go to your <strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong>, enable the <strong>Email/Password</strong> provider, and hit Save.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

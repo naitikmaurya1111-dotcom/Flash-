@@ -4,7 +4,10 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged, 
-  User 
+  User,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
@@ -116,6 +119,19 @@ export const logout = async () => {
   if (typeof window !== "undefined") {
     localStorage.removeItem("google_oauth_access_token");
   }
+};
+
+export const emailPasswordSignUp = async (email: string, password: string, displayName: string): Promise<User> => {
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  if (displayName) {
+    await updateProfile(result.user, { displayName });
+  }
+  return result.user;
+};
+
+export const emailPasswordSignIn = async (email: string, password: string): Promise<User> => {
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
 };
 
 // ==================== WORKSPACE API WRAPPERS ====================
