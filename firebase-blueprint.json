@@ -10,6 +10,13 @@
         "displayName": { "type": "string" },
         "dailyTargetMinutes": { "type": "integer" },
         "xp": { "type": "integer" },
+        "lastActiveDate": { "type": "string" },
+        "themePreset": { "type": "string" },
+        "themeMode": { "type": "string" },
+        "timerType": { "type": "string" },
+        "pomoFocusDuration": { "type": "integer" },
+        "pomoShortBreakDuration": { "type": "integer" },
+        "pomoLongBreakDuration": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -142,6 +149,23 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "userName", "text"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "A notification timer or daily schedule alarm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily", "one-shot", "timer"] },
+        "durationMinutes": { "type": "integer" },
+        "triggeredAt": { "type": "string", "format": "date-time" },
+        "isActive": { "type": "boolean" },
+        "isCompleted": { "type": "boolean" },
+        "subjectId": { "type": "string" }
+      },
+      "required": ["id", "title", "time", "type", "isActive", "isCompleted"]
     }
   },
   "firestore": {
@@ -172,6 +196,10 @@
     "/users/{userId}/xpLogs/{logId}": {
       "schema": "XpGainLog",
       "description": "Detailed XP log transaction records of study sessions"
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Countdown timers or daily study schedule reminders"
     },
     "/studyRooms/{roomId}": {
       "schema": "StudyRoom",

@@ -15,6 +15,7 @@ interface FeatureSidebarProps {
   isOfflineMode: boolean;
   setIsOfflineMode: (val: boolean) => void;
   onResetAllData: () => void;
+  onSimulateNewDay?: () => void;
 }
 
 export default function FeatureSidebar({
@@ -26,6 +27,7 @@ export default function FeatureSidebar({
   isOfflineMode,
   setIsOfflineMode,
   onResetAllData,
+  onSimulateNewDay,
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -54,7 +56,7 @@ export default function FeatureSidebar({
   const [allowedApps, setAllowedApps] = useState([
     { name: "Google Calendar", allowed: true },
     { name: "Gmail Email Client", allowed: true },
-    { name: "StudyPulse Coach", allowed: true },
+    { name: "Flash5tudy AI", allowed: true },
     { name: "Slack / Teams Chat", allowed: false },
     { name: "Silly Social Feed", allowed: false }
   ]);
@@ -387,6 +389,19 @@ export default function FeatureSidebar({
 
           {/* Reset All Data Control */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-900/40 space-y-2">
+            {onSimulateNewDay && (
+              <button
+                onClick={() => {
+                  onSimulateNewDay();
+                  onClose();
+                }}
+                className="w-full bg-[#f26419]/10 hover:bg-[#f26419]/25 text-[#f26419] dark:text-[#f26419] border border-[#f26419]/20 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer text-center flex items-center justify-center gap-2 mb-1"
+                title="Manually simulate date change rollover to verify resets"
+              >
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                Simulate New Day Reset
+              </button>
+            )}
             {!showResetConfirm ? (
               <button
                 onClick={() => setShowResetConfirm(true)}
@@ -698,13 +713,13 @@ export default function FeatureSidebar({
             {/* Sub-view: Allowed Apps blacklist */}
             {activeSubView === "allowed" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Permitted App Whitelist</h4>
-                <p className="text-xs text-slate-400">YPT blocking emulator. Permit only focus apps during active logs:</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Permitted App Whitelist</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">YPT blocking emulator. Permit only focus apps during active logs:</p>
                 
                 <div className="space-y-2 pt-2">
                   {allowedApps.map((app, index) => (
-                    <div key={app.name} className="flex items-center justify-between bg-[#161616] p-3 rounded-2xl border border-slate-800">
-                      <span className="text-xs font-semibold text-slate-205">{app.name}</span>
+                    <div key={app.name} className="flex items-center justify-between bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{app.name}</span>
                       <button
                         onClick={() => {
                           const updated = [...allowedApps];
@@ -713,8 +728,8 @@ export default function FeatureSidebar({
                         }}
                         className={`text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer ${
                           app.allowed 
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                            : "bg-slate-800 text-slate-500"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
+                            : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                         }`}
                       >
                         {app.allowed ? "Allowed" : "Blocked"}
@@ -728,21 +743,21 @@ export default function FeatureSidebar({
             {/* Sub-view: Pomodoro Intervals */}
             {activeSubView === "pomodoro" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Pomodoro Intervals</h4>
-                <p className="text-xs text-slate-400 font-sans leading-relaxed">Customize ticking structures to trigger smart study intervals:</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Pomodoro Intervals</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-sans leading-relaxed">Customize ticking structures to trigger smart study intervals:</p>
                 
-                <div className="space-y-3.5 pt-2 bg-[#161616] p-4 rounded-2xl border border-slate-800/80">
+                <div className="space-y-3.5 pt-2 bg-slate-50 dark:bg-[#161616] p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Focus Period</span>
-                    <span className="font-bold font-mono">25 minutes</span>
+                    <span className="text-slate-500 dark:text-slate-400">Focus Period</span>
+                    <span className="font-bold font-mono text-slate-800 dark:text-slate-100">25 minutes</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Short Break</span>
-                    <span className="font-bold font-mono">5 minutes</span>
+                    <span className="text-slate-500 dark:text-slate-400">Short Break</span>
+                    <span className="font-bold font-mono text-slate-800 dark:text-slate-100">5 minutes</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Long Break</span>
-                    <span className="font-bold font-mono">15 minutes</span>
+                    <span className="text-slate-500 dark:text-slate-400">Long Break</span>
+                    <span className="font-bold font-mono text-slate-800 dark:text-slate-100">15 minutes</span>
                   </div>
 
                   <button 
@@ -760,16 +775,16 @@ export default function FeatureSidebar({
             {/* Sub-view: Books Goals */}
             {activeSubView === "books" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Study books sessions</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">Plot and log goals per curriculum textbooks:</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Study books sessions</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Plot and log goals per curriculum textbooks:</p>
                 
-                <div className="bg-[#161616] p-4 rounded-2xl border border-slate-800 space-y-3">
-                  <div className="border bg-slate-900 border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
+                <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
                     <div>
-                      <span className="block font-bold">Algorithms (CLRS)</span>
-                      <span className="text-[10px] text-slate-500">Page 120 of 840</span>
+                      <span className="block font-bold text-slate-800 dark:text-slate-100">Algorithms (CLRS)</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">Page 120 of 840</span>
                     </div>
-                    <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-md text-[#f26419] font-bold">14% Done</span>
+                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[#f26419] font-bold">14% Done</span>
                   </div>
                 </div>
               </div>
@@ -778,8 +793,8 @@ export default function FeatureSidebar({
             {/* Sub-view: Store Sticker shop */}
             {activeSubView === "store" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Stickers & Themes shop</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">Exchange your daily accumulated consistency coins for stickers:</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Stickers & Themes shop</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Exchange your daily accumulated consistency coins for stickers:</p>
                 
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
@@ -788,7 +803,7 @@ export default function FeatureSidebar({
                     { style: "✏️ Tiny Notebook", price: "40 Coins" },
                     { style: "👾 Retro Pixel", price: "50 Coins" }
                   ].map((sticker) => (
-                    <div key={sticker.style} className="bg-[#161616] p-3 rounded-2xl border border-slate-850 flex flex-col items-center justify-between text-center">
+                    <div key={sticker.style} className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-between text-center">
                       <span className="text-base mb-1">{sticker.style}</span>
                       <button className="text-[9px] font-black bg-[#f26419]/10 text-[#f26419] px-2 py-1 rounded-lg border border-[#f26419]/25 hover:bg-[#f26419] hover:text-white transition-all cursor-pointer">
                         Get: {sticker.price}
@@ -802,14 +817,14 @@ export default function FeatureSidebar({
             {/* Edit Study Logs List */}
             {activeSubView === "editlog" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Log Entry Modifier</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">Manually adjust your recorded focus cycles:</p>
-                <div className="bg-[#161616] p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                  <span className="text-[10px] text-slate-400 font-black block uppercase">Enter Manual hours</span>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Log Entry Modifier</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Manually adjust your recorded focus cycles:</p>
+                <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-black block uppercase">Enter Manual hours</span>
                   <input 
                     type="number" 
                     placeholder="Duration (Minutes)"
-                    className="w-full bg-slate-950 px-3 py-2 rounded-xl text-xs border border-slate-850 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-805 focus:outline-none"
                   />
                   <button 
                     onClick={() => {
@@ -826,18 +841,18 @@ export default function FeatureSidebar({
             {/* Empty Challenge */}
             {activeSubView === "challenge" && (
               <div className="space-y-4">
-                <h4 className="font-bold text-sm text-slate-100">Study Challenges</h4>
-                <div className="bg-[#161616] p-4 rounded-2xl border border-slate-800 text-center text-xs text-slate-400 space-y-2.5">
+                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Study Challenges</h4>
+                <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2.5">
                   <p>Daily focus challenge is live!</p>
-                  <p className="font-bold text-slate-200">✨ Standard 4-hour Study Streak Challenge</p>
-                  <span className="inline-block text-[9px] bg-emerald-500/10 px-2 py-0.5 rounded-full text-emerald-400 border border-emerald-500/20 font-bold">Participating</span>
+                  <p className="font-bold text-slate-700 dark:text-slate-200">✨ Standard 4-hour Study Streak Challenge</p>
+                  <span className="inline-block text-[9px] bg-emerald-500/10 px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">Participating</span>
                 </div>
               </div>
             )}
 
           </div>
           
-          <p className="text-[9px] text-center text-slate-550 select-none pt-4">© Yeolpumta Replica Workspace Edition</p>
+          <p className="text-[9px] text-center text-slate-550 select-none pt-4">© Flash5tudy Workspace Edition</p>
         </div>
       )}
 

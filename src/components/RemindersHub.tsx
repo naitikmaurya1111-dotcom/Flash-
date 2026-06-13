@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Bell, BellOff, Volume2, Plus, Trash, Check, Clock, Sparkles, ShieldCheck, Dumbbell, BookOpen } from "lucide-react";
+import { Bell, BellOff, Volume2, Plus, Trash, Check, Clock, Sparkles, ShieldCheck, Dumbbell, BookOpen, ChevronDown, ChevronUp, Play, HelpCircle, Info, Lock } from "lucide-react";
 import { Subject, Reminder } from "../types";
 
 // Synthesis of high-quality ambient sound wave chimes natively using the Web Audio API
@@ -89,6 +89,9 @@ interface RemindersHubProps {
   onAddReminder: (reminder: Omit<Reminder, "id" | "isCompleted" | "triggeredAt">) => void;
   onToggleReminder: (reminderId: string) => void;
   onRemoveReminder: (reminderId: string) => void;
+  notificationPermission?: NotificationPermission;
+  audioAutoplayApproved?: boolean;
+  onGrantPermissions?: () => void;
 }
 
 export default function RemindersHub({
@@ -97,8 +100,14 @@ export default function RemindersHub({
   onAddReminder,
   onToggleReminder,
   onRemoveReminder,
+  notificationPermission,
+  audioAutoplayApproved,
+  onGrantPermissions,
 }: RemindersHubProps) {
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>("default");
+  const [localPermissionStatus, setLocalPermissionStatus] = useState<NotificationPermission>("default");
+  const [localAudioAutoplayApproved, setLocalAudioAutoplayApproved] = useState<boolean>(() => {
+    return localStorage.getItem("audio_autoplay_approved") === "true";
+  });
   
   // Custom states
   const [remText, setRemText] = useState("");
@@ -107,21 +116,95 @@ export default function RemindersHub({
   const [remTimerMins, setRemTimerMins] = useState(30);
   const [selectedSubId, setSelectedSubId] = useState("");
   
+  // Chrome test sandbox states
+  const [testCountdown, setTestCountdown] = useState<number | null>(null);
+  const [selectedTestTone, setSelectedTestTone] = useState<"chime" | "success" | "break">("chime");
+  const [isChromeGuideOpen, setIsChromeGuideOpen] = useState(false);
+
+  useEffect(() => {
+    if (testCountdown === null) return;
+    if (testCountdown <= 0) {
+      playChime(selectedTestTone);
+      const title = `🚨 Chrome Alarm Push test: [${selectedTestTone.toUpperCase()}] triggered!`;
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification("Flash5tudy Chrome Test Success", {
+            body: `Excellent study chimes are now fully active on your tab! Keep up the hyperfocused work.`,
+            icon: "/favicon.ico"
+          });
+        } catch (err) {
+          console.warn("Chrome quick notification test failed in background:", err);
+        }
+      }
+      setTestCountdown(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setTestCountdown(prev => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [testCountdown, selectedTestTone]);
+
+  const handleImmediatePushTest = () => {
+    playChime(selectedTestTone);
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission !== "granted") {
+        handleRequestPermission();
+        return;
+      }
+      try {
+        new Notification("🔔 Chrome Alert Activated!", {
+          body: `Testing the "${selectedTestTone}" tone trigger! Excellent, your Chrome notification pipeline is active.`,
+          icon: "/favicon.ico"
+        });
+      } catch (err) {
+        console.warn("Immediate push test failed:", err);
+      }
+    }
+  };
+
+  const handleStartDelayedTest = () => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission().then(perm => {
+        setTestCountdown(5);
+      });
+    } else {
+      setTestCountdown(5);
+    }
+  };
+  
+  const permissionStatus = notificationPermission !== undefined ? notificationPermission : localPermissionStatus;
+  const isAudioApproved = audioAutoplayApproved !== undefined ? audioAutoplayApproved : localAudioAutoplayApproved;
+
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
-      setPermissionStatus(Notification.permission);
+      setLocalPermissionStatus(Notification.permission);
     }
   }, []);
 
   const handleRequestPermission = async () => {
-    if (!("Notification" in window)) return;
-    try {
-      const outcome = await Notification.requestPermission();
-      setPermissionStatus(outcome);
-      playChime("success");
-    } catch (err) {
-      console.error("OS notification request fail:", err);
+    if (onGrantPermissions) {
+      onGrantPermissions();
+    } else {
+      if (!("Notification" in window)) return;
+      try {
+        const outcome = await Notification.requestPermission();
+        setLocalPermissionStatus(outcome);
+        playChime("success");
+        localStorage.setItem("audio_autoplay_approved", "true");
+        setLocalAudioAutoplayApproved(true);
+      } catch (err) {
+        console.error("OS notification request fail:", err);
+      }
     }
+  };
+
+  const handleTestChimeOnly = () => {
+    playChime("success");
+    localStorage.setItem("audio_autoplay_approved", "true");
+    setLocalAudioAutoplayApproved(true);
   };
 
   const submitReminderForm = (e: React.FormEvent) => {
@@ -157,36 +240,237 @@ export default function RemindersHub({
   return (
     <div className="space-y-6 pt-1 text-slate-800 dark:text-slate-100" id="ypt-reminders-canvas">
       
-      {/* OS Notifications Authorization Info Banner */}
-      <div className="bg-slate-100/60 dark:bg-[#161616]/60 p-4 rounded-3xl border border-slate-200/65 dark:border-slate-900/60 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-3.5 bg-indigo-500/10 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-200 dark:border-indigo-900/30">
-            {permissionStatus === "granted" ? (
-              <Bell className="w-5 h-5 text-indigo-500 dark:text-indigo-400 animate-wiggle" />
-            ) : (
-              <BellOff className="w-5 h-5 text-slate-500" />
-            )}
+      {/* OS Notifications & Audio Authorization Info Banner */}
+      <div className="bg-gradient-to-r from-slate-50 to-slate-100/85 dark:from-[#151515] dark:to-[#111111] p-5 rounded-3xl border border-slate-200/70 dark:border-slate-900/90 shadow-xl space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-slate-900/50 pb-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3.5 bg-indigo-550/10 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-200/20 dark:border-indigo-900/40 animate-pulse shrink-0">
+              <Bell className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <div className="text-left">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Alerts & Sounds Control Center</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl">
+                Web browsers restrict sound playback and push notifications in background tabs. To ensure your Pomodoros and scheduled alerts actually play and notify you, authorize both channels below.
+              </p>
+            </div>
           </div>
-          <div className="text-left">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Push Alarms Mode</h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
-              Allow study alerts to deliver sound notifications even while working inside background sheets or other tabs.
-            </p>
-          </div>
+          
+          {permissionStatus === "granted" && isAudioApproved ? (
+            <span className="text-[9.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase px-3.5 py-1.5 border border-emerald-555/20 rounded-full flex items-center gap-1.5 shrink-0 self-start lg:self-center">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 animate-pulse" /> Precision Alerts Authorized
+            </span>
+          ) : (
+            <button
+              onClick={handleRequestPermission}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-650 hover:opacity-90 active:scale-95 text-xs text-white uppercase tracking-widest font-black rounded-xl transition-all self-start lg:self-center cursor-pointer shadow-md shadow-indigo-600/10"
+            >
+              Authorize Both Channels
+            </button>
+          )}
         </div>
 
-        {permissionStatus !== "granted" ? (
+        {/* Dual check indicator panels */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Channel A: OS Push Reminders */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/50 dark:border-slate-900/50 flex items-start gap-3.5 text-left">
+            <div className={`p-2.5 rounded-xl shrink-0 ${
+              permissionStatus === "granted" 
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
+                : "bg-slate-100 dark:bg-slate-950 text-slate-400 border border-slate-200 dark:border-slate-800"
+            }`}>
+              {permissionStatus === "granted" ? <Bell className="w-4.5 h-4.5" /> : <BellOff className="w-4.5 h-4.5" />}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">OS Popup Notifications</span>
+                <span className={`text-[8px] uppercase font-black px-1.5 py-0.5 rounded-full ${
+                  permissionStatus === "granted" 
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                    : permissionStatus === "denied" 
+                    ? "bg-rose-500/10 text-rose-500" 
+                    : "bg-amber-500/10 text-amber-500"
+                }`}>
+                  {permissionStatus}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-550 dark:text-slate-500">
+                Shows interactive banners in the corner of your screen when a focus timer concludes, even in background sheets.
+              </p>
+              {permissionStatus !== "granted" && (
+                <button
+                  type="button"
+                  onClick={handleRequestPermission}
+                  className="mt-1 text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-350 font-black flex items-center gap-1 cursor-pointer"
+                >
+                  Request Permission ➜
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Channel B: Web Audio Chimes & Synthesis */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/50 dark:border-slate-900/50 flex items-start gap-3.5 text-left">
+            <div className={`p-2.5 rounded-xl shrink-0 ${
+              isAudioApproved 
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
+                : "bg-slate-100 dark:bg-slate-950 text-slate-400 border border-slate-200 dark:border-slate-800"
+            }`}>
+              <Volume2 className="w-4.5 h-4.5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Audio Autoplay Channel</span>
+                <span className={`text-[8px] uppercase font-black px-1.5 py-0.5 rounded-full ${
+                  isAudioApproved 
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                    : "bg-amber-500/10 text-amber-500"
+                }`}>
+                  {isAudioApproved ? "unlocked" : "restricted"}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-550 dark:text-slate-500">
+                Bypasses standard browser audio restrictions. Plays premium chime synthesisers immediately upon completing study slots.
+              </p>
+              <button
+                type="button"
+                onClick={handleTestChimeOnly}
+                className="mt-1 text-[10px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-350 font-black flex items-center gap-1 cursor-pointer"
+              >
+                {isAudioApproved ? "Test Sound Buzzer ♫" : "Authorize & Test Sound ♫"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chrome Alarms & Notification Sandbox Lab */}
+      <div className="bg-slate-50 dark:bg-[#141414] rounded-3xl border border-slate-200/60 dark:border-slate-900/80 p-5 space-y-5 shadow-lg text-left">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-900/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl shrink-0">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-150">
+                Chrome Push & Alarms Validation Lab
+              </h4>
+              <p className="text-[10px] text-slate-500">
+                Play synthesized study chords and verify background push mechanics directly in Google Chrome.
+              </p>
+            </div>
+          </div>
+          
           <button
-            onClick={handleRequestPermission}
-            className="px-4 py-2 bg-[#f26419] hover:opacity-90 active:scale-95 text-xs text-white uppercase tracking-wider font-extrabold rounded-full transition-all self-start md:self-center cursor-pointer cursor-and-touch shadow-md shadow-[#f26419]/10"
+            type="button"
+            onClick={() => setIsChromeGuideOpen(!isChromeGuideOpen)}
+            className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-wider text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors bg-indigo-500/5 dark:bg-indigo-950/10 px-3 py-1.5 rounded-xl border border-indigo-500/10"
           >
-            Enable Audio Push Alerts
+            <HelpCircle className="w-3.5 h-3.5" />
+            {isChromeGuideOpen ? "Close Chrome Guide" : "Chrome Blocked Guide"}
+            {isChromeGuideOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
-        ) : (
-          <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase px-3 py-1.5 border border-emerald-550/20 rounded-full flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-emerald-550 dark:text-emerald-400 animate-pulse" /> Allowed OS Reminders
-          </span>
+        </div>
+
+        {/* Diagnostic Handbook (Expanding) */}
+        {isChromeGuideOpen && (
+          <div className="bg-white dark:bg-[#111111] border border-slate-200/50 dark:border-slate-900/90 rounded-2xl p-4 space-y-3.5 animate-fade-in">
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-amber-500 shrink-0" />
+              Chrome Notification Troubleshooting Handbook:
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
+                <span className="text-[9px] font-black uppercase text-indigo-500">1. Click Lock Icon</span>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  In Chrome's address bar, click the **Lock (🔒) or Tune slider** immediately to the left of the website URL.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
+                <span className="text-[9px] font-black uppercase text-emerald-500">2. Enable Notifications</span>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Find **Notifications** inside the dropdown menu and set its toggle to **Allow**. Reload the tab when prompted.
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
+                <span className="text-[9px] font-black uppercase text-amber-500">3. System Focus Rules</span>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Ensure Windows "Focus Assist" or Mac "Do Not Disturb" is turned off, as operating systems can block Chrome from presenting popups.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Tone Selector Board */}
+          <div className="bg-white dark:bg-[#121212] border border-slate-200/50 dark:border-slate-900/50 rounded-2xl p-4 space-y-3">
+            <span className="block text-[10px] uppercase font-black tracking-wider text-slate-500">
+              🎵 Choose Your Alarm Sound Preset
+            </span>
+            
+            <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200/30 dark:border-slate-900/40">
+              {(["chime", "success", "break"] as const).map((tone) => (
+                <button
+                  key={tone}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTestTone(tone);
+                    playChime(tone);
+                  }}
+                  className={`py-2 rounded-lg text-center text-[10.5px] font-black transition-all cursor-pointer ${
+                    selectedTestTone === tone
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-350"
+                  }`}
+                >
+                  {tone === "chime" ? "Classic Bell" : tone === "success" ? "Ascent Arp" : "Chill Hum"}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[10px] text-slate-450 leading-relaxed">
+              *Tapping any sound preset above plays a real-time sample to bypass browser restrictions and unlock your audio stream.
+            </p>
+          </div>
+
+          {/* Test Action Controllers */}
+          <div className="bg-white dark:bg-[#121212] border border-slate-200/50 dark:border-slate-900/50 rounded-2xl p-4 flex flex-col justify-between gap-4">
+            <div>
+              <span className="block text-[10px] uppercase font-black tracking-wider text-slate-500 mb-2">
+                ⚡ Interactive Background Alarm Toggles
+              </span>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Test that alarm audio and Chrome notifications fire correctly. Try the 5-second countdown option, minimize Chrome or switch tabs, and verify the background push alert.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleImmediatePushTest}
+                className="flex-1 min-w-[140px] px-4 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-800 text-slate-100 text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5"
+              >
+                <Bell className="w-3.5 h-3.5 text-indigo-400" />
+                Test Alarm (Now)
+              </button>
+
+              <button
+                type="button"
+                disabled={testCountdown !== null}
+                onClick={handleStartDelayedTest}
+                className={`flex-1 min-w-[140px] px-4 py-2.5 bg-gradient-to-r from-[#f26419] to-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 ${
+                  testCountdown !== null ? "opacity-60 cursor-not-allowed animate-pulse" : ""
+                }`}
+              >
+                <Play className="w-3.5 h-3.5 text-white" />
+                {testCountdown !== null ? `Triggering in ${testCountdown}s...` : "Test Alarm (5s Delay)"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Pre-packaged High Productivity presets (Interconnectivity is high here) */}

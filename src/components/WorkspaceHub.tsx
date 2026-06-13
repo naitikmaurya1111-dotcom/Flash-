@@ -395,7 +395,7 @@ export default function WorkspaceHub({
       const end = new Date(start.getTime() + calMinutes * 60 * 1000);
       await createCalendarEvent(
         accessToken!,
-        `[StudyPulse] ${calSummary.trim()}`,
+        `[Flash5tudy] ${calSummary.trim()}`,
         `Focus Work Session. Streak bonus active: ${streak} days. Stay consistent!`,
         start.toISOString(),
         end.toISOString()
@@ -420,7 +420,7 @@ export default function WorkspaceHub({
       return;
     }
 
-    const docTitle = `StudyPulse - Personal Study Strategy (${new Date().toLocaleDateString()})`;
+    const docTitle = `Flash5tudy - Personal Study Strategy (${new Date().toLocaleDateString()})`;
     const mdContent = `# ${docTitle}
       
 ## Academic Personality Rating
@@ -440,7 +440,7 @@ Here is your study habits optimization strategy synthesized by our high-performa
 ${localAdvice.scheduleTip}
 
 ---
-*Created inside StudyPulse Productivity Center.*`;
+*Created inside Flash5tudy Productivity Center.*`;
 
     if (needsAuth) {
       setLoading(true);
@@ -532,9 +532,9 @@ ${localAdvice.scheduleTip}
       return;
     }
 
-    const docTitle = `StudyPulse Compiled Notes (${new Date().toLocaleDateString()})`;
+    const docTitle = `Flash5tudy Compiled Notes (${new Date().toLocaleDateString()})`;
     let contentMarkdown = `# ${docTitle}\n\n`;
-    contentMarkdown += `Compiled seamlessly inside StudyPulse Workspace Center.\n\n`;
+    contentMarkdown += `Compiled seamlessly inside Flash5tudy Workspace Center.\n\n`;
 
     const selected = keepNotes.filter(n => selectedNotesForDoc.includes(n.id));
     selected.forEach((note, idx) => {
@@ -603,7 +603,7 @@ ${localAdvice.scheduleTip}
     if (!accessToken) return;
     setLoading(true);
     try {
-      await createGoogleTask(accessToken, taskTitle.trim(), selectedTaskListId, "Created from StudyPulse workspace hub");
+      await createGoogleTask(accessToken, taskTitle.trim(), selectedTaskListId, "Created from Flash5tudy workspace hub");
       showNotification("Google Task added!");
       setTaskTitle("");
       const tsk = await fetchTasksFromList(accessToken, selectedTaskListId);
@@ -847,7 +847,7 @@ ${localAdvice.scheduleTip}
                 </div>
               ) : currentEvents.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-12">
-                  No scheduled StudyPulse calendar blocks found. Protect your hours using the scheduler!
+                  No scheduled Flash5tudy calendar blocks found. Protect your hours using the scheduler!
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1 no-scrollbar">

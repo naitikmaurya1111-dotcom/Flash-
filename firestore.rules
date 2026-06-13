@@ -35,7 +35,15 @@ service cloud.firestore {
         && data.email is string
         && data.email.size() <= 150
         && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
-        && (data.dailyTargetMinutes == null || (data.dailyTargetMinutes is number && data.dailyTargetMinutes >= 0));
+        && (data.dailyTargetMinutes == null || (data.dailyTargetMinutes is number && data.dailyTargetMinutes >= 0))
+        && (data.xp == null || (data.xp is number && data.xp >= 0))
+        && (data.lastActiveDate == null || (data.lastActiveDate is string && data.lastActiveDate.size() <= 50))
+        && (data.themePreset == null || (data.themePreset is string && data.themePreset.size() <= 50))
+        && (data.themeMode == null || (data.themeMode is string && data.themeMode.size() <= 50))
+        && (data.timerType == null || (data.timerType is string && data.timerType.size() <= 50))
+        && (data.pomoFocusDuration == null || (data.pomoFocusDuration is number && data.pomoFocusDuration >= 0))
+        && (data.pomoShortBreakDuration == null || (data.pomoShortBreakDuration is number && data.pomoShortBreakDuration >= 0))
+        && (data.pomoLongBreakDuration == null || (data.pomoLongBreakDuration is number && data.pomoLongBreakDuration >= 0));
     }
 
     function isValidSubject(data) {
@@ -112,6 +120,22 @@ service cloud.firestore {
         && data.amount is number
         && data.amount >= 0
         && data.timestamp is string;
+    }
+
+    function isValidReminder(data) {
+      return data.id is string
+        && data.id.size() <= 128
+        && data.title is string
+        && data.title.size() <= 200
+        && data.time is string
+        && data.time.size() <= 10
+        && data.type is string
+        && (data.type == 'daily' || data.type == 'one-shot' || data.type == 'timer')
+        && (data.durationMinutes == null || data.durationMinutes is number)
+        && (data.triggeredAt == null || data.triggeredAt is string)
+        && data.isActive is bool
+        && data.isCompleted is bool
+        && (data.subjectId == null || (data.subjectId is string && data.subjectId.size() <= 128));
     }
 
     function isValidStudyRoom(data) {
@@ -212,6 +236,14 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidXpGainLog(request.resource.data);
         allow update: if isOwner(userId) && isValidXpGainLog(request.resource.data)
                       && request.resource.data.id == resource.data.id; // Immutable Log ID
+        allow delete: if isOwner(userId);
+      }
+
+      match /reminders/{reminderId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(reminderId) && isValidReminder(request.resource.data);
+        allow update: if isOwner(userId) && isValidReminder(request.resource.data)
+                      && request.resource.data.id == resource.data.id; // Immutable Reminder ID
         allow delete: if isOwner(userId);
       }
     }

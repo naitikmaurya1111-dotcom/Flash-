@@ -1,5 +1,5 @@
 {
-  "name": "Study Habit & Focus Tracker",
+  "name": "Flash5tudy",
   "description": "A productivity and habit tracker inspired by YPT (Yeolpumta) featuring subject timers, simulated group study rooms, detailed analytics, and an AI study coach.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

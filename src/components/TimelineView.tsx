@@ -20,7 +20,12 @@ import {
   RotateCw,
   SkipForward,
   Zap,
-  Plus
+  Plus,
+  Shield,
+  Brain,
+  Award,
+  Flame,
+  Heart
 } from "lucide-react";
 import { Subject, StudyLog } from "../types";
 
@@ -92,9 +97,60 @@ export default function TimelineView({
   const [allDayEvents, setAllDayEvents] = useState<string[]>(["Google I/O event", "Diary 📓 Fill"]);
 
   // Audio ambient synthesizers states
-  const [ambientSound, setAmbientSound] = useState<"none" | "brown" | "rain" | "waves">("none");
+  const [ambientSound, setAmbientSound] = useState<"none" | "brown" | "rain" | "waves" | "fire" | "binaural">("none");
   const [volume, setVolume] = useState(0.18);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Focus enhancers configurations persisted locally
+  const [focusGuard, setFocusGuard] = useState(() => {
+    return localStorage.getItem("study_focus_guard") === "true";
+  });
+  const [showBreathingCoach, setShowBreathingCoach] = useState(() => {
+    return localStorage.getItem("study_breathing_coach") === "true";
+  });
+  const [breathState, setBreathState] = useState<"inhale" | "hold" | "exhale">("inhale");
+
+  useEffect(() => {
+    localStorage.setItem("study_focus_guard", String(focusGuard));
+  }, [focusGuard]);
+
+  useEffect(() => {
+    localStorage.setItem("study_breathing_coach", String(showBreathingCoach));
+  }, [showBreathingCoach]);
+
+  // Breathing pacer loop (4s inflate, 4s hold, 4s deflate)
+  useEffect(() => {
+    if (!isStudying || !showBreathingCoach) return;
+    const interval = setInterval(() => {
+      setBreathState(prev => {
+        if (prev === "inhale") return "hold";
+        if (prev === "hold") return "exhale";
+        return "inhale";
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isStudying, showBreathingCoach]);
+
+  // Focus guard tab auto-pause listener
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (focusGuard && document.hidden && isStudying) {
+        setIsStudying(false);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [focusGuard, isStudying, setIsStudying]);
+
+  const getActiveSessionBadge = (seconds: number) => {
+    if (seconds < 120) return { title: "Focus Initiated", badge: "🌱 Seedling", desc: "Just started. Shielding thoughts from distractions.", color: "text-[#f26419] bg-[#f26419]/5 border-[#f26419]/20" };
+    if (seconds < 600) return { title: "Steady Concentration Flows", badge: "🔥 Spark", desc: "Warmup phase complete. Cognitive gears aligned.", color: "text-amber-600 bg-amber-500/5 border-amber-500/20" };
+    if (seconds < 1500) return { title: "Synaptic Deep Study Burst", badge: "🎯 Sharp Scholar", desc: "High-density learning. Reaching long term memory levels.", color: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" };
+    if (seconds < 3000) return { title: "Unbroken Hyperfocus State", badge: "💡 Zen Titan", desc: "Incredible mastery. Mental clarity is absolute.", color: "text-indigo-650 bg-indigo-500/5 dark:text-indigo-400 border-indigo-500/20" };
+    return { title: "Ascended Ultimate Flow State", badge: "🌌 Cosmic Master", desc: "Shattered limitations. Elite level of neural efficiency.", color: "text-rose-600 bg-rose-500/5 dark:text-rose-400 border-rose-500/20" };
+  };
 
   // Sound generator Web Audio nodes refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -172,7 +228,7 @@ export default function TimelineView({
     }
   }, [volume]);
 
-  const startAmbientSynth = (type: "brown" | "rain" | "waves") => {
+  const startAmbientSynth = (type: "brown" | "rain" | "waves" | "fire" | "binaural") => {
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -184,31 +240,61 @@ export default function TimelineView({
       }
 
       const bufferSize = 2 * ctx.sampleRate;
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
+      const channels = type === "binaural" ? 2 : 1;
+      const noiseBuffer = ctx.createBuffer(channels, bufferSize, ctx.sampleRate);
 
-      if (type === "brown") {
-        // Deep brownian focus hum
-        let lastOut = 0.0;
+      if (type === "binaural") {
+        const left = noiseBuffer.getChannelData(0);
+        const right = noiseBuffer.getChannelData(1);
+        const sampleRate = ctx.sampleRate;
+        const freqL = 180; // carrier frequency (Left Ear)
+        const freqR = 220; // Left + 40Hz (Right Ear) creates perfect 40Hz Gamma wave entrainment!
         for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          output[i] = (lastOut + (0.02 * white)) / 1.02;
-          lastOut = output[i];
-          output[i] *= 3.5; 
-        }
-      } else if (type === "waves") {
-        // Beach ocean swell
-        for (let i = 0; i < bufferSize; i++) {
-          output[i] = Math.random() * 2 - 1;
+          const t = i / sampleRate;
+          left[i] = Math.sin(2 * Math.PI * freqL * t) * 0.45;
+          right[i] = Math.sin(2 * Math.PI * freqR * t) * 0.45;
         }
       } else {
-        // Crackling cozy rain clicks
-        for (let i = 0; i < bufferSize; i++) {
-          let val = Math.random() * 2 - 1;
-          if (Math.random() < 0.1) {
-            val += (Math.random() * 2 - 1) * 0.5;
+        const output = noiseBuffer.getChannelData(0);
+        
+        if (type === "brown") {
+          // Deep brownian focus hum
+          let lastOut = 0.0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            output[i] = (lastOut + (0.02 * white)) / 1.02;
+            lastOut = output[i];
+            output[i] *= 3.5; 
           }
-          output[i] = val * 0.35;
+        } else if (type === "waves") {
+          // Beach ocean swell
+          for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+          }
+        } else if (type === "fire") {
+          // Cozy wood fireplace: low brown rumble + transient crackling clicks
+          let lastOut = 0.0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            let val = (lastOut + (0.018 * white)) / 1.018;
+            lastOut = val;
+            val *= 2.8;
+
+            // Wood pops
+            if (Math.random() < 0.00015) {
+              val += (Math.random() > 0.55 ? 0.75 : -0.75);
+            }
+            output[i] = val;
+          }
+        } else {
+          // Crackling cozy rain clicks
+          for (let i = 0; i < bufferSize; i++) {
+            let val = Math.random() * 2 - 1;
+            if (Math.random() < 0.1) {
+              val += (Math.random() * 2 - 1) * 0.5;
+            }
+            output[i] = val * 0.35;
+          }
         }
       }
 
@@ -224,6 +310,11 @@ export default function TimelineView({
       } else if (type === "waves") {
         filter.frequency.setValueAtTime(400, ctx.currentTime);
         modulateFilterWaves(filter);
+      } else if (type === "fire") {
+        filter.frequency.setValueAtTime(450, ctx.currentTime);
+      } else if (type === "binaural") {
+        // Binaural focus beats should pass through unfiltered, but keep gentle warmth
+        filter.frequency.setValueAtTime(600, ctx.currentTime);
       } else {
         filter.frequency.setValueAtTime(800, ctx.currentTime);
       }
@@ -553,7 +644,20 @@ export default function TimelineView({
                   <div className="absolute -inset-1.5 rounded-full border border-solid border-[#f26419]/10 animate-ping opacity-40 duration-2000" style={{ animationDuration: '3s' }} />
                 )}
 
-                <svg className="w-full h-full transform -rotate-90">
+                {/* Mindful Breathing Animated Anchor Overlays */}
+                {showBreathingCoach && isStudying && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
+                    <div 
+                      className={`absolute rounded-full border border-[#f26419]/20 bg-[#f26419]/5 transition-all duration-[4000ms] ease-in-out ${
+                        breathState === "inhale" ? "inset-2 opacity-75 scale-110"
+                        : breathState === "hold" ? "inset-1.5 opacity-90 blur-[1px] scale-115 animate-pulse"
+                        : "inset-6 opacity-30 scale-95"
+                      }`}
+                    />
+                  </div>
+                )}
+
+                <svg className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
                   <defs>
                     <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#f26419" />
@@ -607,9 +711,8 @@ export default function TimelineView({
                       className="progress-glow transition-all duration-300"
                       strokeWidth="8" 
                       fill="none" 
-                      strokeDasharray="703.7"
-                      strokeDashoffset={
-                        703.7 - (703.7 * (
+                      strokeDasharray={`${
+                        (703.7 * (
                           () => {
                             const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
                                              pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
@@ -617,7 +720,8 @@ export default function TimelineView({
                             return Math.min(100, Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100));
                           }
                         )()) / 100
-                      }
+                      } 703.7`}
+                      strokeDashoffset={0}
                       strokeLinecap="round"
                     />
                   ) : (
@@ -629,60 +733,71 @@ export default function TimelineView({
                       className="progress-glow transition-all duration-300"
                       strokeWidth="8" 
                       fill="none" 
-                      strokeDasharray="703.7"
-                      strokeDashoffset={703.7 - (703.7 * getProgressRingPercent()) / 100}
+                      strokeDasharray={`${(703.7 * getProgressRingPercent()) / 100} 703.7`}
+                      strokeDashoffset={0}
                       strokeLinecap="round"
                     />
                   )}
                 </svg>
 
-                {/* Digital readout inside the glass crystal */}
+                {/* Digital readout inside the glass crystal (Swapped/Repositioned for balanced, clean UX) */}
                 <div className="absolute flex flex-col items-center justify-center text-center px-6 z-10">
-                  <div className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-black ${
-                    isStudying 
-                      ? pomoState === "focus" || timerType === "stopwatch"
-                        ? "bg-[#f26419]/10 border-[#f26419]/30 text-[#f26419] animate-pulse" 
-                        : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
-                      : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
-                  }`}>
-                    {timerType === "stopwatch" ? (
-                      isStudying ? "Focus Flowing" : "Stopwatch Paused"
-                    ) : (
-                      pomoState === "focus" ? (
-                        isStudying ? "Focus Period" : "Pomo Standby"
-                      ) : (
-                        pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
-                      )
-                    )}
-                  </div>
-
-                  <span className="text-4xl md:text-5xl font-mono font-black tracking-tighter text-slate-800 dark:text-neutral-50 my-2.5 antialiased tabular-nums">
-                    {timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft)}
-                  </span>
-                  
                   {activeSubject ? (
-                    <div className="flex flex-col items-center gap-1 max-w-[170px]">
-                      <span className="text-[11px] font-sans font-black text-slate-700 dark:text-slate-350 truncate block">
+                    <div className="flex flex-col items-center max-w-[190px] mb-1">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[150px]">
                         {activeSubject.name}
                       </span>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono font-bold bg-slate-100/50 dark:bg-slate-950/40 px-2 py-0.5 rounded-md">
+                      <div className="flex items-center gap-1 text-[9px] text-[#f26419] font-mono font-black mt-0.5">
                         <span>Goal: {activeSubject.goalMinutes}m</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-[#f26419]">
+                        <span className="opacity-40">•</span>
+                        <span>
                           {timerType === "stopwatch" ? `${getProgressRingPercent()}%` : (
                             () => {
                               const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
                                                pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
                                                pomoLongBreakDuration * 60;
-                              return `${Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 105 / 105)}%`; // Simple fallback
+                              return `${Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100)}%`;
                             }
                           )()}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-400 font-medium">Select a category</span>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Study Focus</span>
                   )}
+
+                  <span className="text-4xl md:text-5xl font-mono font-black tracking-tighter text-slate-800 dark:text-neutral-50 my-1 antialiased tabular-nums leading-none">
+                    {timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft)}
+                  </span>
+
+                  <div className="mt-2.5 flex flex-col items-center gap-1.5">
+                    <div className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-extrabold ${
+                      isStudying 
+                        ? pomoState === "focus" || timerType === "stopwatch"
+                          ? "bg-[#f26419]/10 border-[#f26419]/30 text-[#f26419] animate-pulse" 
+                          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
+                        : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
+                    }`}>
+                      {timerType === "stopwatch" ? (
+                        isStudying ? "Focus Flowing" : "Stopwatch Paused"
+                      ) : (
+                        pomoState === "focus" ? (
+                          isStudying ? "Focus Period" : "Pomo Standby"
+                        ) : (
+                          pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
+                        )
+                      )}
+                    </div>
+
+                    {showBreathingCoach && isStudying && (
+                      <div className="flex items-center justify-center gap-1 bg-[#f26419]/5 dark:bg-[#f26419]/15 border border-[#f26419]/20 px-2.5 py-0.5 rounded-full animate-pulse">
+                        <span className="w-1 h-1 rounded-full bg-[#f26419]" />
+                        <span className="text-[7.5px] font-mono font-black uppercase text-[#f26419] tracking-widest leading-none">
+                          {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -712,6 +827,32 @@ export default function TimelineView({
                   </div>
                 </div>
               )}
+
+              {/* Gamified Concentration Milestone Badge */}
+              <div className="mt-4 w-full flex flex-col items-center">
+                {(() => {
+                  const badgeInfo = getActiveSessionBadge(timerType === "stopwatch" ? activeSeconds : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) : 0));
+                  return (
+                    <div className={`p-3.5 rounded-2xl border text-center w-full max-w-[256px] flex items-center gap-2.5 transition-all duration-300 ${badgeInfo.color} shadow-xs`}>
+                      <div className="p-1.5 rounded-xl bg-white dark:bg-slate-900 relative shadow-xs flex items-center justify-center shrink-0">
+                        {timerType === "stopwatch" && activeSeconds >= 600 ? (
+                          <Award className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <Flame className="w-4 h-4 text-[#f26419]" />
+                        )}
+                      </div>
+                      <div className="text-left min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">Level:</span>
+                          <span className="text-[9px] font-sans font-extrabold tracking-wide text-slate-750 dark:text-slate-250">{badgeInfo.badge}</span>
+                        </div>
+                        <h5 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 truncate">{badgeInfo.title}</h5>
+                        <p className="text-[8px] text-slate-450 dark:text-slate-500 leading-tight mt-0.5 max-w-[190px]">{badgeInfo.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
               <div className="flex items-center gap-3 mt-6">
@@ -960,21 +1101,24 @@ export default function TimelineView({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: "none", label: "Mute" },
                     { id: "brown", label: "Brownian" },
                     { id: "rain", label: "Cozy Rain" },
-                    { id: "waves", label: "Ocean Tide" }
+                    { id: "waves", label: "Ocean Tide" },
+                    { id: "fire", label: "Campfire" },
+                    { id: "binaural", label: "Gamma Beats" }
                   ].map((s) => (
                     <button
                       key={s.id}
                       onClick={() => setAmbientSound(s.id as any)}
-                      className={`p-2 rounded-xl text-center text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                      className={`p-2 rounded-xl text-center text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer truncate ${
                         ambientSound === s.id 
                           ? "bg-slate-900 border-[#f26419]/40 text-[#f26419] dark:bg-slate-950 shadow-xs" 
                           : "bg-white dark:bg-slate-900/50 text-slate-550 dark:text-slate-400 border-slate-100 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-900"
                       }`}
+                      title={s.label}
                     >
                       {s.label}
                     </button>
@@ -1019,6 +1163,70 @@ export default function TimelineView({
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* Cognitive Companion Enhancers Deck */}
+              <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
+                <div>
+                  <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-extrabold tracking-wider block">
+                    Focus Boosters
+                  </span>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Activate real-time cognitive state assistants:</p>
+                </div>
+
+                <div className="space-y-2.5">
+                  {/* Focus Guard Protection Switch */}
+                  <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`p-1.5 rounded-lg transition-transform ${focusGuard ? 'bg-[#f26419]/10 text-[#f26419] scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
+                        <Shield className="w-4 h-4 stroke-[2.5]" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Anti-Distraction Shield</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Auto-pauses study if you switch browser tabs</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setFocusGuard(!focusGuard)}
+                      aria-label="Toggle focus guard"
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        focusGuard ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                          focusGuard ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Mindful Breathing Anchor Switch */}
+                  <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`p-1.5 rounded-lg transition-transform ${showBreathingCoach ? 'bg-indigo-500/10 text-indigo-500 scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
+                        <Brain className="w-4 h-4 stroke-[2.5]" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Rhythmic Breath Coach</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Pulsing 4-4-4 visual guide for stress reduction</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowBreathingCoach(!showBreathingCoach)}
+                      aria-label="Toggle breathing guide"
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        showBreathingCoach ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                          showBreathingCoach ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
 
             </div>

@@ -7,10 +7,13 @@ import {
   User,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
+import { secureStorage } from "./crypto";
 
 // Initialize Firebase App instance once
 const app = initializeApp(firebaseConfig);
@@ -27,7 +30,7 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 
 // Token and SignIn states caches
 let isSigningIn = false;
-let cachedAccessToken: string | null = typeof window !== "undefined" ? localStorage.getItem("google_oauth_access_token") : null;
+let cachedAccessToken: string | null = typeof window !== "undefined" ? secureStorage.getItem("google_oauth_access_token") : null;
 
 // Initialize Google/Firebase auth listner
 export const initAuth = (
@@ -41,9 +44,9 @@ export const initAuth = (
 
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      // Restore from localStorage if null in memory
+      // Restore from secureStorage if null in memory
       if (!cachedAccessToken && typeof window !== "undefined") {
-        cachedAccessToken = localStorage.getItem("google_oauth_access_token");
+        cachedAccessToken = secureStorage.getItem("google_oauth_access_token");
       }
       
       // If there's an active token in cache, success
@@ -56,7 +59,7 @@ export const initAuth = (
     } else {
       cachedAccessToken = null;
       if (typeof window !== "undefined") {
-        localStorage.removeItem("google_oauth_access_token");
+        secureStorage.removeItem("google_oauth_access_token");
       }
       if (onAuthFailure) onAuthFailure();
     }
@@ -90,13 +93,13 @@ export const googleSignIn = async (requestWorkspaceScopes: boolean = false): Pro
       token = credential.accessToken;
       cachedAccessToken = token;
       if (typeof window !== "undefined") {
-        localStorage.setItem("google_oauth_access_token", token);
+        secureStorage.setItem("google_oauth_access_token", token);
       }
     } else {
       // Standard login - clear cached workspace credentials to force fresh connection on explicit integration click
       cachedAccessToken = null;
       if (typeof window !== "undefined") {
-        localStorage.removeItem("google_oauth_access_token");
+        secureStorage.removeItem("google_oauth_access_token");
       }
     }
     
@@ -117,7 +120,7 @@ export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
   if (typeof window !== "undefined") {
-    localStorage.removeItem("google_oauth_access_token");
+    secureStorage.removeItem("google_oauth_access_token");
   }
 };
 
@@ -132,6 +135,16 @@ export const emailPasswordSignUp = async (email: string, password: string, displ
 export const emailPasswordSignIn = async (email: string, password: string): Promise<User> => {
   const result = await signInWithEmailAndPassword(auth, email, password);
   return result.user;
+};
+
+export const resetUserPassword = async (email: string): Promise<void> => {
+  await sendPasswordResetEmail(auth, email);
+};
+
+export const verifyUserEmail = async (): Promise<void> => {
+  if (auth.currentUser) {
+    await sendEmailVerification(auth.currentUser);
+  }
 };
 
 // ==================== WORKSPACE API WRAPPERS ====================

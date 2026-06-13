@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
@@ -12,8 +12,9 @@ import {
   getDocs, 
   getDocFromServer 
 } from "firebase/firestore";
-import { db, auth, initAuth, googleSignIn, logout, getAccessToken, emailPasswordSignUp, emailPasswordSignIn } from "./lib/googleApi";
+import { db, auth, initAuth, googleSignIn, logout, getAccessToken, emailPasswordSignUp, emailPasswordSignIn, resetUserPassword, verifyUserEmail } from "./lib/googleApi";
 import { User } from "firebase/auth";
+import { secureStorage } from "./lib/crypto";
 
 // Import modules
 import ClassmateGrid from "./components/ClassmateGrid";
@@ -88,6 +89,13 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   }
 }
 
+function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const getAvatarSeed = (email?: string | null) => {
   if (!email) return "bg-emerald-500";
   const colors = [
@@ -108,13 +116,38 @@ const getAvatarSeed = (email?: string | null) => {
 };
 
 export default function App() {
+  // Synchronous Day Rollover Check on Page Mount / Init
+  const isNewDayOnStart = (() => {
+    const today = getLocalDateString();
+    const lastDay = localStorage.getItem("study_last_active_date");
+    if (lastDay && lastDay !== today) {
+      return true;
+    }
+    if (!lastDay) {
+      localStorage.setItem("study_last_active_date", today);
+    }
+    return false;
+  })();
+
   const [activeTab, setActiveTab] = useState<"focus" | "rooms" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // YPT configuration overlays
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [themePreset, setThemePreset] = useState(() => localStorage.getItem("ypt_theme_preset") || "dark-classic");
-  const [themeMode, setThemeMode] = useState<"light" | "dark">(() => (localStorage.getItem("study_theme_mode") as "light" | "dark") || "dark");
+  const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(() => {
+    return (localStorage.getItem("study_theme_mode") as "light" | "dark" | "system") || "system";
+  });
+  const [activeTheme, setActiveTheme] = useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("study_theme_mode") || "system";
+    if (saved === "system") {
+      if (typeof window !== "undefined") {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      return "dark";
+    }
+    return saved as "light" | "dark";
+  });
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isWideHud, setIsWideHud] = useState(() => {
     const local = localStorage.getItem("ypt_wide_hud");
@@ -123,24 +156,94 @@ export default function App() {
 
   // Reminders and local active alert popups
   const [reminders, setReminders] = useState<Reminder[]>(() => {
-    const local = localStorage.getItem("study_reminders");
-    if (local) return JSON.parse(local);
-    return [
+    const defaultReminders = [
       { id: "rem-1", title: "💦 Hydration Water Check", time: "45", type: "timer", durationMinutes: 45, isActive: true, isCompleted: false },
       { id: "rem-2", title: "🧘 Posture Stretch Break", time: "60", type: "timer", durationMinutes: 60, isActive: true, isCompleted: false },
       { id: "rem-3", title: "📝 Checkoff Daily Study Goal", time: "20:00", type: "daily", isActive: true, isCompleted: false }
     ];
+    if (isNewDayOnStart) {
+      secureStorage.setItem("study_reminders", JSON.stringify(defaultReminders));
+      return defaultReminders;
+    }
+    const local = secureStorage.getItem("study_reminders");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Reminders decryption error", e);
+      }
+    }
+    return defaultReminders;
   });
   const [firedNotification, setFiredNotification] = useState<string | null>(null);
+
+  // States for unified alerts and sound approvals
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
+  const [audioAutoplayApproved, setAudioAutoplayApproved] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("audio_autoplay_approved") === "true";
+    }
+    return false;
+  });
+  const [dismissedPermBanner, setDismissedPermBanner] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("dismissed_perm_banner") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleGrantAllPermissions = async () => {
+    let notifyOutcome: NotificationPermission = "default";
+    
+    // 1. Request Push Notifications permission
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        notifyOutcome = await Notification.requestPermission();
+        setNotificationPermission(notifyOutcome);
+      } catch (err) {
+        console.warn("Notification request failed:", err);
+      }
+    }
+
+    // 2. Unlock & play Web Audio synth chime to bypass browser autoplay policy
+    try {
+      playChime("success");
+      localStorage.setItem("audio_autoplay_approved", "true");
+      setAudioAutoplayApproved(true);
+    } catch (err) {
+      console.warn("Audio Context activation failed:", err);
+    }
+
+    // 3. Show dynamic confirmation notice
+    if (notifyOutcome === "granted") {
+      setFiredNotification("🔔 Awesome! Desktop Push Notifications authorized & Alarm synthesizer sound channel enabled successfully!");
+    } else {
+      setFiredNotification("🔊 Alarm synthesizer sound channel enabled! (OS notification permissions were not approved, but within-tab alarms will sound perfectly).");
+    }
+  };
 
   // YPT Lobby real-time states
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(() => {
     return localStorage.getItem("ypt_joined_room_id");
   });
   const [isStudyingUser, setIsStudyingUser] = useState<boolean>(() => {
+    if (isNewDayOnStart) {
+      localStorage.setItem("study_is_studying", "false");
+      return false;
+    }
     return localStorage.getItem("study_is_studying") === "true";
   });
   const [activeSecondsUser, setActiveSecondsUser] = useState<number>(() => {
+    if (isNewDayOnStart) {
+      localStorage.setItem("study_active_seconds_user", "0");
+      return 0;
+    }
     const s = localStorage.getItem("study_active_seconds_user");
     return s ? parseInt(s, 10) : 0;
   });
@@ -195,28 +298,83 @@ export default function App() {
     localStorage.setItem("study_pomo_seconds_left", pomoSecondsLeft.toString());
     localStorage.setItem("study_is_studying", isStudyingUser.toString());
     localStorage.setItem("study_active_seconds_user", activeSecondsUser.toString());
-  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, pomoSecondsLeft, isStudyingUser, activeSecondsUser]);
+
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid), {
+        timerType,
+        pomoFocusDuration,
+        pomoShortBreakDuration,
+        pomoLongBreakDuration
+      }, { merge: true })
+        .catch(e => console.warn("Failed syncing timer configuration to cloud:", e));
+    }
+  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, pomoSecondsLeft, isStudyingUser, activeSecondsUser, currentUser]);
 
   // AI coach advice sharing state (retrieved from dynamic coach executions)
   const [aiCoachAdvice, setAiCoachAdvice] = useState<{ quote: string; rating: string; scheduleTip: string } | null>(() => {
-    const local = localStorage.getItem("study_ai_advice");
-    return local ? JSON.parse(local) : null;
+    const local = secureStorage.getItem("study_ai_advice");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("AI coach advice parsing error", e);
+      }
+    }
+    return null;
   });
 
   // 1. Core Reactive States loaded with local storage and mock seeds
   const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const local = localStorage.getItem("study_subjects");
-    return local ? JSON.parse(local) : INITIAL_SUBJECTS;
+    if (isNewDayOnStart) {
+      const resetSubs = INITIAL_SUBJECTS.map((s) => ({ ...s, totalMinutes: 0 }));
+      secureStorage.setItem("study_subjects", JSON.stringify(resetSubs));
+      return resetSubs;
+    }
+    const local = secureStorage.getItem("study_subjects");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Subjects parsing error", e);
+      }
+    }
+    return INITIAL_SUBJECTS;
   });
 
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const local = localStorage.getItem("study_tasks");
-    return local ? JSON.parse(local) : [];
+    if (isNewDayOnStart) {
+      const local = secureStorage.getItem("study_tasks");
+      let allTasks: Task[] = [];
+      if (local) {
+        try {
+          allTasks = JSON.parse(local);
+        } catch (e) {}
+      }
+      const uncompletedTasks = allTasks.filter(t => !t.isCompleted);
+      secureStorage.setItem("study_tasks", JSON.stringify(uncompletedTasks));
+      return uncompletedTasks;
+    }
+    const local = secureStorage.getItem("study_tasks");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Tasks parsing error", e);
+      }
+    }
+    return [];
   });
 
   const [studyLogs, setStudyLogs] = useState<StudyLog[]>(() => {
-    const local = localStorage.getItem("study_logs");
-    return local ? JSON.parse(local) : [];
+    const local = secureStorage.getItem("study_logs");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Study logs parsing error", e);
+      }
+    }
+    return [];
   });
 
   const [activeSubjectId, setActiveSubjectId] = useState<string>(() => {
@@ -224,13 +382,13 @@ export default function App() {
   });
 
   const [dailyTargetMinutes, setDailyTargetMinutes] = useState<number>(() => {
-    const local = localStorage.getItem("study_daily_target");
+    const local = secureStorage.getItem("study_daily_target");
     return local ? parseInt(local) : 240; // 4 hours goal
   });
 
   // ==================== REWARD SYSTEMS STATS & CONFIGS ====================
   const [userXp, setUserXp] = useState<number>(() => {
-    const local = localStorage.getItem("study_user_xp");
+    const local = secureStorage.getItem("study_user_xp");
     return local ? parseInt(local, 10) : 0;
   });
 
@@ -242,24 +400,177 @@ export default function App() {
   ];
 
   const [quests, setQuests] = useState<QuestChallenge[]>(() => {
-    const local = localStorage.getItem("study_quests");
-    return local ? JSON.parse(local) : INITIAL_QUESTS;
+    if (isNewDayOnStart) {
+      secureStorage.setItem("study_quests", JSON.stringify(INITIAL_QUESTS));
+      return INITIAL_QUESTS;
+    }
+    const local = secureStorage.getItem("study_quests");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Quests parsing error", e);
+      }
+    }
+    return INITIAL_QUESTS;
   });
 
   const [rewards, setRewards] = useState<GiftReward[]>(() => {
-    const local = localStorage.getItem("study_rewards");
+    const local = secureStorage.getItem("study_rewards");
     const defaults: GiftReward[] = [
       { id: "def-1", title: "☕ Coffee Break Boost", costXp: 200, purchaseUrl: "https://www.amazon.com/s?k=gourmet+coffee", category: "Daily Treats", isUnlocked: false, isClaimed: false, notes: "A crisp hot caffeine mug to celebrate your hard studies!", createdAt: new Date().toISOString() },
       { id: "def-2", title: "📚 Self-Directed Ebook", costXp: 800, purchaseUrl: "https://www.amazon.com/s?k=kindle+books", category: "Books & Supplies", isUnlocked: false, isClaimed: false, notes: "Unlock any Kindle study/story book to unwind.", createdAt: new Date().toISOString() },
       { id: "def-3", title: "🎧 Noise Isolating Earplugs", costXp: 1500, purchaseUrl: "https://www.amazon.com/s?k=noise+reduction+earplugs+for+study", category: "Tech Gadget", isUnlocked: false, isClaimed: false, notes: "Acoustic peace to supercharge your deep focus blocks.", createdAt: new Date().toISOString() }
     ];
-    return local ? JSON.parse(local) : defaults;
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("Rewards parsing error", e);
+      }
+    }
+    return defaults;
   });
 
   const [xpLogs, setXpLogs] = useState<XpGainLog[]>(() => {
-    const local = localStorage.getItem("study_xp_logs");
-    return local ? JSON.parse(local) : [];
+    const local = secureStorage.getItem("study_xp_logs");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.warn("XP logs parsing error", e);
+      }
+    }
+    return [];
   });
+
+  // Keep latest timer state values stored in a Ref to prevent dependency re-runs on fast-changing numbers
+  const timerStateRef = useRef({
+    isStudyingUser,
+    activeSecondsUser,
+    timerType,
+    pomoState,
+    pomoSecondsLeft,
+    pomoFocusDuration,
+    activeSubjectId,
+    currentUser,
+  });
+
+  // Keep state reference continually updated on each change
+  useEffect(() => {
+    timerStateRef.current = {
+      isStudyingUser,
+      activeSecondsUser,
+      timerType,
+      pomoState,
+      pomoSecondsLeft,
+      pomoFocusDuration,
+      activeSubjectId,
+      currentUser,
+    };
+  }, [isStudyingUser, activeSecondsUser, timerType, pomoState, pomoSecondsLeft, pomoFocusDuration, activeSubjectId, currentUser]);
+
+  // -------------- DAY ROLLOVER CHECK --------------
+  useEffect(() => {
+    const checkDayRollover = () => {
+      const today = getLocalDateString();
+      const lastDay = localStorage.getItem("study_last_active_date");
+
+      if (lastDay && lastDay !== today) {
+        const state = timerStateRef.current;
+        
+        // If they were actively studying across midnight, log credit to the previous day so zero progress is lost!
+        if (state.isStudyingUser) {
+          let minsToSave = 0;
+          if (state.timerType === "stopwatch") {
+            minsToSave = Math.round(state.activeSecondsUser / 60);
+          } else if (state.timerType === "pomodoro" && state.pomoState === "focus") {
+            const elapsedFocusSeconds = (state.pomoFocusDuration * 60) - state.pomoSecondsLeft;
+            minsToSave = Math.round(elapsedFocusSeconds / 60);
+          }
+
+          if (minsToSave >= 1 && state.activeSubjectId) {
+            handleAddStudyMinutes(state.activeSubjectId, minsToSave, lastDay);
+          }
+        }
+
+        // Date changed! Reset daily arrays from secure storage AND state
+        setSubjects((prev) => {
+          const resetSubs = prev.map((s) => ({ ...s, totalMinutes: 0 }));
+          secureStorage.setItem("study_subjects", JSON.stringify(resetSubs));
+          // If logged in, wipe the cloud records for the current day
+          if (state.currentUser) {
+            resetSubs.forEach(sub => {
+              setDoc(doc(db, "users", state.currentUser.uid, "subjects", sub.id), sub)
+                .catch(() => {});
+            });
+          }
+          return resetSubs;
+        });
+
+        setQuests((prev) => {
+          const resetQuests = prev.map((q) => ({ ...q, isCompleted: false }));
+          secureStorage.setItem("study_quests", JSON.stringify(resetQuests));
+          if (state.currentUser) {
+            resetQuests.forEach(q => {
+              setDoc(doc(db, "users", state.currentUser.uid, "quests", q.id), q)
+                .catch(() => {});
+            });
+          }
+          return resetQuests;
+        });
+
+        setReminders((prev) => {
+          const resetReminders = prev.map((r) => ({
+            ...r,
+            isCompleted: false,
+            triggeredAt: undefined
+          }));
+          secureStorage.setItem("study_reminders", JSON.stringify(resetReminders));
+          return resetReminders;
+        });
+
+        setTasks((prev) => {
+          const uncompletedTasks = prev.filter(t => !t.isCompleted);
+          secureStorage.setItem("study_tasks", JSON.stringify(uncompletedTasks));
+          // If logged in, wipe the completed tasks from the cloud
+          if (state.currentUser) {
+            const completed = prev.filter(t => t.isCompleted);
+            completed.forEach(t => {
+              deleteDoc(doc(db, "users", state.currentUser.uid, "tasks", t.id))
+                .catch(() => {});
+            });
+          }
+          return uncompletedTasks;
+        });
+
+        // Any active study session should be halted because it's a new day
+        setIsStudyingUser(false);
+        setActiveSecondsUser(0);
+        setPomoState("focus");
+        setPomoRound(1);
+        setPomoSecondsLeft(pomoFocusDuration * 60);
+
+        localStorage.removeItem("study_start_time_ms");
+        localStorage.removeItem("study_seconds_baseline");
+        localStorage.setItem("study_is_studying", "false");
+        localStorage.setItem("study_active_seconds_user", "0");
+        
+        setFiredNotification("🌅 A new day has begun! Your timers and daily stats have been reset.");
+        // Also clean up older task logs if you optionally wished here (for now just tracking standard totalMins).
+      }
+
+      if (lastDay !== today) {
+        localStorage.setItem("study_last_active_date", today);
+      }
+    };
+
+    checkDayRollover();
+    // Re-check periodically every 60 seconds (useful past midnight or on simulate clicks)
+    const intv = setInterval(checkDayRollover, 60000);
+    return () => clearInterval(intv);
+  }, [pomoFocusDuration]);
+  // ------------------------------------------------
 
   // 0. Connection Test (Pillar Requirements)
   useEffect(() => {
@@ -292,6 +603,7 @@ export default function App() {
           const rewardsCol = collection(db, "users", user.uid, "rewards");
           const questsCol = collection(db, "users", user.uid, "quests");
           const xpLogsCol = collection(db, "users", user.uid, "xpLogs");
+          const remindersCol = collection(db, "users", user.uid, "reminders");
 
           const cloudFetchPromise = Promise.all([
             getDoc(userDocRef),
@@ -300,7 +612,8 @@ export default function App() {
             getDocs(logCol),
             getDocs(rewardsCol),
             getDocs(questsCol),
-            getDocs(xpLogsCol)
+            getDocs(xpLogsCol),
+            getDocs(remindersCol)
           ]);
 
           const timeoutPromise = new Promise<never>((_, reject) => {
@@ -310,10 +623,13 @@ export default function App() {
           });
 
           // Race the Firestore query against our 3s timeout
-          const [userSnap, subSnap, taskSnap, logSnap, rewardsSnap, questsSnap, xpLogsSnap] = await Promise.race([
+          const [userSnap, subSnap, taskSnap, logSnap, rewardsSnap, questsSnap, xpLogsSnap, remindersSnap] = await Promise.race([
             cloudFetchPromise,
             timeoutPromise
           ]);
+
+          const todayStr = getLocalDateString();
+          let cloudDayRolloverTriggered = false;
 
           // Fetch or initialize customizable target minutes
           if (userSnap.exists()) {
@@ -324,6 +640,34 @@ export default function App() {
             if (userData.xp !== undefined) {
               setUserXp(userData.xp);
             }
+            if (userData.themePreset) {
+              setThemePreset(userData.themePreset);
+            }
+            if (userData.themeMode) {
+              setThemeMode(userData.themeMode);
+            }
+            if (userData.timerType) {
+              setTimerType(userData.timerType);
+            }
+            if (userData.pomoFocusDuration) {
+              setPomoFocusDuration(userData.pomoFocusDuration);
+              setPomoSecondsLeft(userData.pomoFocusDuration * 60);
+            }
+            if (userData.pomoShortBreakDuration) {
+              setPomoShortBreakDuration(userData.pomoShortBreakDuration);
+            }
+            if (userData.pomoLongBreakDuration) {
+              setPomoLongBreakDuration(userData.pomoLongBreakDuration);
+            }
+            
+            // Check if user's cloud profile last active date is from a previous day
+            const lastActiveDate = userData.lastActiveDate || "";
+            if (lastActiveDate !== todayStr) {
+              cloudDayRolloverTriggered = true;
+              // Synchronize fresh active date immediately
+              setDoc(userDocRef, { lastActiveDate: todayStr }, { merge: true })
+                .catch(e => console.warn("Failed to update cloud lastActiveDate:", e));
+            }
           } else {
             // Register Student configuration profile (asynchronous background write)
             setDoc(userDocRef, {
@@ -331,7 +675,14 @@ export default function App() {
               email: user.email || "",
               displayName: user.displayName || "Scholar",
               dailyTargetMinutes: dailyTargetMinutes,
-              xp: userXp
+              xp: userXp,
+              lastActiveDate: todayStr,
+              themePreset,
+              themeMode,
+              timerType,
+              pomoFocusDuration,
+              pomoShortBreakDuration,
+              pomoLongBreakDuration
             }).catch(e => console.warn("Background user registration failed:", e));
           }
 
@@ -341,6 +692,7 @@ export default function App() {
           const loadedRewards: GiftReward[] = [];
           const loadedQuests: QuestChallenge[] = [];
           const loadedXpLogs: XpGainLog[] = [];
+          const loadedReminders: Reminder[] = [];
 
           subSnap.forEach(d => loadedSubs.push(d.data() as Subject));
           taskSnap.forEach(d => loadedTasks.push(d.data() as Task));
@@ -348,6 +700,23 @@ export default function App() {
           rewardsSnap.forEach(d => loadedRewards.push(d.data() as GiftReward));
           questsSnap.forEach(d => loadedQuests.push(d.data() as QuestChallenge));
           xpLogsSnap.forEach(d => loadedXpLogs.push(d.data() as XpGainLog));
+          remindersSnap.forEach(d => loadedReminders.push(d.data() as Reminder));
+
+          // Self-healing daily totalMinutes calculations based entirely on matching today's actual study logs!
+          const finalSubs = loadedSubs.map(sub => {
+            const todayMins = loadedLogs
+              .filter(log => log.subjectId === sub.id && log.date === todayStr)
+              .reduce((sum, log) => sum + log.durationMinutes, 0);
+            return { ...sub, totalMinutes: Math.round(todayMins) };
+          });
+
+          // Reset daily quests if date changed
+          const finalQuests = loadedQuests.map(q => {
+            if ((cloudDayRolloverTriggered || q.isCompleted === undefined) && q.category === "daily") {
+              return { ...q, isCompleted: false };
+            }
+            return q;
+          });
 
           // Onboarding cloud sync (if brand new cloud account - write current offline state in background)
           if (loadedSubs.length === 0) {
@@ -366,37 +735,107 @@ export default function App() {
             quests.forEach((q) => {
               setDoc(doc(db, "users", user.uid, "quests", q.id), q).catch(() => {});
             });
-            xpLogs.slice(0, 50).forEach((xlg) => {
+            xpLogs.slice(0, 30).forEach((xlg) => {
               setDoc(doc(db, "users", user.uid, "xpLogs", xlg.id), xlg).catch(() => {});
             });
+            reminders.forEach((rem) => {
+              setDoc(doc(db, "users", user.uid, "reminders", rem.id), rem).catch(() => {});
+            });
           } else {
-            // Apply loaded cloud profile
-            setSubjects(loadedSubs);
+            // Apply loaded cloud profile (with reset/daily self-healing totals applied)
+            setSubjects(finalSubs);
             setTasks(loadedTasks);
             setStudyLogs(loadedLogs);
             if (loadedRewards.length > 0) setRewards(loadedRewards);
-            if (loadedQuests.length > 0) setQuests(loadedQuests);
+            setQuests(finalQuests);
             if (loadedXpLogs.length > 0) setXpLogs(loadedXpLogs);
+            if (loadedReminders.length > 0) {
+              setReminders(loadedReminders);
+            } else {
+              // Populate cloud if empty
+              reminders.forEach((rem) => {
+                setDoc(doc(db, "users", user.uid, "reminders", rem.id), rem).catch(() => {});
+              });
+            }
+
+            // Sync resets back to Firestore
+            if (cloudDayRolloverTriggered) {
+              finalSubs.forEach(sub => {
+                setDoc(doc(db, "users", user.uid, "subjects", sub.id), sub).catch(() => {});
+              });
+              finalQuests.forEach(q => {
+                if (q.category === "daily") {
+                  setDoc(doc(db, "users", user.uid, "quests", q.id), q).catch(() => {});
+                }
+              });
+            }
           }
         } catch (err) {
           console.warn("Firestore sync failed or timed out on init, loading offline cache data instead.", err);
           
-          // Clear cloud loading state and fallback to local storage safely
-          const localSubs = localStorage.getItem("study_subjects");
-          const localTasks = localStorage.getItem("study_tasks");
-          const localLogs = localStorage.getItem("study_logs");
-          const localXp = localStorage.getItem("study_user_xp");
-          const localRewards = localStorage.getItem("study_rewards");
-          const localQuests = localStorage.getItem("study_quests");
-          const localXpLogs = localStorage.getItem("study_xp_logs");
+          // Clear cloud loading state and fallback to secure storage safely
+          const localSubs = secureStorage.getItem("study_subjects");
+          const localTasks = secureStorage.getItem("study_tasks");
+          const localLogs = secureStorage.getItem("study_logs");
+          const localXp = secureStorage.getItem("study_user_xp");
+          const localRewards = secureStorage.getItem("study_rewards");
+          const localQuests = secureStorage.getItem("study_quests");
+          const localXpLogs = secureStorage.getItem("study_xp_logs");
 
-          setSubjects(localSubs ? JSON.parse(localSubs) : INITIAL_SUBJECTS);
-          setTasks(localTasks ? JSON.parse(localTasks) : []);
-          setStudyLogs(localLogs ? JSON.parse(localLogs) : []);
+          let parsedLogs: StudyLog[] = [];
+          if (localLogs) {
+            try { parsedLogs = JSON.parse(localLogs); } catch (e) { console.warn("Log parse err", e); }
+          }
+          let parsedSubs: Subject[] = INITIAL_SUBJECTS;
+          if (localSubs) {
+            try { parsedSubs = JSON.parse(localSubs); } catch (e) { console.warn("Subs parse err", e); }
+          }
+          let parsedQuests: QuestChallenge[] = INITIAL_QUESTS;
+          if (localQuests) {
+            try { parsedQuests = JSON.parse(localQuests); } catch (e) { console.warn("Quests parse err", e); }
+          }
+
+          const todayStr = getLocalDateString();
+          const localLastActive = localStorage.getItem("study_last_active_date") || "";
+          const localDayRolloverTriggered = localLastActive !== todayStr;
+
+          const finalSubs = parsedSubs.map(sub => {
+            const todayMins = parsedLogs
+              .filter(log => log.subjectId === sub.id && log.date === todayStr)
+              .reduce((sum, log) => sum + log.durationMinutes, 0);
+            return { ...sub, totalMinutes: Math.round(todayMins) };
+          });
+
+          const finalQuests = parsedQuests.map(q => {
+            if (localDayRolloverTriggered && q.category === "daily") {
+              return { ...q, isCompleted: false };
+            }
+            return q;
+          });
+
+          if (localDayRolloverTriggered) {
+            localStorage.setItem("study_last_active_date", todayStr);
+          }
+
+          setSubjects(finalSubs);
+          let parsedTasks: Task[] = [];
+          if (localTasks) {
+            try { parsedTasks = JSON.parse(localTasks); } catch (e) { console.warn("Tasks parse err", e); }
+          }
+          setTasks(parsedTasks);
+          setStudyLogs(parsedLogs);
           setUserXp(localXp ? parseInt(localXp, 10) : 0);
-          setRewards(localRewards ? JSON.parse(localRewards) : []);
-          setQuests(localQuests ? JSON.parse(localQuests) : INITIAL_QUESTS);
-          setXpLogs(localXpLogs ? JSON.parse(localXpLogs) : []);
+          let parsedRewards: GiftReward[] = [];
+          if (localRewards) {
+            try { parsedRewards = JSON.parse(localRewards); } catch (e) { console.warn("Rewards parse err", e); }
+          }
+          setRewards(parsedRewards.length > 0 ? parsedRewards : rewards);
+          setQuests(finalQuests);
+          let parsedXpLogs: XpGainLog[] = [];
+          if (localXpLogs) {
+            try { parsedXpLogs = JSON.parse(localXpLogs); } catch (e) { console.warn("XpLogs parse err", e); }
+          }
+          setXpLogs(parsedXpLogs);
 
           handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
         }
@@ -404,21 +843,68 @@ export default function App() {
       () => {
         setCurrentUser(null);
         // Clear screen data to restore clean guest values / protect user sign-outs
-        const localSubs = localStorage.getItem("study_subjects");
-        const localTasks = localStorage.getItem("study_tasks");
-        const localLogs = localStorage.getItem("study_logs");
-        const localXp = localStorage.getItem("study_user_xp");
-        const localRewards = localStorage.getItem("study_rewards");
-        const localQuests = localStorage.getItem("study_quests");
-        const localXpLogs = localStorage.getItem("study_xp_logs");
+        const localSubs = secureStorage.getItem("study_subjects");
+        const localTasks = secureStorage.getItem("study_tasks");
+        const localLogs = secureStorage.getItem("study_logs");
+        const localXp = secureStorage.getItem("study_user_xp");
+        const localRewards = secureStorage.getItem("study_rewards");
+        const localQuests = secureStorage.getItem("study_quests");
+        const localXpLogs = secureStorage.getItem("study_xp_logs");
 
-        setSubjects(localSubs ? JSON.parse(localSubs) : INITIAL_SUBJECTS);
-        setTasks(localTasks ? JSON.parse(localTasks) : []);
-        setStudyLogs(localLogs ? JSON.parse(localLogs) : []);
+        let parsedLogs: StudyLog[] = [];
+        if (localLogs) {
+          try { parsedLogs = JSON.parse(localLogs); } catch (e) { console.warn("Log parse err log", e); }
+        }
+        let parsedSubs: Subject[] = INITIAL_SUBJECTS;
+        if (localSubs) {
+          try { parsedSubs = JSON.parse(localSubs); } catch (e) { console.warn("Subs parse err log", e); }
+        }
+        let parsedQuests: QuestChallenge[] = INITIAL_QUESTS;
+        if (localQuests) {
+          try { parsedQuests = JSON.parse(localQuests); } catch (e) { console.warn("Quests parse err log", e); }
+        }
+
+        const todayStr = getLocalDateString();
+        const localLastActive = localStorage.getItem("study_last_active_date") || "";
+        const localDayRolloverTriggered = localLastActive !== todayStr;
+
+        const finalSubs = parsedSubs.map(sub => {
+          const todayMins = parsedLogs
+            .filter(log => log.subjectId === sub.id && log.date === todayStr)
+            .reduce((sum, log) => sum + log.durationMinutes, 0);
+          return { ...sub, totalMinutes: Math.round(todayMins) };
+        });
+
+        const finalQuests = parsedQuests.map(q => {
+          if (localDayRolloverTriggered && q.category === "daily") {
+            return { ...q, isCompleted: false };
+          }
+          return q;
+        });
+
+        if (localDayRolloverTriggered) {
+          localStorage.setItem("study_last_active_date", todayStr);
+        }
+
+        setSubjects(finalSubs);
+        let parsedTasks: Task[] = [];
+        if (localTasks) {
+          try { parsedTasks = JSON.parse(localTasks); } catch (e) { console.warn("Tasks parse err", e); }
+        }
+        setTasks(parsedTasks);
+        setStudyLogs(parsedLogs);
         setUserXp(localXp ? parseInt(localXp, 10) : 0);
-        setRewards(localRewards ? JSON.parse(localRewards) : []);
-        setQuests(localQuests ? JSON.parse(localQuests) : INITIAL_QUESTS);
-        setXpLogs(localXpLogs ? JSON.parse(localXpLogs) : []);
+        let parsedRewards: GiftReward[] = [];
+        if (localRewards) {
+          try { parsedRewards = JSON.parse(localRewards); } catch (e) { console.warn("Rewards parse err", e); }
+        }
+        setRewards(parsedRewards.length > 0 ? parsedRewards : rewards);
+        setQuests(finalQuests);
+        let parsedXpLogs: XpGainLog[] = [];
+        if (localXpLogs) {
+          try { parsedXpLogs = JSON.parse(localXpLogs); } catch (e) { console.warn("XpLogs parse err", e); }
+        }
+        setXpLogs(parsedXpLogs);
       }
     );
     return () => unsubscribe();
@@ -429,7 +915,7 @@ export default function App() {
     const uniqueDatesSet = new Set<string>();
     
     // Check did study today
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString();
     const studiedToday = studyLogs.some(l => l.date === todayStr && l.durationMinutes >= 1) || (isStudyingUser && activeSecondsUser > 0);
     if (studiedToday) {
       uniqueDatesSet.add(todayStr);
@@ -446,10 +932,10 @@ export default function App() {
     let streakVal = 0;
     const trackerDate = new Date();
     
-    const containsToday = uniqueDatesSet.has(trackerDate.toISOString().split("T")[0]);
+    const containsToday = uniqueDatesSet.has(getLocalDateString(trackerDate));
     
     trackerDate.setDate(trackerDate.getDate() - 1);
-    const containsYesterday = uniqueDatesSet.has(trackerDate.toISOString().split("T")[0]);
+    const containsYesterday = uniqueDatesSet.has(getLocalDateString(trackerDate));
 
     if (!containsToday && !containsYesterday) {
       return 0; // broken
@@ -461,7 +947,7 @@ export default function App() {
     }
 
     while (true) {
-      const curDateStr = testDate.toISOString().split("T")[0];
+      const curDateStr = getLocalDateString(testDate);
       if (uniqueDatesSet.has(curDateStr)) {
         streakVal++;
         testDate.setDate(testDate.getDate() - 1);
@@ -475,19 +961,19 @@ export default function App() {
 
   // Sync to local systems
   useEffect(() => {
-    localStorage.setItem("study_subjects", JSON.stringify(subjects));
+    secureStorage.setItem("study_subjects", JSON.stringify(subjects));
   }, [subjects]);
 
   useEffect(() => {
-    localStorage.setItem("study_tasks", JSON.stringify(tasks));
+    secureStorage.setItem("study_tasks", JSON.stringify(tasks));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("study_logs", JSON.stringify(studyLogs));
+    secureStorage.setItem("study_logs", JSON.stringify(studyLogs));
   }, [studyLogs]);
 
   useEffect(() => {
-    localStorage.setItem("study_daily_target", String(dailyTargetMinutes));
+    secureStorage.setItem("study_daily_target", String(dailyTargetMinutes));
     // Also sync to active student profile document on Firestore
     if (currentUser) {
       const syncProfile = async () => {
@@ -508,16 +994,47 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("ypt_theme_preset", themePreset);
-  }, [themePreset]);
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid), { themePreset }, { merge: true })
+        .catch(e => console.warn("Failed syncing theme preset to cloud:", e));
+    }
+  }, [themePreset, currentUser]);
+
+  useEffect(() => {
+    if (themeMode === "system") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleSystemThemeChange = (e: MediaQueryListEvent | MediaQueryList) => {
+        setActiveTheme(e.matches ? "dark" : "light");
+      };
+
+      // Set initial state
+      handleSystemThemeChange(mediaQuery);
+
+      // Listen in real-time
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener("change", handleSystemThemeChange);
+        return () => mediaQuery.removeEventListener("change", handleSystemThemeChange);
+      } else {
+        mediaQuery.addListener(handleSystemThemeChange);
+        return () => mediaQuery.removeListener(handleSystemThemeChange);
+      }
+    } else {
+      setActiveTheme(themeMode);
+    }
+  }, [themeMode]);
 
   useEffect(() => {
     localStorage.setItem("study_theme_mode", themeMode);
-    if (themeMode === "dark") {
+    if (activeTheme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [themeMode]);
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid), { themeMode }, { merge: true })
+        .catch(e => console.warn("Failed syncing theme mode to cloud:", e));
+    }
+  }, [themeMode, activeTheme, currentUser]);
 
   useEffect(() => {
     if (joinedRoomId) {
@@ -529,8 +1046,14 @@ export default function App() {
 
   // Reminders saving
   useEffect(() => {
-    localStorage.setItem("study_reminders", JSON.stringify(reminders));
-  }, [reminders]);
+    secureStorage.setItem("study_reminders", JSON.stringify(reminders));
+    if (currentUser) {
+      reminders.forEach(rem => {
+        setDoc(doc(db, "users", currentUser.uid, "reminders", rem.id), rem)
+          .catch(e => console.warn("Failed syncing individual reminder:", e));
+      });
+    }
+  }, [reminders, currentUser]);
 
   // Alert triggers system callbacks
   const handleAddReminder = (newRem: Omit<Reminder, "id" | "isCompleted" | "triggeredAt">) => {
@@ -548,6 +1071,10 @@ export default function App() {
 
   const handleRemoveReminder = (remId: string) => {
     setReminders(prev => prev.filter(r => r.id !== remId));
+    if (currentUser) {
+      deleteDoc(doc(db, "users", currentUser.uid, "reminders", remId))
+        .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${currentUser.uid}/reminders/${remId}`));
+    }
   };
 
   // Trigger browser & full system alerts
@@ -557,7 +1084,7 @@ export default function App() {
     // Attempt standard OS Web Notification
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       try {
-        new Notification("StudyPulse Focus Alert", {
+        new Notification("Flash5tudy Focus Alert", {
           body: title,
           icon: "/favicon.ico"
         });
@@ -758,7 +1285,20 @@ export default function App() {
         const minsToSave = pomoFocusDuration;
         handleAddStudyMinutes(activeSubjectId, minsToSave);
         
-        setFiredNotification(`🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`);
+        const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
+        setFiredNotification(completionMsg);
+        
+        // Push Native Desktop Notification if granted
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("Flash5tudy Focus Alert", {
+              body: completionMsg,
+              icon: "/favicon.ico"
+            });
+          } catch (err) {
+            console.warn("Native Notification failed in background:", err);
+          }
+        }
         
         // Advance rounds or shift to break
         if (pomoRound >= 4) {
@@ -772,7 +1312,21 @@ export default function App() {
         }
       } else {
         const breakLabel = pomoState === "shortBreak" ? "Short break" : "Long break";
-        setFiredNotification(`💪 ${breakLabel} ended! Excellent job resting, you are ready to focus!`);
+        const breakEndMsg = `💪 ${breakLabel} ended! Excellent job resting, you are ready to focus!`;
+        setFiredNotification(breakEndMsg);
+
+        // Push Native Desktop Notification if granted
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("Flash5tudy Focus Alert", {
+              body: breakEndMsg,
+              icon: "/favicon.ico"
+            });
+          } catch (err) {
+            console.warn("Native Notification failed in background:", err);
+          }
+        }
+
         setPomoState("focus");
         setPomoSecondsLeft(pomoFocusDuration * 60);
       }
@@ -796,12 +1350,80 @@ export default function App() {
 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot">("signup");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authDisplayName, setAuthDisplayName] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+  const [authStep, setAuthStep] = useState<1 | 2>(1);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Dynamic Password Strength Meter
+  const passwordStrength = useMemo(() => {
+    if (!authPassword) return { score: 0, text: "Enter a password", color: "bg-slate-200 dark:bg-slate-800", textColor: "text-slate-400" };
+    let score = 0;
+    if (authPassword.length >= 6) score += 1;
+    if (authPassword.length >= 10) score += 1;
+    if (/[a-z]/.test(authPassword) && /[A-Z]/.test(authPassword)) score += 1;
+    if (/[0-9]/.test(authPassword)) score += 1;
+    if (/[^a-zA-Z0-9]/.test(authPassword)) score += 1;
+
+    if (score <= 2) return { score: 1, text: "Weak", color: "bg-rose-500", textColor: "text-rose-500" };
+    if (score <= 4) return { score: 2, text: "Medium", color: "bg-amber-500", textColor: "text-amber-500" };
+    return { score: 3, text: "Strong", color: "bg-emerald-500", textColor: "text-emerald-500" };
+  }, [authPassword]);
+
+  const handleEmailNext = (e: any) => {
+    e.preventDefault();
+    setAuthError(null);
+    const trimmedEmail = authEmail.trim();
+    if (!trimmedEmail) {
+      setAuthError("Enter an email address");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setAuthError("Enter a valid email address (e.g. name@domain.com)");
+      return;
+    }
+    setAuthStep(2);
+  };
+
+  const handleForgotPasswordAction = async (e: any) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthSuccessMsg(null);
+
+    const trimmedEmail = authEmail.trim();
+    if (!trimmedEmail) {
+      setAuthError("Please provide your email address first.");
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      await resetUserPassword(trimmedEmail);
+      setAuthSuccessMsg("Password reset email sent! Check your inbox.");
+      setTimeout(() => {
+        setAuthMode("signin");
+        setAuthStep(1);
+        setAuthSuccessMsg(null);
+      }, 3500);
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      let errMsg = err?.message || String(err);
+      if (errMsg.includes("auth/user-not-found")) {
+        errMsg = "There is no account registered with this email.";
+      } else if (errMsg.includes("auth/invalid-email")) {
+        errMsg = "Please format your email correctly.";
+      }
+      setAuthError(errMsg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const handleEmailAuth = async (e: any) => {
     e.preventDefault();
@@ -809,7 +1431,8 @@ export default function App() {
     setAuthError(null);
     setAuthSuccessMsg(null);
 
-    if (!authEmail.trim() || !authPassword.trim()) {
+    const trimmedEmail = authEmail.trim();
+    if (!trimmedEmail || !authPassword.trim()) {
       setAuthError("Please fill in all details.");
       setAuthLoading(false);
       return;
@@ -827,22 +1450,24 @@ export default function App() {
           setAuthLoading(false);
           return;
         }
-        const user = await emailPasswordSignUp(authEmail, authPassword, authDisplayName);
+        const user = await emailPasswordSignUp(trimmedEmail, authPassword, authDisplayName);
         setCurrentUser(user);
         setAuthSuccessMsg("Account created successfully!");
         setAuthEmail("");
         setAuthPassword("");
         setAuthDisplayName("");
+        setAuthStep(1);
         setTimeout(() => {
           setShowAuthModal(false);
           setAuthSuccessMsg(null);
         }, 1500);
       } else {
-        const user = await emailPasswordSignIn(authEmail, authPassword);
+        const user = await emailPasswordSignIn(trimmedEmail, authPassword);
         setCurrentUser(user);
         setAuthSuccessMsg("Signed in successfully!");
         setAuthEmail("");
         setAuthPassword("");
+        setAuthStep(1);
         setTimeout(() => {
           setShowAuthModal(false);
           setAuthSuccessMsg(null);
@@ -852,7 +1477,7 @@ export default function App() {
       console.error("Email auth error:", err);
       let errMsg = err?.message || String(err);
       if (errMsg.includes("auth/invalid-credential") || errMsg.includes("auth/wrong-password") || errMsg.includes("auth/user-not-found")) {
-        errMsg = "Invalid email or password. Please verify and try again.";
+        errMsg = "Incorrect password, or this email is not registered yet. Click 'Create account' below to register first, or use the fast, real Google Login instead.";
       } else if (errMsg.includes("auth/email-already-in-use")) {
         errMsg = "This email is already registered. Try logging in instead.";
       } else if (errMsg.includes("auth/weak-password")) {
@@ -927,8 +1552,8 @@ export default function App() {
     }));
 
     // Local instant persistence
-    localStorage.setItem("study_user_xp", String(nextXp));
-    localStorage.setItem("study_xp_logs", JSON.stringify([newLog, ...xpLogs]));
+    secureStorage.setItem("study_user_xp", String(nextXp));
+    secureStorage.setItem("study_xp_logs", JSON.stringify([newLog, ...xpLogs]));
 
     // Sync to Cloud asynchronously in background
     if (currentUser) {
@@ -944,7 +1569,7 @@ export default function App() {
   const handleAddReward = async (newRew: GiftReward) => {
     const nextRewards = [...rewards, newRew];
     setRewards(nextRewards);
-    localStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+    secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
 
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "rewards", newRew.id), newRew)
@@ -958,7 +1583,7 @@ export default function App() {
 
     const nextRewards = rewards.map(r => r.id === updatedRew.id ? finalReward : r);
     setRewards(nextRewards);
-    localStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+    secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
 
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "rewards", updatedRew.id), finalReward)
@@ -969,7 +1594,7 @@ export default function App() {
   const handleDiscardReward = async (rewardId: string) => {
     const nextRewards = rewards.filter(r => r.id !== rewardId);
     setRewards(nextRewards);
-    localStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+    secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
 
     if (currentUser) {
       deleteDoc(doc(db, "users", currentUser.uid, "rewards", rewardId))
@@ -998,10 +1623,10 @@ export default function App() {
     const nextXpLogs = [transactionLog, ...xpLogs];
     setXpLogs(nextXpLogs);
 
-    // Save to local storage right away
-    localStorage.setItem("study_user_xp", String(nextXp));
-    localStorage.setItem("study_rewards", JSON.stringify(nextRewards));
-    localStorage.setItem("study_xp_logs", JSON.stringify(nextXpLogs));
+    // Save to secure storage right away
+    secureStorage.setItem("study_user_xp", String(nextXp));
+    secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+    secureStorage.setItem("study_xp_logs", JSON.stringify(nextXpLogs));
 
     if (currentUser) {
       Promise.all([
@@ -1018,7 +1643,7 @@ export default function App() {
 
     const nextQuests = quests.map(q => q.id === questId ? { ...q, isCompleted: true } : q);
     setQuests(nextQuests);
-    localStorage.setItem("study_quests", JSON.stringify(nextQuests));
+    secureStorage.setItem("study_quests", JSON.stringify(nextQuests));
 
     // Do NOT await, execute synchronously in memory
     handleAddXp(`Completed quest: ${targetQ.title}`, targetQ.xpReward);
@@ -1030,7 +1655,7 @@ export default function App() {
   };
 
   const handleAddStudyMinutes = async (subjectId: string, minutes: number, customDate?: string) => {
-    const todayStr = customDate || new Date().toISOString().split("T")[0];
+    const todayStr = customDate || getLocalDateString();
     const targetSubject = subjects.find(s => s.id === subjectId);
     if (!targetSubject) return;
 
@@ -1051,13 +1676,24 @@ export default function App() {
     setStudyLogs(nextLogs);
     setSubjects(nextSubjects);
 
-    // Persist immediately in local storage in case of connection dropouts
-    localStorage.setItem("study_logs", JSON.stringify(nextLogs));
-    localStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+    // Persist immediately in secure storage in case of connection dropouts
+    secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
+    secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
 
     // Earn 10 XP per minute studied!
     const earnedXp = minutes * 10;
     handleAddXp(`Studied ${targetSubject.name} for ${minutes}m ⏱️`, earnedXp);
+
+    // Check if the subject's daily goal is newly met!
+    const previouslyCompleted = targetSubject.totalMinutes >= targetSubject.goalMinutes;
+    const newlyCompleted = Math.round(targetSubject.totalMinutes + minutes) >= targetSubject.goalMinutes;
+    if (!previouslyCompleted && newlyCompleted) {
+      const bonusXp = 150;
+      setTimeout(() => {
+        handleAddXp(`🎉 Daily Goal Met: ${targetSubject.name}!`, bonusXp);
+        setFiredNotification(`🎯 Subject Goal Completed! You completed your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. Outstanding persistent effort! (+${bonusXp} XP Bonus)`);
+      }, 800);
+    }
 
     // Sync to Cloud asynchronously in the background
     if (currentUser) {
@@ -1088,7 +1724,7 @@ export default function App() {
     const nextSubjects = [...subjects, newSub];
     setSubjects(nextSubjects);
     setActiveSubjectId(nextId);
-    localStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+    secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
 
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "subjects", nextId), newSub)
@@ -1103,8 +1739,8 @@ export default function App() {
     const nextTasks = tasks.map(t => (t.subjectId === subjectId ? { ...t, subjectId: "general" } : t));
     setTasks(nextTasks);
 
-    localStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
-    localStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
     
     // set another active subject if deleted active
     if (activeSubjectId === subjectId) {
@@ -1128,7 +1764,7 @@ export default function App() {
     };
     const nextTasks = [...tasks, newTask];
     setTasks(nextTasks);
-    localStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
 
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "tasks", newTask.id), newTask)
@@ -1147,7 +1783,7 @@ export default function App() {
     });
 
     setTasks(nextTasks);
-    localStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
 
     if (tskToUpdate && tskToUpdate.isCompleted) {
       // Do NOT await, execute synchronously in memory
@@ -1163,7 +1799,7 @@ export default function App() {
   const handleRemoveTask = async (taskId: string) => {
     const nextTasks = tasks.filter(t => t.id !== taskId);
     setTasks(nextTasks);
-    localStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
 
     if (currentUser) {
       deleteDoc(doc(db, "users", currentUser.uid, "tasks", taskId))
@@ -1178,7 +1814,7 @@ export default function App() {
 
   // total studied sum today
   const totalStudiedTodayMins = useMemo(() => {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString();
     const logMinsToday = studyLogs
       .filter(l => l.date === todayStr)
       .reduce((sum, l) => sum + l.durationMinutes, 0);
@@ -1186,14 +1822,88 @@ export default function App() {
     return Math.round(logMinsToday + liveMins);
   }, [studyLogs, isStudyingUser, activeSecondsUser]);
 
+  const handleSimulateTomorrow = async () => {
+    // Force reset today's session as if a new day has arrived
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = getLocalDateString(tomorrow);
+
+    setSubjects((prev) => {
+      const resetSubs = prev.map((s) => ({ ...s, totalMinutes: 0 }));
+      secureStorage.setItem("study_subjects", JSON.stringify(resetSubs));
+      if (currentUser) {
+        resetSubs.forEach(sub => {
+          setDoc(doc(db, "users", currentUser.uid, "subjects", sub.id), sub)
+            .catch(() => {});
+        });
+      }
+      return resetSubs;
+    });
+
+    setQuests((prev) => {
+      const resetQuests = prev.map((q) => ({ ...q, isCompleted: false }));
+      secureStorage.setItem("study_quests", JSON.stringify(resetQuests));
+      if (currentUser) {
+        resetQuests.forEach(q => {
+          setDoc(doc(db, "users", currentUser.uid, "quests", q.id), q)
+            .catch(() => {});
+        });
+      }
+      return resetQuests;
+    });
+
+    setReminders((prev) => {
+      const resetReminders = prev.map((r) => ({
+        ...r,
+        isCompleted: false,
+        triggeredAt: undefined
+      }));
+      secureStorage.setItem("study_reminders", JSON.stringify(resetReminders));
+      return resetReminders;
+    });
+
+    setTasks((prev) => {
+      const uncompletedTasks = prev.filter(t => !t.isCompleted);
+      secureStorage.setItem("study_tasks", JSON.stringify(uncompletedTasks));
+      if (currentUser) {
+        const completed = prev.filter(t => t.isCompleted);
+        completed.forEach(t => {
+          deleteDoc(doc(db, "users", currentUser.uid, "tasks", t.id))
+            .catch(() => {});
+        });
+      }
+      return uncompletedTasks;
+    });
+
+    setIsStudyingUser(false);
+    setActiveSecondsUser(0);
+    setPomoState("focus");
+    setPomoRound(1);
+    setPomoSecondsLeft(pomoFocusDuration * 60);
+
+    localStorage.removeItem("study_start_time_ms");
+    localStorage.removeItem("study_seconds_baseline");
+    localStorage.setItem("study_is_studying", "false");
+    localStorage.setItem("study_active_seconds_user", "0");
+    localStorage.setItem("study_last_active_date", tomorrowStr);
+
+    setFiredNotification("🌅 Rollover simulation complete! Welcome to your new study session. Daily goals and timers have been reset.");
+  };
+
   const handleResetAllData = async () => {
-    // 1. Reset local storage
-    localStorage.removeItem("study_subjects");
-    localStorage.removeItem("study_tasks");
-    localStorage.removeItem("study_logs");
-    localStorage.removeItem("study_daily_target");
+    // 1. Reset secure storage
+    secureStorage.removeItem("study_subjects");
+    secureStorage.removeItem("study_tasks");
+    secureStorage.removeItem("study_logs");
+    secureStorage.removeItem("study_daily_target");
+    secureStorage.removeItem("study_rewards");
+    secureStorage.removeItem("study_quests");
+    secureStorage.removeItem("study_xp_logs");
+    secureStorage.removeItem("study_reminders");
+    
+    // Clear other keys
     localStorage.removeItem("ypt_joined_room_id");
-    localStorage.removeItem("google_oauth_access_token");
+    secureStorage.removeItem("google_oauth_access_token");
 
     // 2. Reset React states
     setSubjects(INITIAL_SUBJECTS);
@@ -1249,14 +1959,14 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col justify-between pb-24 transition-all duration-500 relative select-none ${
-      themeMode === "light"
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between pb-24 transition-all duration-500 relative select-none ${
+      activeTheme === "light"
         ? (
             themePreset === "forest" ? "bg-[#f3f7f4] text-[#1e3d2a]" :
             themePreset === "crimson" ? "bg-[#fdf5f5] text-[#701e23]" :
             themePreset === "honey" ? "bg-[#fbf7f0] text-[#5e4115]" :
             themePreset === "amoled" ? "bg-[#ffffff] text-[#0f172a]" :
-            "bg-[#f6f7fa] text-slate-900"
+            "bg-[#f8fafc] text-slate-900"
           )
         : (
             themePreset === "amoled" ? "bg-black text-white" :
@@ -1270,17 +1980,17 @@ export default function App() {
       {/* Liquid Glass Background Drifting Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${
-          themeMode === "light"
+          activeTheme === "light"
             ? "bg-gradient-to-tr from-orange-200/20 to-rose-200/20 opacity-70"
             : "bg-gradient-to-tr from-[#f26419]/15 to-[#e73c7e]/15 opacity-100"
         }`}></div>
         <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${
-          themeMode === "light"
+          activeTheme === "light"
             ? "bg-gradient-to-br from-indigo-200/15 to-purple-200/15 opacity-60"
             : "bg-gradient-to-br from-indigo-950/20 to-purple-950/25 opacity-100"
         }`}></div>
         <div className={`absolute top-[45%] right-[22%] w-60 h-60 sm:w-85 sm:h-85 rounded-full blur-[55px] sm:blur-[85px] animate-blob-3 transition-all duration-1000 ${
-          themeMode === "light"
+          activeTheme === "light"
             ? "bg-gradient-to-tl from-emerald-200/20 to-teal-200/20 opacity-65"
             : "bg-gradient-to-tl from-emerald-950/15 to-teal-950/20 opacity-100"
         }`}></div>
@@ -1311,7 +2021,7 @@ export default function App() {
       
       {/* Top compact account and state toolbar banner */}
       <header className={`sticky top-0 z-40 backdrop-blur-xl border-b px-6 py-3 px-safe transition-all duration-500 ${
-        themeMode === "light"
+        activeTheme === "light"
           ? (
               themePreset === "forest" ? "bg-[#f3f7f4]/85 border-[#e2ece6]" :
               themePreset === "crimson" ? "bg-[#fdf5f5]/85 border-[#f9e2e4]" :
@@ -1335,7 +2045,7 @@ export default function App() {
               <Clock className="w-5 h-5 font-bold" />
             </div>
             <div className="text-left">
-              <h1 className={`text-xs font-black tracking-tight uppercase leading-none ${themeMode === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>StudyPulse</h1>
+              <h1 className={`text-sm font-black tracking-wider uppercase leading-none ${activeTheme === 'light' ? 'text-slate-950' : 'text-white'}`}>Flash5tudy</h1>
               <div className="flex items-center gap-1.5 mt-0.5" title="Daily study streak indicator">
                 <Flame className="w-3.5 h-3.5 text-orange-500 animate-pulse shrink-0" />
                 <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">{activeStreakCount} days streak</span>
@@ -1369,18 +2079,47 @@ export default function App() {
               )}
             </button>
 
-            {/* Mode Switcher */}
-            <button
-              onClick={() => setThemeMode(prev => prev === "dark" ? "light" : "dark")}
-              className="p-2 rounded-full cursor-pointer border transition-all bg-white/45 hover:bg-white/70 text-slate-600 border-slate-200 dark:bg-[#171717] dark:hover:bg-[#202020] dark:border-slate-900 dark:text-slate-450 dark:hover:text-white shadow-xs backdrop-blur-md flex items-center justify-center"
-              title={themeMode === "dark" ? "Toggle Light mode" : "Toggle Dark mode"}
-            >
-              {themeMode === "dark" ? (
-                <Sun className="w-4 h-4 text-amber-500 animate-spin-slow" />
-              ) : (
-                <Moon className="w-4 h-4 text-indigo-600" />
-              )}
-            </button>
+            {/* Mode Switcher Segmented Control */}
+            <div className="flex items-center gap-0.5 bg-white/45 dark:bg-[#171717]/80 p-1 rounded-full border border-slate-200 dark:border-slate-900 shadow-xs backdrop-blur-md">
+              <button
+                onClick={() => setThemeMode("light")}
+                className={`p-1.5 px-2.5 rounded-full cursor-pointer transition-all flex items-center justify-center gap-1 focus:outline-none ${
+                  themeMode === "light"
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-white"
+                }`}
+                title="Force Light Mode"
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-mono font-bold uppercase hidden md:inline">Light</span>
+              </button>
+              
+              <button
+                onClick={() => setThemeMode("dark")}
+                className={`p-1.5 px-2.5 rounded-full cursor-pointer transition-all flex items-center justify-center gap-1 focus:outline-none ${
+                  themeMode === "dark"
+                    ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 font-black shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-white"
+                }`}
+                title="Force Dark Mode"
+              >
+                <Moon className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-mono font-bold uppercase hidden md:inline">Dark</span>
+              </button>
+
+              <button
+                onClick={() => setThemeMode("system")}
+                className={`p-1.5 px-2.5 rounded-full cursor-pointer transition-all flex items-center justify-center gap-1 focus:outline-none ${
+                  themeMode === "system"
+                    ? "bg-[#f26419]/10 text-[#f26419] font-black shadow-xs"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-white"
+                }`}
+                title="Sync with Device Scheme"
+              >
+                <Laptop className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-mono font-bold uppercase hidden sm:inline">Sync</span>
+              </button>
+            </div>
 
             <button
               onClick={() => {
@@ -1457,6 +2196,48 @@ export default function App() {
             
             {/* The main workspace page contents */}
             <div className={`${isWideHud ? "lg:col-span-8 flex flex-col space-y-4 w-full" : "flex-1 flex flex-col w-full"}`}>
+
+              {/* Dynamic Alerts & Sounds Quick Permission Granting Dashboard Banner */}
+              {(notificationPermission !== "granted" || !audioAutoplayApproved) && !dismissedPermBanner && (
+                <div className="bg-gradient-to-r from-indigo-950/95 via-slate-900/98 to-indigo-950/95 border border-indigo-500/30 p-4 rounded-3xl shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all animate-fade-in relative overflow-hidden z-25 mb-2">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-505/10 rounded-full blur-2xl -z-10 pointer-events-none"></div>
+                  
+                  <div className="flex items-start text-left gap-3.5">
+                    <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 shrink-0 self-start animate-pulse">
+                      <div className="relative">
+                        <Bell className="w-5 h-5 text-indigo-400" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping"></span>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-1.5 leading-none">
+                        Activate Precision Study Alerts & Sound Alarms
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-normal mt-1.5 max-w-xl">
+                        Ensure you are alerted instantly when study intervals complete! Authorize **OS Push Notifications** and unlock **browser chime audios** so timers notify you even when working in other tabs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem("dismissed_perm_banner", "true");
+                        setDismissedPermBanner(true);
+                      }}
+                      className="px-3.5 py-2 bg-slate-950/60 hover:bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95"
+                    >
+                      Maybe Later
+                    </button>
+                    <button
+                      onClick={handleGrantAllPermissions}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-650 to-indigo-500 hover:opacity-95 active:scale-95 text-xs text-white uppercase tracking-wider font-extrabold rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-600/15"
+                    >
+                      Enable Both
+                    </button>
+                  </div>
+                </div>
+              )}
           
           {activeTab === "focus" && (
             <TimelineView
@@ -1579,6 +2360,9 @@ export default function App() {
                 onAddReminder={handleAddReminder}
                 onToggleReminder={handleToggleReminder}
                 onRemoveReminder={handleRemoveReminder}
+                notificationPermission={notificationPermission}
+                audioAutoplayApproved={audioAutoplayApproved}
+                onGrantPermissions={handleGrantAllPermissions}
               />
             </div>
           )}
@@ -1715,13 +2499,14 @@ export default function App() {
         isOfflineMode={isOfflineMode}
         setIsOfflineMode={setIsOfflineMode}
         onResetAllData={handleResetAllData}
+        onSimulateNewDay={handleSimulateTomorrow}
       />
 
       {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center items-center gap-3 z-40 px-4">
+      <div className="fixed bottom-6 left-0 right-0 flex justify-center items-center gap-2.5 sm:gap-3 z-40 px-3 sm:px-4">
         
         {/* Navigation dock bar */}
-        <div className="bg-white/75 dark:bg-[#121212]/85 backdrop-blur-md px-5 py-2.5 border border-slate-200/70 dark:border-slate-900/40 rounded-full flex items-center justify-center gap-5 sm:gap-6 shadow-2xl">
+        <div className="bg-white/85 dark:bg-[#121212]/90 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2.5 border border-slate-200/70 dark:border-slate-900/40 rounded-full flex items-center justify-center gap-1.5 xs:gap-2.5 sm:gap-5 md:gap-6 shadow-2xl">
           {[
             { id: "focus", label: "Home", icon: Home },
             { id: "planner", label: "To-Do", icon: ClipboardCheck },
@@ -1738,15 +2523,15 @@ export default function App() {
                   setActiveTab(tab.id as any);
                   setIsSidebarOpen(false);
                 }}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-full cursor-pointer transition-all ${
+                className={`flex flex-col items-center gap-0.5 px-2 xs:px-3 py-0.5 sm:py-1 rounded-full cursor-pointer transition-all ${
                   isSelected 
                     ? "text-[#f26419] font-black scale-105" 
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                 }`}
                 title={tab.label}
               >
-                <Icon className={`w-5 h-5 ${isSelected ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
-                <span className="text-[9px] font-bold tracking-tight">{tab.label}</span>
+                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isSelected ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+                <span className="text-[8px] sm:text-[9px] font-bold tracking-tight">{tab.label}</span>
               </button>
             );
           })}
@@ -1759,42 +2544,52 @@ export default function App() {
               setIsSidebarOpen(!isSidebarOpen);
             }
           }}
-          className="w-13 h-13 bg-white/75 dark:bg-[#1c1c1c]/85 active:scale-95 text-[10.5px] text-[#f26419] uppercase font-black tracking-widest font-mono rounded-full flex items-center justify-center shadow-lg border border-slate-200/80 dark:border-slate-800/80 cursor-pointer cursor-and-touch hover:scale-105 transition-all backdrop-blur-md"
-          title="YPT Quick Actions Panel"
+          className="w-11 h-11 sm:w-13 sm:h-13 bg-white/85 dark:bg-[#18181c]/90 active:scale-95 text-[#f26419] rounded-full flex items-center justify-center shadow-xl border border-slate-200/90 dark:border-slate-800/80 cursor-pointer hover:scale-105 transition-all backdrop-blur-md shrink-0"
+          title="Flash5tudy Menu & Settings"
         >
-          {activeTab === "focus" && "?"}
-          {activeTab === "planner" && "Day"}
-          {activeTab === "rewards" && "🏆"}
-          {activeTab === "calendar" && "Fil"}
-          {activeTab === "rooms" && "+"}
-          {activeTab === "reminders" && "🔔"}
+          {activeTab === "focus" && <Layers className="w-5 h-5 text-[#f26419] animate-pulse" />}
+          {activeTab === "planner" && <Sparkles className="w-5 h-5 text-pink-500" />}
+          {activeTab === "rewards" && <Award className="w-5 h-5 text-amber-500 animate-bounce" />}
+          {activeTab === "calendar" && <TrendingUp className="w-5 h-5 text-emerald-500" />}
+          {activeTab === "rooms" && <Users className="w-5 h-5 text-[#f26419]" />}
+          {activeTab === "reminders" && <Bell className="w-5 h-5 text-violet-500 animate-pulse" />}
+          {!["focus", "planner", "rewards", "calendar", "rooms", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
         </button>
 
       </div>
 
       {/* Tiny descriptive brand footer */}
       <footer className="w-full text-center text-slate-650 text-[10px] select-none pb-4 font-mono opacity-50">
-        <p>© 2026 StudyPulse. Built for consistent habit builders.</p>
+        <p>© 2026 Flash5tudy. Built for consistent habit builders.</p>
       </footer>
 
       {/* Modern, Adaptive multi-method Authentication Hub Modal */}
       {showAuthModal && (
         <div 
           id="auth-modal-overlay"
-          className="fixed inset-0 bg-[#0a0a0ade]/90 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in"
+          className="fixed inset-0 bg-[#0a0a0ade]/95 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in"
           onClick={() => {
             if (!authLoading) {
               setShowAuthModal(false);
               setAuthError(null);
               setAuthSuccessMsg(null);
+              setAuthStep(1);
             }
           }}
         >
           <div 
             id="auth-modal-card"
-            className="w-full max-w-[420px] bg-white dark:bg-[#151515] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 md:p-7 shadow-2xl relative text-left animate-slide-in"
+            className="w-full max-w-[420px] bg-white dark:bg-[#151515] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-2xl relative text-left animate-slide-in overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Google-Style Top Multi-Colored Accent Line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 flex rounded-t-3xl overflow-hidden">
+              <div className="bg-[#4285F4] flex-1"></div>
+              <div className="bg-[#EA4335] flex-1"></div>
+              <div className="bg-[#FBBC05] flex-1"></div>
+              <div className="bg-[#34A853] flex-1"></div>
+            </div>
+
             {/* Close Button */}
             <button 
               id="auth-modal-close-btn"
@@ -1802,6 +2597,7 @@ export default function App() {
                 setShowAuthModal(false);
                 setAuthError(null);
                 setAuthSuccessMsg(null);
+                setAuthStep(1);
               }}
               disabled={authLoading}
               className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100 rounded-full cursor-pointer transition-colors disabled:opacity-50"
@@ -1809,193 +2605,486 @@ export default function App() {
               <X className="w-4 h-4" />
             </button>
 
-            {/* Modal Header */}
-            <div className="mb-6">
-              <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#f26419]" />
-                {authMode === "signin" ? "Sign In to StudyPulse" : "Create StudyPulse Account"}
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-1">
-                {authMode === "signin" 
-                  ? "Access your synced notes, schedules, focus logs, and multiplayer rooms." 
-                  : "Start logging your habits, earn rewards, and level up with global classmates."}
-              </p>
+            {/* Brand Logo Wrapper */}
+            <div className="mb-5 flex flex-col items-start select-none">
+              <div className="flex items-center gap-1 font-sans text-2xl font-black tracking-tight mb-1">
+                <span className="text-[#f26419]">F</span>
+                <span className="text-[#4285F4]">l</span>
+                <span className="text-[#EA4335]">a</span>
+                <span className="text-[#FBBC05]">s</span>
+                <span className="text-[#34A853]">h</span>
+                <span className="text-[#f26419]">5</span>
+                <span className="text-slate-800 dark:text-slate-100 font-extrabold">tudy</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-orange-500/10 text-[#f26419] font-bold tracking-wider uppercase ml-2 border border-orange-500/20">Cloud Synchronized</span>
+              </div>
+              
+              {authMode === "forgot" ? (
+                <>
+                  <h3 className="text-base font-black tracking-tight text-slate-900 dark:text-slate-100 mt-2">
+                    Account Recovery
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Enter your verified email address to receive a secure recovery link.
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/* High usability: State explicitly to the user they are creating or accessing their personal workspace */}
+                  <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-200 mt-2">
+                    {authMode === "signup" ? "✨ Create Your study profile first" : "🔑 Sign in to your account"}
+                  </h3>
+                  <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 leading-relaxed">
+                    {authMode === "signup" 
+                      ? "First-time here? Create your free study profile in Flash5tudy to sync YPT rooms, active focus stats, and your AI study logs!" 
+                      : "Welcome back! Access your customized study tracking dashboard with your credentials."}
+                  </p>
+                </>
+              )}
             </div>
 
-            {/* Email/Password Form */}
-            <form id="auth-email-form" onSubmit={handleEmailAuth} className="space-y-4">
-              {authMode === "signup" && (
+            {/* Smart, Friendly Selector Tabs so the User Knows Exactly what to do */}
+            {authMode !== "forgot" && authStep === 1 && (
+              <div className="flex bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl mb-4.5 border border-slate-200/50 dark:border-slate-800/60 select-none">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setAuthError(null);
+                  }}
+                  className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
+                    authMode === "signup"
+                      ? "bg-white dark:bg-[#1e1e1e] text-orange-500 shadow-sm font-black scale-102"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                  }`}
+                >
+                  <span className="text-[11px] animate-pulse">✨</span> 1. Create Free Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setAuthError(null);
+                  }}
+                  className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
+                    authMode === "signin"
+                      ? "bg-white dark:bg-[#1e1e1e] text-[#4285F4] shadow-sm font-black scale-102"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                  }`}
+                >
+                  <span>🔑</span> 2. Sign In Instead
+                </button>
+              </div>
+            )}
+
+            {/* Educational Alert Banner reminding them to create an account first */}
+            {authMode === "signup" && authStep === 1 && (
+              <div className="mb-4 p-3 bg-gradient-to-r from-orange-500/5 to-amber-500/5 border border-orange-500/10 rounded-xl text-[10.5px] text-orange-600 dark:text-orange-400/90 leading-relaxed font-sans">
+                💡 <span className="font-bold">First Time in Flash5tudy?</span> You need to create an account first. Enter your email address below, click <span className="font-bold font-mono">Next</span> to choose a name and password, or log in instantly using the Google button!
+              </div>
+            )}
+
+            {/* Render Stepped Layout */}
+            {authMode === "forgot" ? (
+              /* ================= forgot password layout ================= */
+              <form onSubmit={handleForgotPasswordAction} className="space-y-4">
                 <div className="space-y-1">
-                  <label htmlFor="auth-display-name-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                    Display Name
+                  <label htmlFor="recovery-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
+                    Email Address
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                      <UserIcon className="w-3.5 h-3.5" />
+                      <Mail className="w-3.5 h-3.5" />
                     </span>
                     <input 
-                      id="auth-display-name-input"
-                      type="text"
-                      placeholder="e.g. Marie Curie"
-                      value={authDisplayName}
-                      onChange={(e) => setAuthDisplayName(e.target.value)}
+                      id="recovery-email-input"
+                      type="email"
+                      placeholder="name@gmail.com"
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
                       disabled={authLoading}
                       required
-                      className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                      className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
                     />
                   </div>
                 </div>
-              )}
 
-              <div className="space-y-1">
-                <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                    <Mail className="w-3.5 h-3.5" />
-                  </span>
-                  <input 
-                    id="auth-email-input"
-                    type="email"
-                    placeholder="name@gmail.com"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    disabled={authLoading}
-                    required
-                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                  Password
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                    <Lock className="w-3.5 h-3.5" />
-                  </span>
-                  <input 
-                    id="auth-password-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    disabled={authLoading}
-                    required
-                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#f26419] dark:focus:border-[#f26419] focus:outline-none focus:ring-1 focus:ring-[#f26419]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Status Alerts */}
-              {authError && (
-                <div id="auth-error-box" className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px] leading-relaxed transition-all">
-                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span>{authError}</span>
-                </div>
-              )}
-
-              {authSuccessMsg && (
-                <div id="auth-success-box" className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-[10.5px] font-bold transition-all">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-500 animate-pulse" />
-                  <span>{authSuccessMsg}</span>
-                </div>
-              )}
-
-              {/* Email Button */}
-              <button
-                id="auth-submit-action-btn"
-                type="submit"
-                disabled={authLoading}
-                className="w-full py-2 bg-[#f26419] hover:bg-[#d85312] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 disabled:hover:bg-[#f26419] disabled:pointer-events-none flex items-center justify-center gap-2 shadow-lg"
-              >
-                {authLoading ? (
-                  <span className="flex items-center gap-1.5 justify-center">
-                    <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    Authenticating...
-                  </span>
-                ) : (
-                  <span>{authMode === "signin" ? "Sign In with Password" : "Create Account"}</span>
+                {authError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{authError}</span>
+                  </div>
                 )}
-              </button>
-            </form>
+
+                {authSuccessMsg && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-[10.5px] font-bold">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-500 animate-pulse" />
+                    <span>{authSuccessMsg}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={authLoading}
+                    onClick={() => {
+                      setAuthMode("signin");
+                      setAuthStep(1);
+                      setAuthError(null);
+                      setAuthSuccessMsg(null);
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-250 cursor-pointer font-bold select-none py-2"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Back to Sign In
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="px-5 py-2.5 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5 shadow-lg"
+                  >
+                    {authLoading ? "Sending..." : "Send link"}
+                  </button>
+                </div>
+              </form>
+            ) : authStep === 1 ? (
+              /* ================= step 1 layout ================= */
+              <div className="space-y-4">
+                {/* Primary Google Login Button */}
+                <button
+                  id="auth-google-auth-btn-top"
+                  type="button"
+                  disabled={authLoading}
+                  onClick={async () => {
+                    setAuthLoading(true);
+                    setAuthError(null);
+                    setAuthSuccessMsg(null);
+                    try {
+                      const res = await googleSignIn(false);
+                      if (res) {
+                        setCurrentUser(res.user);
+                        setAuthSuccessMsg("Signed in with Google!");
+                        setTimeout(() => {
+                          setShowAuthModal(false);
+                          setAuthSuccessMsg(null);
+                        }, 1000);
+                      }
+                    } catch (err: any) {
+                      console.error("Google authentication error:", err);
+                      let errMsg = err?.message || String(err);
+                      if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
+                        errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
+                      } else {
+                        errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
+                      }
+                      setAuthError(errMsg);
+                    } finally {
+                      setAuthLoading(false);
+                    }
+                  }}
+                  className="w-full py-3 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2.5 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none shadow-md"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
+                    />
+                  </svg>
+                  <span>Sign In with Google</span>
+                </button>
+
+                <div className="flex items-center justify-center gap-3 select-none py-1.5">
+                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800/80"></span>
+                  <span className="text-[9px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via email</span>
+                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800/80"></span>
+                </div>
+
+                <form onSubmit={handleEmailNext} className="space-y-4">
+                  <div className="space-y-1">
+                    <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-550 dark:text-slate-400">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                        <Mail className="w-3.5 h-3.5" />
+                      </span>
+                      <input 
+                        id="auth-email-input"
+                        type="email"
+                        placeholder="name@gmail.com"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        disabled={authLoading}
+                        required
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  {authError && (
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{authError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      disabled={authLoading}
+                      onClick={() => {
+                        setAuthMode(authMode === "signin" ? "signup" : "signin");
+                        setAuthError(null);
+                      }}
+                      className="text-xs text-[#4285F4] hover:text-[#357ae8] hover:underline cursor-pointer font-bold select-none py-2"
+                    >
+                      {authMode === "signin" ? "Create account" : "Sign in instead"}
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5"
+                    >
+                      <span>Next</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              /* ================= step 2 layout ================= */
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                {/* Email Display Pill */}
+                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-250 dark:border-slate-800 rounded-full px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 w-fit select-none shadow-xs">
+                  <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 flex items-center justify-center text-[9px] font-black uppercase">
+                    {authEmail.charAt(0)}
+                  </div>
+                  <span className="truncate max-w-[200px] font-medium">{authEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAuthStep(1)}
+                    className="p-0.5 text-[#4285F4] hover:text-[#357ae8] rounded-full hover:bg-blue-500/10 transition-colors ml-1 cursor-pointer"
+                    title="Change email"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                  </button>
+                </div>
+
+                {authMode === "signup" && (
+                  <div className="space-y-1">
+                    <label htmlFor="auth-display-name-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
+                      Display Name
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                        <UserIcon className="w-3.5 h-3.5" />
+                      </span>
+                      <input 
+                        id="auth-display-name-input"
+                        type="text"
+                        placeholder="e.g. Marie Curie"
+                        value={authDisplayName}
+                        onChange={(e) => setAuthDisplayName(e.target.value)}
+                        disabled={authLoading}
+                        required
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-505 dark:text-slate-400">
+                      Password
+                    </label>
+                    {authMode === "signin" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode("forgot");
+                          setAuthError(null);
+                        }}
+                        className="text-[10px] text-[#4285F4] hover:underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                      <Lock className="w-3.5 h-3.5" />
+                    </span>
+                    <input 
+                      id="auth-password-input"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      disabled={authLoading}
+                      required
+                      className="w-full pl-9 pr-10 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password Strength Meter */}
+                {authPassword && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1.5 transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">Strength:</span>
+                      <span className={`text-[10px] font-black ${passwordStrength.textColor}`}>{passwordStrength.text}</span>
+                    </div>
+                    {/* Multi-segmented strength bar */}
+                    <div className="h-1 flex gap-1 rounded-full overflow-hidden bg-slate-250 dark:bg-slate-800">
+                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 1 ? passwordStrength.color : ""}`}></div>
+                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 2 ? passwordStrength.color : ""}`}></div>
+                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 3 ? passwordStrength.color : ""}`}></div>
+                    </div>
+                    {/* Live Criteria Feedback */}
+                    <div className="grid grid-cols-3 gap-2 pt-1 text-[9px] text-slate-500 select-none">
+                      <span className={`flex items-center gap-1 ${authPassword.length >= 6 ? "text-emerald-500 font-bold" : ""}`}>
+                        {authPassword.length >= 6 ? "✓" : "○"} 6+ chars
+                      </span>
+                      <span className={`flex items-center gap-1 ${(/[a-z]/.test(authPassword) && /[A-Z]/.test(authPassword)) ? "text-emerald-500 font-bold" : ""}`}>
+                        {(/[a-z]/.test(authPassword) && /[A-Z]/.test(authPassword)) ? "✓" : "○"} Aa mixed
+                      </span>
+                      <span className={`flex items-center gap-1 ${(/[0-9]/.test(authPassword) || /[^a-zA-Z0-9]/.test(authPassword)) ? "text-emerald-500 font-bold" : ""}`}>
+                        {(/[0-9]/.test(authPassword) || /[^a-zA-Z0-9]/.test(authPassword)) ? "✓" : "○"} Num/Symbol
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                {authSuccessMsg && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-[10.5px] font-bold">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-500 animate-pulse" />
+                    <span>{authSuccessMsg}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={authLoading}
+                    onClick={() => setAuthStep(1)}
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 cursor-pointer font-bold select-none py-2"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Back</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="px-6 py-2.5 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5 shadow-lg"
+                  >
+                    {authLoading ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        Loading
+                      </span>
+                    ) : (
+                      <span>{authMode === "signin" ? "Sign In" : "Register"}</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
 
             {/* Subtle Divider */}
-            <div className="my-5 flex items-center justify-center gap-3">
-              <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
-              <span className="text-[10px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via</span>
-              <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
-            </div>
+            {authMode !== "forgot" && (
+              <>
+                <div className="my-5 flex items-center justify-center gap-3 select-none">
+                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
+                  <span className="text-[10px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via</span>
+                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
+                </div>
 
-            {/* Google Federated Sign In */}
-            <button
-              id="auth-google-auth-btn"
-              type="button"
-              disabled={authLoading}
-              onClick={async () => {
-                setAuthLoading(true);
-                setAuthError(null);
-                setAuthSuccessMsg(null);
-                try {
-                  const res = await googleSignIn(false);
-                  if (res) {
-                    setCurrentUser(res.user);
-                    setAuthSuccessMsg("Signed in with Google!");
-                    setTimeout(() => {
-                      setShowAuthModal(false);
-                      setAuthSuccessMsg(null);
-                    }, 1000);
-                  }
-                } catch (err: any) {
-                  console.error("Google authentication error:", err);
-                  setAuthError(err?.message || "Google Authentication popup failed.");
-                } finally {
-                  setAuthLoading(false);
-                }
-              }}
-              className="w-full py-2 bg-slate-50 hover:bg-slate-100 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                <path
-                  fill="currentColor"
-                  d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
-                />
-              </svg>
-              <span>Google Account</span>
-            </button>
-
-            {/* Form Toggle Mode */}
-            <div className="mt-4 text-center">
-              <button
-                id="auth-toggle-mode-btn"
-                type="button"
-                disabled={authLoading}
-                onClick={() => {
-                  setAuthMode(authMode === "signin" ? "signup" : "signin");
-                  setAuthError(null);
-                  setAuthSuccessMsg(null);
-                }}
-                className="text-xs text-slate-500 hover:text-[#f26419] dark:hover:text-[#f26419] underline cursor-pointer disabled:opacity-50"
-              >
-                {authMode === "signin" 
-                  ? "Don't have an account? Sign Up" 
-                  : "Already have an account? Sign In"}
-              </button>
-            </div>
+                {/* Google Federated Sign In */}
+                <button
+                  id="auth-google-auth-btn"
+                  type="button"
+                  disabled={authLoading}
+                  onClick={async () => {
+                    setAuthLoading(true);
+                    setAuthError(null);
+                    setAuthSuccessMsg(null);
+                    try {
+                      const res = await googleSignIn(false);
+                      if (res) {
+                        setCurrentUser(res.user);
+                        setAuthSuccessMsg("Signed in with Google!");
+                        setTimeout(() => {
+                          setShowAuthModal(false);
+                          setAuthSuccessMsg(null);
+                        }, 1000);
+                      }
+                    } catch (err: any) {
+                      console.error("Google authentication error:", err);
+                      let errMsg = err?.message || String(err);
+                      if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
+                        errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
+                      } else {
+                        errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
+                      }
+                      setAuthError(errMsg);
+                    } finally {
+                      setAuthLoading(false);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
+                    />
+                  </svg>
+                  <span>Google Account</span>
+                </button>
+              </>
+            )}
 
             {/* Interactive Firebase Console Diagnostic Footnote Info Box */}
             <div 
               id="auth-config-guideline-box"
-              className="mt-5 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-start gap-2.5"
+              className="mt-5 p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col gap-2"
             >
-              <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-              <div className="text-[9.5px] leading-relaxed text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-700 dark:text-slate-300">Firebase Console Setup:</strong>
-                <p className="mt-0.5">
-                  To ensure standard email/password login is fully active, go to your <strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong>, enable the <strong>Email/Password</strong> provider, and hit Save.
-                </p>
+              <div className="flex items-start gap-2.5">
+                <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-350">
+                  <strong className="text-slate-800 dark:text-slate-200 font-bold font-sans">Google Login &amp; Domain Setup:</strong>
+                  <p className="mt-0.5">
+                    For real Google Login, please ensure Google Auth is enabled in your Firebase Console. You must also add the dynamic testing domains below to your authorized domains settings:
+                  </p>
+                </div>
+              </div>
+              <div className="p-2 bg-slate-100 dark:bg-slate-950 rounded-xl space-y-1 text-[9px] font-mono text-slate-500 border border-slate-200/40 select-text">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="truncate selection:bg-blue-500 selection:text-white">{window.location.hostname}</span>
+                  <span className="text-[8px] bg-blue-500/10 text-blue-500 px-1 rounded uppercase font-black shrink-0">Current</span>
+                </div>
+                <div className="text-slate-400 text-[8px] leading-normal pt-1">
+                  👉 Go to <strong>Firebase Console &gt; Authentication &gt; Settings</strong> (last tab) &gt; <strong>Authorized domains</strong>, and click "Add domain" to paste it!
+                </div>
               </div>
             </div>
 
