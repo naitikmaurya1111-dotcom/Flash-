@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Filter, Calendar, Sparkles, AlertCircle, ChevronLeft, ChevronRight, Check, X, Plus, Clock } from "lucide-react";
-import { StudyLog, Subject } from "../types";
+import { StudyLog, Subject, calculateStudentLevel, getXpRateForLevel } from "../types";
 
 interface CalendarViewProps {
   studyLogs: StudyLog[];
   subjects?: Subject[];
   onAddStudyMinutes?: (subjectId: string, minutes: number, customDate?: string) => Promise<void>;
+  userXp: number;
 }
 
 interface CalendarEventItem {
@@ -15,7 +16,7 @@ interface CalendarEventItem {
   color: string; // Tailwind class
 }
 
-export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes }: CalendarViewProps) {
+export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date()); // Dynamic current date to support current month (June)
   const [selectedLogsDate, setSelectedLogsDate] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -204,11 +205,24 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
       alert("Please create at least one Subject in the custom Planner or Study workspace tab first.");
       return;
     }
+
+    // Enforce 6-hour (360 mins) max check before submission
+    const existingMinsForDate = studyLogs
+      .filter(l => l.date === selectedLogsDate)
+      .reduce((sum, l) => sum + l.durationMinutes, 0);
+
+    if (existingMinsForDate + manualMinutes > 360) {
+      alert(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${manualMinutes} minutes would exceed the 6-hour daily maximum.`);
+      return;
+    }
+
     setSubmittingLog(true);
     try {
       await onAddStudyMinutes(targetSubId, manualMinutes, selectedLogsDate);
       const chosenSubject = subjects.find(s => s.id === targetSubId);
-      setLogSuccessText(`Successfully logged ${manualMinutes}m in ${chosenSubject?.name || "Subject"} for ${selectedLogsDate}! You gained +${manualMinutes * 10} XP. 🚀`);
+      const currentLevel = calculateStudentLevel(userXp).level;
+      const currentRate = getXpRateForLevel(currentLevel);
+      setLogSuccessText(`Successfully logged ${manualMinutes}m in ${chosenSubject?.name || "Subject"} for ${selectedLogsDate}! You gained +${manualMinutes * currentRate} XP. 🚀`);
       setTimeout(() => {
         setLogSuccessText(null);
       }, 5000);
@@ -483,7 +497,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
                     <Plus className="w-3.5 h-3.5 text-[#f26419]" />
                     Backdate Manual Study Work
                   </h5>
-                  <span className="text-[9px] font-mono bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-300 rounded px-1.5 py-0.5">10 XP per minute</span>
+                  <span className="text-[9px] font-mono bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-300 rounded px-1.5 py-0.5">{getXpRateForLevel(calculateStudentLevel(userXp).level)} XP per minute</span>
                 </div>
 
                 {subjects.length === 0 ? (
@@ -550,7 +564,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
                       disabled={submittingLog}
                       className="w-full bg-[#f26419] hover:bg-[#d6510d] disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex justify-center items-center gap-2 cursor-pointer cursor-and-touch transition-all shadow-lg active:scale-[0.98]"
                     >
-                      {submittingLog ? "Writing study index..." : `Log Study Session & Claim +${manualMinutes * 10} XP!`}
+                      {submittingLog ? "Writing study index..." : `Log Study Session & Claim +${manualMinutes * getXpRateForLevel(calculateStudentLevel(userXp).level)} XP!`}
                     </button>
                   </>
                 )}

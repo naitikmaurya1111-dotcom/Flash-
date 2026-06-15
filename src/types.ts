@@ -223,5 +223,9 @@ export const calculateStudentLevel = (xp: number) => {
   };
 };
 
+export const getXpRateForLevel = (level: number): number => {
+  return level < 5 ? 5 : 10;
+};
+
 
 

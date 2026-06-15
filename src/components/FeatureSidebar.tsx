@@ -3,8 +3,9 @@ import {
   BarChart2, Trophy, Clock, ShieldCheck, Dumbbell, BookOpen, Music, 
   Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, 
   Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
-  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock
+  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock, User
 } from "lucide-react";
+import { ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
 
 interface FeatureSidebarProps {
   isOpen: boolean;
@@ -17,6 +18,11 @@ interface FeatureSidebarProps {
   onResetAllData: () => void;
   onSimulateNewDay?: () => void;
   userXp?: number;
+  currentUser?: any;
+  studentName: string;
+  studentClass: string;
+  studentPrepTarget: string;
+  onUpdateProfile: (updates: { name: string; class: string; preparation: string; level: number }) => Promise<void>;
 }
 
 export default function FeatureSidebar({
@@ -29,11 +35,40 @@ export default function FeatureSidebar({
   setIsOfflineMode,
   onResetAllData,
   onSimulateNewDay,
-  userXp = 0
+  userXp = 0,
+  currentUser,
+  studentName,
+  studentClass,
+  studentPrepTarget,
+  onUpdateProfile
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // Profile Form state
+  const [editFormName, setEditFormName] = useState(studentName);
+  const [editFormClass, setEditFormClass] = useState(studentClass);
+  const [editFormPrep, setEditFormPrep] = useState(studentPrepTarget);
+  const [editFormLevel, setEditFormLevel] = useState(1);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setEditFormName(studentName);
+  }, [studentName]);
+
+  useEffect(() => {
+    setEditFormClass(studentClass);
+  }, [studentClass]);
+
+  useEffect(() => {
+    setEditFormPrep(studentPrepTarget);
+  }, [studentPrepTarget]);
+
+  useEffect(() => {
+    const currentLvl = calculateStudentLevel(userXp).level;
+    setEditFormLevel(currentLvl);
+  }, [userXp]);
   
   const triggerStatus = (msg: string) => {
     setStatusMsg(msg);
@@ -236,6 +271,39 @@ export default function FeatureSidebar({
               className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer"
             >
               ✕
+            </button>
+          </div>
+
+          {/* Section: Student Profile Card */}
+          <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#151515] dark:to-[#1a1a1a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#f26419]/5 rounded-full filter blur-xl transition-all duration-300 group-hover:bg-[#f26419]/10"></div>
+            
+            <div className="flex items-start gap-3 relative z-10">
+              <div className="w-10 h-10 rounded-full bg-[#f26419] text-white font-black flex items-center justify-center text-base shadow-md shadow-orange-500/20">
+                {studentName?.[0]?.toUpperCase() || "S"}
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center justify-between gap-1">
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">{studentName}</h4>
+                  <span className="text-[9px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold px-1.5 py-0.5 rounded font-mono shrink-0">
+                    Lvl {calculateStudentLevel(userXp).level}
+                  </span>
+                </div>
+                
+                <p className="text-[10px] text-slate-550 dark:text-slate-400 font-black truncate mt-0.5">
+                  🎓 {studentClass} • {studentPrepTarget}
+                </p>
+                <p className="text-[9.5px] font-mono text-slate-450 dark:text-zinc-500 truncate mt-0.5 leading-none">
+                  Badge: {calculateStudentLevel(userXp).rank}
+                </p>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => handleSubViewSelect("profile")}
+              className="w-full mt-3 bg-white hover:bg-slate-50 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-[10px] font-black py-1.5 rounded-xl cursor-pointer transition-all text-center block text-[#f26419] shadow-sm active:scale-98"
+            >
+              Configure Student Profile
             </button>
           </div>
 
@@ -457,6 +525,96 @@ export default function FeatureSidebar({
             {statusMsg && (
               <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-2xl text-xs font-semibold animate-pulse mb-4">
                 ✨ {statusMsg}
+              </div>
+            )}
+
+            {/* Sub-view: Edit Profile Panel */}
+            {activeSubView === "profile" && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-[#f26419]/15 text-[#f26419] flex items-center justify-center font-black text-xl mb-1.5 border border-[#f26419]/20 shadow-inner">
+                    {editFormName?.[0]?.toUpperCase() || "S"}
+                  </div>
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Student Study Profile</h4>
+                  <p className="text-[10px] text-slate-500">Configure your exams target, class & level</p>
+                </div>
+
+                <div className="space-y-3.5 pt-2 text-left">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold text-slate-450 tracking-wider">Full Name</label>
+                    <input 
+                      type="text" 
+                      value={editFormName}
+                      onChange={(e) => setEditFormName(e.target.value)}
+                      placeholder="My Name"
+                      className="w-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-[#f26419] focus:ring-1 focus:ring-[#f26419]/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold text-slate-450 tracking-wider">Academic Class</label>
+                    <select
+                      value={editFormClass}
+                      onChange={(e) => setEditFormClass(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-[#f26419] font-sans"
+                    >
+                      <option value="Class 10">Class 10 (Secondary)</option>
+                      <option value="Class 11">Class 11 (High School)</option>
+                      <option value="Class 12">Class 12 (Prep Year)</option>
+                      <option value="Dropper">Dropper (JEE/NEET Repeater)</option>
+                      <option value="College/Other">College / Professional / Other</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold text-slate-450 tracking-wider">Exam Preparation Focus</label>
+                    <select
+                      value={editFormPrep}
+                      onChange={(e) => setEditFormPrep(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-[#f26419] font-sans"
+                    >
+                      <option value="JEE">JEE Main & Advanced Exam</option>
+                      <option value="NEET">NEET Medical Exam</option>
+                      <option value="CBSE Boards">CBSE Board Exam</option>
+                      <option value="ICSE Boards">ICSE Board Exam</option>
+                      <option value="IAS/UPSC">IAS / UPSC Civil Services</option>
+                      <option value="Other">Other Competitive / Board Exam</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] uppercase font-bold text-slate-450 tracking-wider">Student Academic Rank</label>
+                    <div className="bg-slate-100/50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-3 py-2.5 rounded-xl text-xs border border-slate-205 dark:border-slate-850 flex items-center justify-between">
+                      <span className="font-extrabold text-[#f26419]">Level {calculateStudentLevel(userXp || 0).level}</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold uppercase">{calculateStudentLevel(userXp || 0).rank}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-450 mt-1">Changing levels manually is disabled. Rank upgrades dynamically through study focus XP.</p>
+                  </div>
+
+                  <button 
+                    onClick={async () => {
+                      setIsSavingProfile(true);
+                      try {
+                        await onUpdateProfile({
+                          name: editFormName,
+                          class: editFormClass,
+                          preparation: editFormPrep,
+                          level: calculateStudentLevel(userXp || 0).level
+                        });
+                        triggerStatus("Student study profile updated!");
+                        setActiveSubView(null);
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setIsSavingProfile(false);
+                      }
+                    }}
+                    disabled={isSavingProfile}
+                    className="w-full bg-[#f26419] hover:bg-[#d85311] py-2.5 rounded-xl text-xs font-black text-white cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2 flex items-center justify-center gap-1.5"
+                  >
+                    {isSavingProfile ? "Saving Profile..." : "Save Profile Details"}
+                  </button>
+                </div>
               </div>
             )}
 

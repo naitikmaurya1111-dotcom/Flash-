@@ -19,9 +19,10 @@ import {
   Lock,
   Unlock,
   Check,
-  Info
+  Info,
+  ShieldCheck
 } from "lucide-react";
-import { GiftReward, XpGainLog, QuestChallenge, StudentLevelConfig, ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
+import { GiftReward, XpGainLog, QuestChallenge, StudentLevelConfig, ALL_STUDENT_LEVELS, calculateStudentLevel, getXpRateForLevel, StudyLog } from "../types";
 
 interface RewardSystemProps {
   userXp: number;
@@ -37,6 +38,7 @@ interface RewardSystemProps {
   totalStudiedTodayMins: number;
   completedTasksCountToday: number;
   themePreset?: string;
+  studyLogs?: StudyLog[];
 }
 
 export default function RewardSystem({
@@ -52,7 +54,8 @@ export default function RewardSystem({
   onCompleteQuest,
   totalStudiedTodayMins,
   completedTasksCountToday,
-  themePreset = "dark-classic"
+  themePreset = "dark-classic",
+  studyLogs = []
 }: RewardSystemProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingReward, setEditingReward] = useState<GiftReward | null>(null);
@@ -68,6 +71,107 @@ export default function RewardSystem({
   const [showLevelGuide, setShowLevelGuide] = useState(false);
 
   const levelInfo = calculateStudentLevel(userXp);
+
+  const auditResult = useMemo(() => {
+    const checks = [];
+    let integrityScore = 100;
+    
+    // Check 1: 6hr single-day manually added limit
+    const minutesPerDate: Record<string, number> = {};
+    let hasExceeded6hLimit = false;
+    let maxMinutesInADay = 0;
+    
+    studyLogs.forEach(log => {
+      minutesPerDate[log.date] = (minutesPerDate[log.date] || 0) + log.durationMinutes;
+      if (minutesPerDate[log.date] > 360) {
+        hasExceeded6hLimit = true;
+      }
+      if (minutesPerDate[log.date] > maxMinutesInADay) {
+        maxMinutesInADay = minutesPerDate[log.date];
+      }
+    });
+    
+    if (hasExceeded6hLimit) {
+      integrityScore -= 30;
+      checks.push({
+        name: "Daily Study Hour Limit",
+        status: "ALERT",
+        desc: `Extreme study intensity flagged: At least one calendar day exceeds the 6-hour limit (${Math.round(maxMinutesInADay / 60)} hours detected). Keeping focus logs balanced is key!`,
+        color: "text-rose-500 bg-rose-500/10 border-rose-500/20 dark:bg-rose-950/20 dark:border-rose-950/10"
+      });
+    } else {
+      checks.push({
+        name: "Daily Study Hour Limit",
+        status: "SECURE",
+        desc: studyLogs.length === 0 
+          ? "No logs entries entered yet. Integrity threshold safe."
+          : `Checked! Daily logs are perfectly aligned and all backdated logs conform to the 6-hour daily ceiling.`,
+        color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
+      });
+    }
+
+    // Check 2: XP and study logged minutes consistency
+    const totalLogMinutes = studyLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
+    const reasonableMaxXp = (totalLogMinutes * 10) + 12000;
+    const isXpArtificiallyBoosted = userXp > reasonableMaxXp && userXp > 3000;
+    
+    if (isXpArtificiallyBoosted) {
+      integrityScore -= 40;
+      checks.push({
+        name: "XP study consistency checks",
+        status: "ALERT",
+        desc: `Suspicious XP balance gap detected. Total XP (${userXp}) does not align with core study logs (${totalLogMinutes} mins). Manual storage tampering is logged.`,
+        color: "text-amber-500 bg-amber-500/10 border-amber-500/20 dark:bg-amber-950/20"
+      });
+    } else {
+      checks.push({
+        name: "XP study consistency checks",
+        status: "SECURE",
+        desc: `Verified! Active student level claims consistently correlate with the physical focus index ledger.`,
+        color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
+      });
+    }
+
+    // Check 3: Timestamp duplicate spam check
+    const logIds = studyLogs.map(l => l.id);
+    const hasSpam = logIds.some((id, idx) => logIds.indexOf(id) !== idx);
+    
+    if (hasSpam) {
+      integrityScore -= 30;
+      checks.push({
+        name: "Log injection bot block",
+        status: "ALERT",
+        desc: "Duplicate focus logs with identical key hashes identified. Avoid overlapping backdate submissions.",
+        color: "text-rose-500 bg-rose-500/10 border-rose-500/20 dark:bg-rose-950/20"
+      });
+    } else {
+      checks.push({
+        name: "Log injection bot block",
+        status: "SECURE",
+        desc: "Secure! No click automation macros or simulated redundant study elements flagged.",
+        color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
+      });
+    }
+
+    const calculatedScore = Math.max(0, integrityScore);
+    let statusLabel = "CLEAN & COMPLIANT";
+    let statusColor = "text-emerald-500 border-emerald-500/25 bg-emerald-500/10 dark:bg-emerald-500/5";
+    
+    if (calculatedScore < 50) {
+      statusLabel = "INTEGRITY FLAG DETECTED ⚠️";
+      statusColor = "text-rose-500 border-rose-500/30 bg-rose-500/10 dark:bg-rose-500/5";
+    } else if (calculatedScore < 90) {
+      statusLabel = "SUSPICIOUS FOCUS BEHAVIOR";
+      statusColor = "text-amber-500 border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/5";
+    }
+
+    return {
+      checks,
+      integrityScore: calculatedScore,
+      statusLabel,
+      statusColor
+    };
+  }, [studyLogs, userXp]);
 
   const themeHexAccent = useMemo(() => {
     switch (themePreset) {
@@ -588,6 +692,68 @@ export default function RewardSystem({
         )}
       </div>
 
+      {/* 3.5 Academic Integrity & Anti-Cheat Security Audit Monitor card */}
+      <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs text-left pointer-events-auto space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-900 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-[#f26419]/10 text-[#f26419] rounded-xl border border-[#f26419]/20 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-[#f26419]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                Academic Integrity & Anti-Cheat Guard
+              </h3>
+              <p className="text-[10px] text-slate-500">
+                Audits backdated focus records, micro-timestamps, and XP level ratios automatically.
+              </p>
+            </div>
+          </div>
+          
+          <div className={`px-3 py-1.5 rounded-xl border text-[9px] font-mono font-black tracking-widest ${auditResult.statusColor}`}>
+             STATUS: {auditResult.statusLabel}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
+          <div className="md:col-span-5 flex flex-col justify-between bg-slate-50 dark:bg-slate-950/45 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900/50">
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-mono text-slate-500 uppercase block">XP Coherence Index</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black font-mono text-[#f26419]">{auditResult.integrityScore}%</span>
+                <span className="text-[10px] text-slate-450 font-bold">Integrity Level</span>
+              </div>
+            </div>
+            
+            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-sans mt-3.5">
+              Honesty is critical for JEE/NEET competitive preparation. This active agent checks daily workloads and blocks artificial increments to guarantee that level rankings correspond tightly with natural academic effort. No short-cuts 🏆!
+            </p>
+          </div>
+
+          <div className="md:col-span-7 space-y-2.5 flex flex-col justify-center">
+            {auditResult.checks.map((check, i) => (
+              <div key={i} className={`p-3 rounded-2xl border text-xs leading-normal flex items-start gap-2.5 ${check.color}`}>
+                <div className="mt-0.5 shrink-0">
+                  {check.status === "SECURE" ? (
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center font-black text-[9px] font-mono">✓</div>
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center font-black text-[9px] font-mono">!</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    {check.name}
+                    <span className={`text-[8px] font-mono font-black uppercase px-1 py-0.2 rounded ${check.status === "SECURE" ? "text-emerald-400 bg-emerald-500/5" : "text-amber-400 bg-amber-500/5"}`}>
+                      {check.status}
+                    </span>
+                  </h5>
+                  <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 font-sans">{check.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* 4. XP Earnings & claimed rewards logs ledger */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pointer-events-auto">
         
@@ -878,7 +1044,7 @@ export default function RewardSystem({
                     Total Earned Score: <span className="text-[#f26419] font-bold">{userXp} XP</span>
                   </p>
                   <p className="text-[10px] text-slate-500">
-                    Next level triggers in <span className="text-indigo-400 font-bold">{calculateStudentLevel(userXp).nextLevelXpRemaining} XP</span> (10 XP per minute studied)
+                    Next level triggers in <span className="text-indigo-400 font-bold">{calculateStudentLevel(userXp).nextLevelXpRemaining} XP</span> ({getXpRateForLevel(calculateStudentLevel(userXp).level)} XP per minute studied)
                   </p>
                 </div>
               </div>

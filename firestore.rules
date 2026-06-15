@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn();
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
     }
 
     function isValidId(id) {
@@ -35,6 +35,9 @@ service cloud.firestore {
         && data.email is string
         && data.email.size() <= 150
         && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
+        && (data.studentName == null || (data.studentName is string && data.studentName.size() <= 100))
+        && (data.studentClass == null || (data.studentClass is string && data.studentClass.size() <= 100))
+        && (data.studentPrepTarget == null || (data.studentPrepTarget is string && data.studentPrepTarget.size() <= 100))
         && (data.dailyTargetMinutes == null || (data.dailyTargetMinutes is number && data.dailyTargetMinutes >= 0))
         && (data.xp == null || (data.xp is number && data.xp >= 0))
         && (data.lastActiveDate == null || (data.lastActiveDate is string && data.lastActiveDate.size() <= 50))
@@ -219,7 +222,8 @@ service cloud.firestore {
         allow list, get: if isOwner(userId);
         allow create: if isOwner(userId) && isEmailVerified() && isValidId(rewardId) && isValidGiftReward(request.resource.data);
         allow update: if isOwner(userId) && isValidGiftReward(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Reward ID
+                      && request.resource.data.id == resource.data.id // Immutable Reward ID
+                      && (!resource.data.isClaimed || request.resource.data.isClaimed == true); // Terminal State lock: once claimed, remains claimed
         allow delete: if isOwner(userId);
       }
 

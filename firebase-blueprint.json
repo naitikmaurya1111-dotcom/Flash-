@@ -2,43 +2,37 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile with configuration",
+      "description": "Student profile configuration, preferences and accumulated progression statistics",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "dailyTargetMinutes": { "type": "integer" },
-        "xp": { "type": "integer" },
-        "lastActiveDate": { "type": "string" },
-        "themePreset": { "type": "string" },
-        "themeMode": { "type": "string" },
-        "timerType": { "type": "string" },
-        "pomoFocusDuration": { "type": "integer" },
-        "pomoShortBreakDuration": { "type": "integer" },
-        "pomoLongBreakDuration": { "type": "integer" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "studentName": { "type": "string", "description": "The student's full name" },
+        "studentClass": { "type": "string", "description": "Class standard/grade identifier" },
+        "studentPrepTarget": { "type": "string", "description": "Focus target examination e.g. JEE/NEET/CLAT" },
+        "themePreset": { "type": "string", "description": "User custom aesthetic dashboard theme preset preference" },
+        "themeMode": { "type": "string", "description": "UI layout visual dark/light theme mode" },
+        "xp": { "type": "number", "description": "Total active study progression experience points" },
+        "lastActiveDate": { "type": "string", "description": "ISO date representing the last active connection day" },
+        "displayName": { "type": "string", "description": "User alias for room chat visualization" }
       },
-      "required": ["userId", "email"]
+      "required": ["studentName", "studentClass", "studentPrepTarget"]
     },
     "Subject": {
       "title": "Subject",
-      "description": "A study subject",
+      "description": "Subject folders tracking individual student preparation tracks",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "color": { "type": "string" },
         "icon": { "type": "string" },
-        "totalMinutes": { "type": "integer" },
-        "goalMinutes": { "type": "integer" }
+        "totalMinutes": { "type": "number" },
+        "goalMinutes": { "type": "number" }
       },
       "required": ["id", "name", "color", "icon", "totalMinutes", "goalMinutes"]
     },
     "Task": {
       "title": "Task",
-      "description": "A planner task",
+      "description": "Micro-task checklist entries linked to a Subject",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -50,64 +44,81 @@
     },
     "StudyLog": {
       "title": "StudyLog",
-      "description": "A study session log",
+      "description": "Indelible time-tracked focus index ledger log entries",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "date": { "type": "string" },
         "subjectId": { "type": "string" },
         "subjectName": { "type": "string" },
-        "durationMinutes": { "type": "integer" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "durationMinutes": { "type": "number" },
+        "timestamp": { "type": "string" }
       },
       "required": ["id", "date", "subjectId", "subjectName", "durationMinutes", "timestamp"]
     },
-    "GiftReward": {
-      "title": "GiftReward",
-      "description": "A motivational self-reward item purchasable by user's study XP",
+    "Reminder": {
+      "title": "Reminder",
+      "description": "Physical alert and clock relative time reminder triggers",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
-        "costXp": { "type": "integer" },
+        "time": { "type": "string" },
+        "type": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "triggeredAt": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "isCompleted": { "type": "boolean" },
+        "subjectId": { "type": "string" }
+      },
+      "required": ["id", "title", "time", "type", "isActive", "isCompleted"]
+    },
+    "GiftReward": {
+      "title": "GiftReward",
+      "description": "Student gamification wishlist rewards exchangeable for experience points (XP)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "costXp": { "type": "number" },
         "purchaseUrl": { "type": "string" },
-        "category": { "type": "string", "enum": ["Tech Gadget", "Desk Setup", "Daily Treats", "Books & Supplies", "Custom Reward"] },
+        "category": { "type": "string" },
         "isUnlocked": { "type": "boolean" },
         "isClaimed": { "type": "boolean" },
         "notes": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string" }
       },
-      "required": ["id", "title", "costXp", "purchaseUrl", "category", "isUnlocked", "isClaimed", "createdAt"]
+      "required": ["id", "title", "costXp", "category", "isUnlocked", "isClaimed", "createdAt"]
     },
-    "QuestChallenge": {
-      "title": "QuestChallenge",
-      "description": "Accountability study quests that award extra progress XP",
+    "Quest": {
+      "title": "Quest",
+      "description": "Daily, weekly and milestone gamified structural preparation quests",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
         "condition": { "type": "string" },
-        "xpReward": { "type": "integer" },
+        "xpReward": { "type": "number" },
         "isCompleted": { "type": "boolean" },
-        "category": { "type": "string", "enum": ["daily", "weekly", "milestone"] }
+        "category": { "type": "string" }
       },
       "required": ["id", "title", "condition", "xpReward", "isCompleted", "category"]
     },
     "XpGainLog": {
       "title": "XpGainLog",
-      "description": "History logs tracking visual points of XP milestones",
+      "description": "Audit trail entries tracking XP accumulation history and levels changes",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "reason": { "type": "string" },
-        "amount": { "type": "integer" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "amount": { "type": "number" },
+        "timestamp": { "type": "string" }
       },
       "required": ["id", "reason", "amount", "timestamp"]
     },
     "StudyRoom": {
       "title": "StudyRoom",
-      "description": "A collaborative virtual study room in YPT mode",
+      "description": "Virtual study lobbies for collaborative sandbox co-studying visual indicators",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -115,14 +126,14 @@
         "category": { "type": "string" },
         "description": { "type": "string" },
         "icon": { "type": "string" },
-        "currentUsersCount": { "type": "integer" },
+        "currentUsersCount": { "type": "number" },
         "creatorId": { "type": "string" }
       },
-      "required": ["id", "name", "category", "description", "creatorId"]
+      "required": ["id", "name", "category", "description", "icon", "currentUsersCount"]
     },
     "RoomMember": {
       "title": "RoomMember",
-      "description": "A student in an active study room with synced ticking clock",
+      "description": "Live active sub-resource state tracking users inside a StudyRoom",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -130,15 +141,15 @@
         "avatarSeed": { "type": "string" },
         "isStudying": { "type": "boolean" },
         "activeSubjectName": { "type": "string" },
-        "studyDurationTodayMinutes": { "type": "integer" },
-        "activeSeconds": { "type": "integer" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "studyDurationTodayMinutes": { "type": "number" },
+        "activeSeconds": { "type": "number" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "name", "isStudying", "activeSubjectName", "studyDurationTodayMinutes", "activeSeconds"]
+      "required": ["id", "name", "avatarSeed", "isStudying", "activeSubjectName", "studyDurationTodayMinutes", "activeSeconds"]
     },
     "RoomChat": {
       "title": "RoomChat",
-      "description": "Real-time conversation within a study room",
+      "description": "Instant text message documents within a StudyRoom's real-time chat log",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -146,72 +157,22 @@
         "userName": { "type": "string" },
         "userAvatarSeed": { "type": "string" },
         "text": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "timestamp": { "type": "string" }
       },
-      "required": ["id", "userId", "userName", "text"]
-    },
-    "Reminder": {
-      "title": "Reminder",
-      "description": "A notification timer or daily schedule alarm",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "time": { "type": "string" },
-        "type": { "type": "string", "enum": ["daily", "one-shot", "timer"] },
-        "durationMinutes": { "type": "integer" },
-        "triggeredAt": { "type": "string", "format": "date-time" },
-        "isActive": { "type": "boolean" },
-        "isCompleted": { "type": "boolean" },
-        "subjectId": { "type": "string" }
-      },
-      "required": ["id", "title", "time", "type", "isActive", "isCompleted"]
+      "required": ["id", "userId", "userName", "userAvatarSeed", "text", "timestamp"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "Core profile for each student"
-    },
-    "/users/{userId}/subjects/{subjectId}": {
-      "schema": "Subject",
-      "description": "Active study subtopics with cumulative minutes"
-    },
-    "/users/{userId}/tasks/{taskId}": {
-      "schema": "Task",
-      "description": "Tasks associated to subjects or general"
-    },
-    "/users/{userId}/studyLogs/{logId}": {
-      "schema": "StudyLog",
-      "description": "Daily study history logs"
-    },
-    "/users/{userId}/rewards/{rewardId}": {
-      "schema": "GiftReward",
-      "description": "Self-rewards goals tracked per student user"
-    },
-    "/users/{userId}/quests/{questId}": {
-      "schema": "QuestChallenge",
-      "description": "Daily/weekly accountability quests synced in real time"
-    },
-    "/users/{userId}/xpLogs/{logId}": {
-      "schema": "XpGainLog",
-      "description": "Detailed XP log transaction records of study sessions"
-    },
-    "/users/{userId}/reminders/{reminderId}": {
-      "schema": "Reminder",
-      "description": "Countdown timers or daily study schedule reminders"
-    },
-    "/studyRooms/{roomId}": {
-      "schema": "StudyRoom",
-      "description": "Browse and discover shared virtual rooms"
-    },
-    "/studyRooms/{roomId}/members/{memberId}": {
-      "schema": "RoomMember",
-      "description": "Active profiles inside a study room"
-    },
-    "/studyRooms/{roomId}/chats/{chatId}": {
-      "schema": "RoomChat",
-      "description": "Live group messages for accountability"
-    }
+    "/users/{userId}": { "schema": "User", "description": "Student root profile document with global preferences" },
+    "/users/{userId}/subjects/{subjectId}": { "schema": "Subject", "description": "A customized subject folder" },
+    "/users/{userId}/tasks/{taskId}": { "schema": "Task", "description": "Micro-task checklist item linked to a specified subject" },
+    "/users/{userId}/studyLogs/{logId}": { "schema": "StudyLog", "description": "Unbiased and validated backdate focus records of study minutes" },
+    "/users/{userId}/reminders/{reminderId}": { "schema": "Reminder", "description": "Relative countdown and clock-based micro-reminder triggers" },
+    "/users/{userId}/rewards/{rewardId}": { "schema": "GiftReward", "description": "Claimable exchange-eligible gamified reward triggers" },
+    "/users/{userId}/quests/{questId}": { "schema": "Quest", "description": "Preparation target challenges linked to active performance tiers" },
+    "/users/{userId}/xpLogs/{xpLogId}": { "schema": "XpGainLog", "description": "Audit indexes mapping experience gains across study times" },
+    "/studyRooms/{roomId}": { "schema": "StudyRoom", "description": "Collaborative digital libraries representing student lobby floors" },
+    "/studyRooms/{roomId}/members/{memberId}": { "schema": "RoomMember", "description": "Dynamic online user cards signaling current room membership" },
+    "/studyRooms/{roomId}/chats/{chatId}": { "schema": "RoomChat", "description": "Live board message logs enabling group notes exchanges" }
   }
 }

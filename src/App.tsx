@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft } from "lucide-react";
-import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings } from "./types";
+import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
 import { 
@@ -474,6 +474,16 @@ export default function App() {
   });
 
   // ==================== REWARD SYSTEMS STATS & CONFIGS ====================
+  const [studentName, setStudentName] = useState<string>(() => {
+    return secureStorage.getItem("study_student_name") || "Scholar";
+  });
+  const [studentClass, setStudentClass] = useState<string>(() => {
+    return secureStorage.getItem("study_student_class") || "Class 12";
+  });
+  const [studentPrepTarget, setStudentPrepTarget] = useState<string>(() => {
+    return secureStorage.getItem("study_student_prep") || "JEE";
+  });
+
   const [userXp, setUserXp] = useState<number>(() => {
     const local = secureStorage.getItem("study_user_xp");
     return local ? parseInt(local, 10) : 0;
@@ -665,8 +675,15 @@ export default function App() {
       try {
         await getDocFromServer(doc(db, "test", "connection"));
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const isPermissionError = errorMsg.toLowerCase().includes("permission") || 
+                                  errorMsg.toLowerCase().includes("insufficient") ||
+                                  errorMsg.toLowerCase().includes("denied");
+        
         if (error instanceof Error && error.message.includes("offline")) {
           console.warn("Please check your Firebase configuration (client is currently offline).");
+        } else if (isPermissionError) {
+          console.info("Firebase Connection check: Online! Successfully connected to Firestore. (Authentication / Rules will unlock complete storage namespaces).");
         } else {
           console.error("Firebase connection check error:", error);
         }
@@ -727,6 +744,18 @@ export default function App() {
             if (userData.xp !== undefined) {
               setUserXp(userData.xp);
             }
+            if (userData.studentName) {
+              setStudentName(userData.studentName);
+              secureStorage.setItem("study_student_name", userData.studentName);
+            }
+            if (userData.studentClass) {
+              setStudentClass(userData.studentClass);
+              secureStorage.setItem("study_student_class", userData.studentClass);
+            }
+            if (userData.studentPrepTarget) {
+              setStudentPrepTarget(userData.studentPrepTarget);
+              secureStorage.setItem("study_student_prep", userData.studentPrepTarget);
+            }
             if (userData.themePreset) {
               setThemePreset(userData.themePreset);
             }
@@ -761,6 +790,9 @@ export default function App() {
               userId: user.uid,
               email: user.email || "",
               displayName: user.displayName || "Scholar",
+              studentName: studentName || user.displayName || "Scholar",
+              studentClass: studentClass,
+              studentPrepTarget: studentPrepTarget,
               dailyTargetMinutes: dailyTargetMinutes,
               xp: userXp,
               lastActiveDate: todayStr,
@@ -868,6 +900,9 @@ export default function App() {
           const localRewards = secureStorage.getItem("study_rewards");
           const localQuests = secureStorage.getItem("study_quests");
           const localXpLogs = secureStorage.getItem("study_xp_logs");
+          const localName = secureStorage.getItem("study_student_name");
+          const localClass = secureStorage.getItem("study_student_class");
+          const localPrep = secureStorage.getItem("study_student_prep");
 
           let parsedLogs: StudyLog[] = [];
           if (localLogs) {
@@ -924,7 +959,15 @@ export default function App() {
           }
           setXpLogs(parsedXpLogs);
 
-          handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+          if (localName) setStudentName(localName);
+          if (localClass) setStudentClass(localClass);
+          if (localPrep) setStudentPrepTarget(localPrep);
+
+          try {
+            handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+          } catch (e) {
+            console.warn("Cleanly caught Firestore permission/connection error on initialization:", e);
+          }
         }
       },
       () => {
@@ -1745,6 +1788,16 @@ export default function App() {
     const targetSubject = subjects.find(s => s.id === subjectId);
     if (!targetSubject) return;
 
+    // Validate max 6 hours (360 minutes) per day limit
+    const existingMinsForDate = studyLogs
+      .filter(l => l.date === todayStr)
+      .reduce((sum, l) => sum + l.durationMinutes, 0);
+
+    if (existingMinsForDate + minutes > 360) {
+      alert(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${minutes} minutes would exceed the 6-hour daily maximum.`);
+      return;
+    }
+
     // Create session entry
     const newLog: StudyLog = {
       id: `log-${Date.now()}`,
@@ -1768,9 +1821,11 @@ export default function App() {
       return nextSubjects;
     });
 
-    // Earn 10 XP per minute studied!
-    const earnedXp = minutes * 10;
-    handleAddXp(`Studied ${targetSubject.name} for ${minutes}m ⏱️`, earnedXp);
+    // Earn XP per minute studied based on level: Lvl 1-4 is 5 XP/min, Lvl 5+ is 10 XP/min
+    const currentLevel = calculateStudentLevel(userXp).level;
+    const currentRate = getXpRateForLevel(currentLevel);
+    const earnedXp = minutes * currentRate;
+    handleAddXp(`Studied ${targetSubject.name} for ${minutes}m (+${earnedXp} XP ⏱️)`, earnedXp);
 
     // Check if the subject's daily goal is newly met!
     const previouslyCompleted = targetSubject.totalMinutes >= targetSubject.goalMinutes;
@@ -2063,6 +2118,58 @@ export default function App() {
       } catch (err) {
         console.warn("Failed to clear some cloud documents during reset:", err);
       }
+    }
+  };
+
+  const handleUpdateProfile = async (updates: { name: string; class: string; preparation: string; level: number }) => {
+    setStudentName(updates.name);
+    setStudentClass(updates.class);
+    setStudentPrepTarget(updates.preparation);
+
+    secureStorage.setItem("study_student_name", updates.name);
+    secureStorage.setItem("study_student_class", updates.class);
+    secureStorage.setItem("study_student_prep", updates.preparation);
+
+    // Update level / XP:
+    // If level changed, we will set XP to the matching level minimum XP requirement
+    const calculatedLvl = calculateStudentLevel(userXp).level;
+    if (updates.level !== calculatedLvl) {
+      const selectedLvlIdx = Math.max(1, Math.min(20, updates.level)) - 1;
+      const targetXp = ALL_STUDENT_LEVELS[selectedLvlIdx].xpRequired;
+      setUserXp(targetXp);
+      secureStorage.setItem("study_user_xp", String(targetXp));
+
+      // Create a nice XP log for manually setting current level
+      const logId = `xp-log-${Date.now()}`;
+      const reason = `Profile Level configured to Level ${updates.level} 🏆`;
+      const newLog = {
+        id: logId,
+        reason,
+        amount: 0,
+        timestamp: new Date().toISOString()
+      };
+      setXpLogs(prev => {
+        const nextLogs = [newLog, ...prev];
+        secureStorage.setItem("study_xp_logs", JSON.stringify(nextLogs));
+        return nextLogs;
+      });
+
+      if (currentUser) {
+        setDoc(doc(db, "users", currentUser.uid, "xpLogs", logId), newLog).catch(() => {});
+        setDoc(doc(db, "users", currentUser.uid), { xp: targetXp }, { merge: true }).catch(() => {});
+      }
+    }
+
+    if (currentUser) {
+      const userRef = doc(db, "users", currentUser.uid);
+      setDoc(userRef, {
+        studentName: updates.name,
+        studentClass: updates.class,
+        studentPrepTarget: updates.preparation,
+        displayName: updates.name
+      }, { merge: true }).catch((err) => {
+        console.warn("Background cloud sync for profile updates deferred (offline/database-not-provisioned). Stored locally!", err);
+      });
     }
   };
 
@@ -2370,13 +2477,13 @@ export default function App() {
                     className="w-6 h-6 rounded-full border border-slate-350 dark:border-slate-700/50" 
                   />
                 ) : (
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-black uppercase font-mono ${getAvatarSeed(currentUser.email)}`}>
-                    {currentUser.displayName?.[0] || currentUser.email?.[0] || "U"}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-[#f26419] font-black uppercase font-mono bg-[#f26419]/10 border border-[#f26419]/25`}>
+                    {(studentName || currentUser.displayName || currentUser.email || "S")[0].toUpperCase()}
                   </div>
                 )}
                 <div className="hidden md:block text-left leading-none max-w-[100px] truncate">
                   <p className="text-xs font-black truncate text-slate-800 dark:text-slate-100 leading-none">
-                    {currentUser.displayName || "Scholar"}
+                    {studentName || currentUser.displayName || "Scholar"}
                   </p>
                   <p className="text-[8.5px] text-slate-500 font-mono truncate mt-0.5">{currentUser.email}</p>
                 </div>
@@ -2508,6 +2615,7 @@ export default function App() {
               studyLogs={studyLogs} 
               subjects={subjects}
               onAddStudyMinutes={handleAddStudyMinutes}
+              userXp={userXp}
             />
           )}
 
@@ -2527,6 +2635,7 @@ export default function App() {
                 totalStudiedTodayMins={totalStudiedTodayMins}
                 completedTasksCountToday={completedTasksCountToday}
                 themePreset={themePreset}
+                studyLogs={studyLogs}
               />
             </div>
           )}
@@ -2728,6 +2837,11 @@ export default function App() {
         onResetAllData={handleResetAllData}
         onSimulateNewDay={handleSimulateTomorrow}
         userXp={userXp}
+        currentUser={currentUser}
+        studentName={studentName}
+        studentClass={studentClass}
+        studentPrepTarget={studentPrepTarget}
+        onUpdateProfile={handleUpdateProfile}
       />
 
       {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}
