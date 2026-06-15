@@ -29,15 +29,29 @@ export default function FocusTimer({
     }
   }, [isRunning, elapsedSeconds, onStateChange]);
 
-  // Sound generator states
-  const [ambientSound, setAmbientSound] = useState<"none" | "brown" | "rain" | "waves">("none");
-  const [volume, setVolume] = useState(0.15);
+  const [volume, setVolume] = useState(0.4); // master volume multiplier
+  const [localTargetMinutes, setLocalTargetMinutes] = useState<number>(60);
 
-  // Sound audio context references
+  // Synthesizer tracks structure
+  interface SynthTrack {
+    id: string;
+    name: string;
+    emoji: string;
+    volume: number; // 0 to 1
+    isPlaying: boolean;
+  }
+
+  const [synthTracks, setSynthTracks] = useState<SynthTrack[]>([
+    { id: "rain", name: "Cozy Café Rain", emoji: "🌧️", volume: 0.4, isPlaying: true },
+    { id: "waves", name: "Ocean Swell", emoji: "🌊", volume: 0.0, isPlaying: false },
+    { id: "brown", name: "Deepspace Noise", emoji: "🌌", volume: 0.0, isPlaying: false },
+    { id: "campfire", name: "Campfire Crackles", emoji: "🔥", volume: 0.0, isPlaying: false },
+    { id: "keyboard", name: "ASMR Keyboard", emoji: "⌨️", volume: 0.0, isPlaying: false }
+  ]);
+
+  // Audio Context and track-based active sources ref
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const noiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const filterNodeRef = useRef<BiquadFilterNode | null>(null);
+  const activeSourcesRef = useRef<Record<string, { source: AudioBufferSourceNode, gainNode: GainNode, filterNode?: BiquadFilterNode }>>({});
 
   // Timer interval reference
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -48,6 +62,15 @@ export default function FocusTimer({
       setActiveSubjectId(subjects[0].id);
     }
   }, [subjects, activeSubjectId, setActiveSubjectId]);
+
+  const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+
+  // Set default local goal from active subject goals
+  useEffect(() => {
+    if (activeSubject) {
+      setLocalTargetMinutes(activeSubject.goalMinutes || 60);
+    }
+  }, [activeSubject]);
 
   // Master ticking loop
   useEffect(() => {
@@ -68,37 +91,8 @@ export default function FocusTimer({
     };
   }, [isRunning]);
 
-  // Handle ambient noise synthesis based on state
-  useEffect(() => {
-    // Stop any existing noise first
-    stopAmbientSynth();
-
-    if (ambientSound !== "none" && isRunning) {
-      startAmbientSynth(ambientSound);
-    }
-
-    return () => {
-      stopAmbientSynth();
-    };
-  }, [ambientSound, isRunning]);
-
-  // Handle live volume updates
-  useEffect(() => {
-    if (gainNodeRef.current && audioCtxRef.current) {
-      gainNodeRef.current.gain.setValueAtTime(volume, audioCtxRef.current.currentTime);
-    }
-  }, [volume]);
-
-  // Stop sound if timer paused
-  useEffect(() => {
-    if (!isRunning && ambientSound !== "none") {
-      stopAmbientSynth();
-    } else if (isRunning && ambientSound !== "none") {
-      startAmbientSynth(ambientSound);
-    }
-  }, [isRunning]);
-
-  const startAmbientSynth = (type: "brown" | "rain" | "waves") => {
+  // Start or stop a specific synth track
+  const startTrackSynth = (trackId: string, trackVol: number) => {
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -109,11 +103,16 @@ export default function FocusTimer({
         ctx.resume();
       }
 
+      // If already playing, stop first
+      if (activeSourcesRef.current[trackId]) {
+        stopTrackSynth(trackId);
+      }
+
       const bufferSize = 2 * ctx.sampleRate;
       const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const output = noiseBuffer.getChannelData(0);
 
-      if (type === "brown") {
+      if (trackId === "brown") {
         // Brownian noise (deeper rumble)
         let lastOut = 0.0;
         for (let i = 0; i < bufferSize; i++) {
@@ -122,19 +121,39 @@ export default function FocusTimer({
           lastOut = output[i];
           output[i] *= 3.5; // volume compensation
         }
-      } else if (type === "waves") {
-        // Ocean swell simulation (white noise with dynamic low filter overlay)
+      } else if (trackId === "waves") {
+        // Ocean swell
         for (let i = 0; i < bufferSize; i++) {
           output[i] = Math.random() * 2 - 1;
         }
-      } else {
-        // Rain simulation (crackling clicks combined with faint white noise)
+      } else if (trackId === "rain") {
+        // Rain
         for (let i = 0; i < bufferSize; i++) {
           let val = Math.random() * 2 - 1;
           if (Math.random() < 0.1) {
             val += (Math.random() * 2 - 1) * 0.5;
           }
           output[i] = val * 0.35;
+        }
+      } else if (trackId === "campfire") {
+        // Campfire crackles
+        for (let i = 0; i < bufferSize; i++) {
+          let val = Math.random() * 2 - 1;
+          // occasional crackles
+          if (Math.random() < 0.005) {
+            val += (Math.random() > 0.5 ? 1 : -1) * 2.5;
+          }
+          output[i] = val * 0.15;
+        }
+      } else if (trackId === "keyboard") {
+        // ASMR keyboard typing clicks
+        for (let i = 0; i < bufferSize; i++) {
+          let val = 0;
+          if (Math.random() < 0.002) {
+            // Typing tap
+            val = Math.sin(i * 0.05) * Math.exp(-0.01 * (i % 1000));
+          }
+          output[i] = val * 0.2;
         }
       }
 
@@ -144,20 +163,24 @@ export default function FocusTimer({
 
       const filter = ctx.createBiquadFilter();
       filter.type = "lowpass";
-      
-      if (type === "brown") {
-        filter.frequency.setValueAtTime(350, ctx.currentTime);
-      } else if (type === "waves") {
+
+      if (trackId === "brown") {
+        filter.frequency.setValueAtTime(320, ctx.currentTime);
+      } else if (trackId === "waves") {
         filter.frequency.setValueAtTime(450, ctx.currentTime);
-        // Start waving filter frequency
-        modulateFilterWaves(filter);
-      } else {
-        // Rain is brighter
-        filter.frequency.setValueAtTime(850, ctx.currentTime);
+        modulateFilterWaves(filter, source); // custom wave modulator
+      } else if (trackId === "rain") {
+        filter.frequency.setValueAtTime(800, ctx.currentTime);
+      } else if (trackId === "campfire") {
+        filter.frequency.setValueAtTime(600, ctx.currentTime);
+      } else if (trackId === "keyboard") {
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(1050, ctx.currentTime);
+        filter.Q.setValueAtTime(6, ctx.currentTime);
       }
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.setValueAtTime(trackVol * volume, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -165,27 +188,48 @@ export default function FocusTimer({
 
       source.start();
 
-      noiseSourceRef.current = source;
-      gainNodeRef.current = gain;
-      filterNodeRef.current = filter;
+      activeSourcesRef.current[trackId] = {
+        source,
+        gainNode: gain,
+        filterNode: filter
+      };
     } catch (e) {
       console.error("Failed to start speech or ambient noise simulator:", e);
     }
   };
 
+  const stopTrackSynth = (trackId: string) => {
+    try {
+      const active = activeSourcesRef.current[trackId];
+      if (active) {
+        active.source.stop();
+        active.source.disconnect();
+        active.gainNode.disconnect();
+        if (active.filterNode) {
+          active.filterNode.disconnect();
+        }
+        delete activeSourcesRef.current[trackId];
+      }
+    } catch (err) {
+      // already stopped safely
+    }
+  };
+
   // Swell lowpass frequency up and down for ocean wave feel
-  const modulateFilterWaves = (filter: BiquadFilterNode) => {
+  const modulateFilterWaves = (filter: BiquadFilterNode, sourceNode: AudioBufferSourceNode) => {
     if (!audioCtxRef.current) return;
     const ctx = audioCtxRef.current;
     
     let isUp = true;
     const interval = setInterval(() => {
-      if (noiseSourceRef.current === null) {
+      // If the source node is disconnected or deleted, or stop has been triggered, wipe this loop
+      const activeTrack = activeSourcesRef.current["waves"];
+      if (!activeTrack || activeTrack.source !== sourceNode) {
         clearInterval(interval);
         return;
       }
       try {
-        const nextFreq = isUp ? 650 : 250;
+        const nextFreq = isUp ? 650 : 220;
         filter.frequency.exponentialRampToValueAtTime(nextFreq, ctx.currentTime + 2.5);
         isUp = !isUp;
       } catch (e) {
@@ -194,27 +238,52 @@ export default function FocusTimer({
     }, 3000);
   };
 
-  const stopAmbientSynth = () => {
-    try {
-      if (noiseSourceRef.current) {
-        noiseSourceRef.current.stop();
-        noiseSourceRef.current.disconnect();
-        noiseSourceRef.current = null;
+  // Turn on/off active channels based on isRunning & toggles
+  const startAmbientSynthMixer = () => {
+    synthTracks.forEach(track => {
+      if (track.isPlaying && track.volume > 0) {
+        startTrackSynth(track.id, track.volume);
       }
-      if (gainNodeRef.current) {
-        gainNodeRef.current.disconnect();
-        gainNodeRef.current = null;
-      }
-      if (filterNodeRef.current) {
-        filterNodeRef.current.disconnect();
-        filterNodeRef.current = null;
-      }
-    } catch (err) {
-      // already stopped safely
-    }
+    });
   };
 
-  const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+  const stopAmbientSynthMixer = () => {
+    Object.keys(activeSourcesRef.current).forEach(trackId => {
+      stopTrackSynth(trackId);
+    });
+  };
+
+  // Handle live volume updates dynamically without buffer recreation
+  useEffect(() => {
+    if (isRunning && isFocusMode) {
+      synthTracks.forEach(track => {
+        const activeNode = activeSourcesRef.current[track.id];
+        if (activeNode) {
+          if (track.isPlaying && track.volume > 0) {
+            if (audioCtxRef.current) {
+              activeNode.gainNode.gain.setValueAtTime(track.volume * volume, audioCtxRef.current.currentTime);
+            }
+          } else {
+            stopTrackSynth(track.id);
+          }
+        } else {
+          if (track.isPlaying && track.volume > 0) {
+            startTrackSynth(track.id, track.volume);
+          }
+        }
+      });
+    } else {
+      stopAmbientSynthMixer();
+    }
+  }, [synthTracks, volume, isRunning, isFocusMode]);
+
+  // Clean-up synthesis on unmount
+  useEffect(() => {
+    return () => {
+      stopAmbientSynthMixer();
+    };
+  }, []);
+
 
   const toggleTimer = () => {
     if (!isRunning) {
@@ -229,7 +298,7 @@ export default function FocusTimer({
   const stopAndSave = () => {
     setIsRunning(false);
     setIsFocusMode(false);
-    stopAmbientSynth();
+    stopAmbientSynthMixer();
 
     const roundedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
     if (activeSubjectId && elapsedSeconds > 0) {
@@ -248,7 +317,7 @@ export default function FocusTimer({
     }
     setIsRunning(false);
     setIsFocusMode(false);
-    stopAmbientSynth();
+    stopAmbientSynthMixer();
     setElapsedSeconds(0);
     setShowDiscardConfirm(false);
   };
@@ -314,12 +383,43 @@ export default function FocusTimer({
             })}
           </div>
 
+          {/* Pomodoro Quick Presets tool */}
+          <div className="space-y-2 pt-2">
+            <span className="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Session Focus Presets
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "15m Short Session ⚡", value: 15 },
+                { label: "25m Standard Pomodoro 🛠️", value: 25 },
+                { label: "50m Deep Work ⚡", value: 50 },
+                { label: "90m Scholarly Sprint 🌌", value: 90 }
+              ].map((p, idx) => {
+                const isActive = localTargetMinutes === p.value;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setLocalTargetMinutes(p.value)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                        : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Quick instructions */}
           {activeSubject && (
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex gap-3 text-slate-500 text-sm mt-2 items-start border border-slate-100/50 dark:border-slate-800/10">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex gap-3 text-slate-500 text-sm mt-1 items-start border border-slate-100/50 dark:border-slate-800/10">
               <Sparkles className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
               <div>
-                Selected: <strong className="text-slate-700 dark:text-slate-300 font-semibold">{activeSubject.name}</strong>. Ready to enter deep focus? We will synthesize real white noise locally in your headphones. Start the timer to begin.
+                Selected: <strong className="text-slate-700 dark:text-slate-300 font-semibold">{activeSubject.name}</strong> • Target: <strong className="text-emerald-600 font-bold">{localTargetMinutes} minutes</strong>. Ready to enter deep focus? We will synthesize real physical white noise waves locally. Start the timer to begin.
               </div>
             </div>
           )}
@@ -377,7 +477,7 @@ export default function FocusTimer({
                   strokeWidth="8" 
                   fill="none" 
                   strokeDasharray="830"
-                  strokeDashoffset={830 - (830 * Math.min(elapsedSeconds, activeSubject.goalMinutes * 60)) / (activeSubject.goalMinutes * 60 || 3600)}
+                  strokeDashoffset={830 - (830 * Math.min(elapsedSeconds, localTargetMinutes * 60)) / (localTargetMinutes * 60 || 3600)}
                   className="transition-all duration-1000 ease-linear text-glow"
                 />
               </svg>
@@ -393,7 +493,7 @@ export default function FocusTimer({
                   Rounded: {Math.max(1, Math.round(elapsedSeconds / 60))}m
                 </span>
                 <span className="text-xs text-emerald-400/80 font-mono mt-1">
-                  Target Goal: {activeSubject.goalMinutes}m
+                  Target Goal: {localTargetMinutes}m
                 </span>
               </div>
             </div>
@@ -407,62 +507,86 @@ export default function FocusTimer({
           <div className="w-full max-w-md bg-slate-900/90 border border-slate-800/80 p-5 rounded-3xl space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">
-                Concentration Ambient Synth
+                Multi-channel Ambience Mixing Board
               </span>
-              <div className="flex items-center gap-1">
-                {ambientSound !== "none" ? (
-                  <Volume2 className="w-4 h-4 text-emerald-400 animate-pulse" />
-                ) : (
-                  <VolumeX className="w-4 h-4 text-slate-500" />
-                )}
-                <span className="text-xs font-mono text-slate-300 capitalize">{ambientSound} Noise</span>
+              <div className="flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-900/40 px-2.5 py-1 rounded-full text-emerald-400">
+                <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                <span className="text-[11px] font-mono font-semibold uppercase">Soundboard Live</span>
               </div>
             </div>
 
-            {/* Quick trigger tiles */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { id: "none", label: "Silent" },
-                { id: "brown", label: "Brownian" },
-                { id: "rain", label: "Cozy Rain" },
-                { id: "waves", label: "Waves Swell" }
-              ].map(noiseSetting => {
-                const isCurrent = ambientSound === noiseSetting.id;
+            {/* Mixer Channels List */}
+            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+              {synthTracks.map((track) => {
                 return (
-                  <button
-                    key={noiseSetting.id}
-                    id={`sound-noise-${noiseSetting.id}`}
-                    onClick={() => setAmbientSound(noiseSetting.id as any)}
-                    className={`p-2 rounded-xl text-center text-xs font-sans transition-all truncate border cursor-pointer border-solid ${
-                      isCurrent
-                        ? "bg-emerald-950/70 border-emerald-500 text-emerald-400"
-                        : "bg-slate-800/30 border-slate-800 text-slate-400 hover:bg-slate-800/60"
-                    }`}
-                  >
-                    {noiseSetting.label}
-                  </button>
+                  <div key={track.id} className="bg-slate-900/40 border border-slate-800/40 p-2.5 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{track.emoji}</span>
+                        <span className="text-xs font-medium text-slate-200">{track.name}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSynthTracks(prev =>
+                            prev.map(t => t.id === track.id ? { ...t, isPlaying: !t.isPlaying } : t)
+                          );
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                          track.isPlaying
+                            ? "bg-emerald-900/50 border border-emerald-800 text-emerald-400"
+                            : "bg-slate-800 border border-slate-700 text-slate-500"
+                        }`}
+                      >
+                        {track.isPlaying ? "ON" : "OFF"}
+                      </button>
+                    </div>
+
+                    {track.isPlaying && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={track.volume}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setSynthTracks(prev =>
+                              prev.map(t => t.id === track.id ? { ...t, volume: val } : t)
+                            );
+                          }}
+                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                        />
+                        <span className="text-[10px] font-mono text-slate-500 w-8 text-right shrink-0">
+                          {Math.round(track.volume * 100)}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
 
-            {/* Volume slider */}
-            {ambientSound !== "none" && (
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-xs text-slate-500 uppercase font-mono">Vol</span>
+            {/* Master Volume Slider */}
+            <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase">
+                <span>Master Scale Multiplier</span>
+                <span>Vol: {Math.round(volume * 100)}%</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <VolumeX className="w-3.5 h-3.5 text-slate-600" />
                 <input
                   type="range"
                   min="0"
-                  max="0.5"
-                  step="0.01"
+                  max="1.5"
+                  step="0.05"
                   value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
                   className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
-                <span className="text-xs font-mono text-slate-400 w-8 text-right">
-                  {Math.round(volume * 200)}%
-                </span>
+                <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
               </div>
-            )}
+            </div>
 
             {/* Action panel */}
             <div className="flex items-center gap-2.5 pt-3">

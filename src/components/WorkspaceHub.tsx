@@ -15,7 +15,16 @@ import {
   Sparkles,
   Search,
   CheckCircle,
-  FolderOpen
+  FolderOpen,
+  Folder,
+  File,
+  ArrowLeft,
+  Eye,
+  BookOpen,
+  FileSpreadsheet,
+  Presentation,
+  Image as ImageIcon,
+  Trash2
 } from "lucide-react";
 import { 
   fetchCalendarEvents, 
@@ -78,6 +87,14 @@ export default function WorkspaceHub({
   const [loading, setLoading] = useState(false);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"calendar" | "drive" | "tasks" | "keep" | "docs">("calendar");
 
+  // Google Drive Navigation & Preview States
+  const [currentFolderId, setCurrentFolderId] = useState("root");
+  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<{ id: string; name: string }[]>([
+    { id: "root", name: "My Drive" }
+  ]);
+  const [selectedPreviewFile, setSelectedPreviewFile] = useState<GDriveFile | null>(null);
+  const [sandboxNewFolderName, setSandboxNewFolderName] = useState("");
+
   // Google APIs State
   const [events, setEvents] = useState<GCalendarEvent[]>([]);
   const [driveFiles, setDriveFiles] = useState<GDriveFile[]>([]);
@@ -115,21 +132,50 @@ export default function WorkspaceHub({
     const cached = localStorage.getItem("sandbox_drive_files");
     return cached ? JSON.parse(cached) : [
       {
+        id: "sb-fld-1",
+        name: "Biology Lecture Material 🧬",
+        mimeType: "application/vnd.google-apps.folder",
+        parentId: "root"
+      },
+      {
+        id: "sb-fld-2",
+        name: "Calculus Problem Sets 📐",
+        mimeType: "application/vnd.google-apps.folder",
+        parentId: "root"
+      },
+      {
         id: "sb-dr-1",
         name: "World_History_Thesis_First_Draft.docx",
         mimeType: "document",
+        parentId: "sb-fld-1",
         webViewLink: "#"
       },
       {
         id: "sb-dr-2",
         name: "Chemistry_Syllabus_Fall2026.pdf",
         mimeType: "application/pdf",
+        parentId: "root",
         webViewLink: "#"
       },
       {
         id: "sb-dr-3",
         name: "Calculus_Limits_Cheat_Sheet.pages",
         mimeType: "text/plain",
+        parentId: "sb-fld-2",
+        webViewLink: "#"
+      },
+      {
+        id: "sb-dr-4",
+        name: "Organic_Chemistry_Hydrocarbons_Lab.pdf",
+        mimeType: "application/pdf",
+        parentId: "root",
+        webViewLink: "#"
+      },
+      {
+        id: "sb-dr-5",
+        name: "Flash5tudy_Semester_Grade_Tracker.xlsx",
+        mimeType: "application/vnd.google-apps.spreadsheet",
+        parentId: "sb-fld-2",
         webViewLink: "#"
       }
     ];
@@ -313,11 +359,11 @@ export default function WorkspaceHub({
     }
   };
 
-  // Loads API specific data when active workspace tab is selected
+  // Loads API specific data when active workspace tab is selected or navigation state changes
   useEffect(() => {
     if (!accessToken || needsAuth) return;
     triggerApiFetch();
-  }, [accessToken, activeWorkspaceTab, selectedTaskListId, needsAuth]);
+  }, [accessToken, activeWorkspaceTab, selectedTaskListId, needsAuth, currentFolderId, searchQuery]);
 
   const triggerApiFetch = async () => {
     if (!accessToken) return;
@@ -327,7 +373,7 @@ export default function WorkspaceHub({
         const evs = await fetchCalendarEvents(accessToken);
         setEvents(evs);
       } else if (activeWorkspaceTab === "drive") {
-        const files = await fetchDriveFiles(accessToken);
+        const files = await fetchDriveFiles(accessToken, currentFolderId, searchQuery);
         setDriveFiles(files);
       } else if (activeWorkspaceTab === "tasks") {
         const lists = await fetchTaskLists(accessToken);
@@ -640,15 +686,13 @@ ${localAdvice.scheduleTip}
     }
   };
 
-  // Filter local drive files
-  const filteredDriveFiles = driveFiles.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const currentEvents = needsAuth ? sandboxEvents : events;
   const currentDriveFiles = needsAuth 
-    ? sandboxDriveFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : filteredDriveFiles;
+    ? (searchQuery.trim().length > 0 
+        ? sandboxDriveFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        : sandboxDriveFiles.filter(f => (f.parentId || "root") === currentFolderId)
+      )
+    : driveFiles;
   const currentTaskLists = needsAuth ? sandboxTaskLists : taskLists;
   const currentTasks = needsAuth ? sandboxTasks : gTasks;
 
@@ -875,107 +919,516 @@ ${localAdvice.scheduleTip}
           </div>
         )}
 
-        {/* 2. Google Drive Panel (Elegantly satisfies File browsing & Google Picker requirement) */}
+        {/* 2. Google Drive Panel (Hierarchical storage navigator and PDF previewer) */}
         {activeWorkspaceTab === "drive" && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h4 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-100">
-                  My Classroom Docs & Files
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Browse and retrieve files directly from cloud storage — an integrated sandbox for worksheets.
-                </p>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Left side (File & Folder grid + Navigation Tools) */}
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h4 className="font-display font-semibold text-sm text-slate-900 dark:text-slate-50">
+                    Google Drive Classroom Storage
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Perfect replica browsing and deep navigation. Open folders, PDFs, sheets, or write custom documents.
+                  </p>
+                </div>
 
-              {/* Dynamic search bar */}
-              <div className="relative max-w-xs w-full">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Filter Drive files..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/55 dark:border-slate-800 rounded-xl"
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="py-14 text-center">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
-              </div>
-            ) : currentDriveFiles.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-12">
-                No matching study documents or resource folders found in Google Drive.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
-                {currentDriveFiles.map(file => (
-                  <div key={file.id} className="p-3 bg-slate-50 hover:bg-slate-100/50 dark:bg-slate-950/20 dark:hover:bg-slate-850/20 border border-slate-105 dark:border-slate-800/80 rounded-xl flex items-center justify-between text-xs space-y-1">
-                    <div className="flex items-center gap-2 overflow-hidden mr-2">
-                      <div className="p-1.5 bg-blue-100/40 text-blue-600 rounded-lg">
-                        <HardDrive className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="truncate text-left">
-                        <p className="font-semibold text-slate-700 dark:text-slate-350 truncate">{file.name}</p>
-                        <p className="text-[9px] text-slate-400 truncate">{file.mimeType.split("/").pop()}</p>
-                      </div>
-                    </div>
-                    {file.webViewLink && file.webViewLink !== "#" ? (
-                      <a 
-                        href={file.webViewLink} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="p-1 hover:bg-blue-50 text-blue-500 rounded-lg"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    ) : (
-                      <span className="text-[9px] bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded text-slate-500 italic scale-90">
-                        Local File
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Simulated uploader for Sandbox Mode */}
-            {needsAuth && (
-              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                <h5 className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Plus className="w-3.5 h-3.5 text-blue-500 animate-bounce" />
-                  Link Study Guides & Classroom PDF Resources
-                </h5>
-                <div className="flex flex-col sm:flex-row gap-2">
+                {/* Search Bar */}
+                <div className="relative max-w-xs w-full">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
                   <input 
                     type="text" 
-                    placeholder="e.g. Bio_Chapter_3_Lecture_Notes.pdf" 
-                    value={sandboxUploadName} 
-                    onChange={e => setSandboxUploadName(e.target.value)}
-                    className="flex-1 text-xs p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl"
-                  />
-                  <button 
-                    onClick={() => {
-                      if (!sandboxUploadName.trim()) return;
-                      const newFile = {
-                        id: `sb-dr-${Date.now()}`,
-                        name: sandboxUploadName.trim(),
-                        mimeType: sandboxUploadName.trim().endsWith(".pdf") ? "application/pdf" : "document",
-                        webViewLink: "#"
-                      };
-                      setSandboxDriveFiles(prev => [newFile, ...prev]);
-                      setSandboxUploadName("");
-                      showNotification("Simulated worksheet document linked successfully to classroom explorer!");
+                    placeholder="Search all directories..."
+                    value={searchQuery}
+                    onChange={e => {
+                      setSearchQuery(e.target.value);
+                      setSelectedPreviewFile(null);
                     }}
-                    className="bg-blue-600 hover:bg-blue-705 text-white font-bold px-4 py-2 rounded-xl text-xs flex justify-center items-center cursor-pointer scale-98 active:scale-95 transition-all text-center"
-                  >
-                    Simulate Upload
-                  </button>
+                    className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
                 </div>
               </div>
-            )}
+
+              {/* Breadcrumbs Navigation Bar */}
+              <div className="flex items-center flex-wrap gap-1.5 text-xs text-slate-500 bg-slate-50 dark:bg-slate-950/40 px-3 py-2 rounded-xl border border-slate-200/40 dark:border-slate-850/80">
+                {folderBreadcrumbs.map((crumb, idx) => (
+                  <span key={crumb.id} className="flex items-center gap-1.5">
+                    {idx > 0 && <span className="text-slate-350 dark:text-slate-650">/</span>}
+                    <button
+                      onClick={() => {
+                        const index = folderBreadcrumbs.findIndex(x => x.id === crumb.id);
+                        if (index !== -1) {
+                          const newCrumbs = folderBreadcrumbs.slice(0, index + 1);
+                          setFolderBreadcrumbs(newCrumbs);
+                          setCurrentFolderId(crumb.id);
+                          setSelectedPreviewFile(null);
+                        }
+                      }}
+                      className={`font-semibold transition-colors duration-150 cursor-pointer ${
+                        idx === folderBreadcrumbs.length - 1 
+                          ? "text-blue-600 dark:text-blue-400 font-bold underline decoration-blue-500 decoration-s1 rounded px-1 flex items-center gap-1 bg-blue-500/10" 
+                          : "text-slate-600 hover:text-blue-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {crumb.id === "root" && <HardDrive className="w-3.5 h-3.5 inline mr-0.5" />}
+                      {crumb.name}
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {loading ? (
+                <div className="py-20 text-center flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                  <span className="text-xs text-slate-400 font-mono">Syncing hierarchy...</span>
+                </div>
+              ) : currentDriveFiles.length === 0 ? (
+                <div className="py-16 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <FolderOpen className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Empty directory</p>
+                  <p className="text-[10px] text-slate-400 max-w-xs mx-auto">
+                    {searchQuery ? "No files match your query in this folder." : "This directory is pristine. Sync sheets or simulate custom uploads below!"}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
+                  {currentDriveFiles.map(file => {
+                    const isFolder = file.mimeType === "application/vnd.google-apps.folder";
+                    const isSelected = selectedPreviewFile?.id === file.id;
+                    
+                    // Specific file icon selector
+                    const getFileIcon = (mimeType: string, filename: string) => {
+                      if (mimeType === "application/vnd.google-apps.folder") {
+                        return <Folder className="w-5 h-5 text-amber-500 fill-amber-500/20" />;
+                      }
+                      const name = filename.toLowerCase();
+                      if (name.endsWith(".pdf") || mimeType === "application/pdf") {
+                        return <BookOpen className="w-5 h-5 text-red-500" />;
+                      }
+                      if (mimeType.includes("document") || name.endsWith(".docx") || name.endsWith(".pages")) {
+                        return <FileText className="w-5 h-5 text-blue-500" />;
+                      }
+                      if (mimeType.includes("spreadsheet") || name.endsWith(".xlsx") || name.endsWith(".csv")) {
+                        return <FileSpreadsheet className="w-5 h-5 text-emerald-500" />;
+                      }
+                      if (mimeType.includes("presentation") || name.endsWith(".pptx") || name.endsWith(".key")) {
+                        return <Presentation className="w-5 h-5 text-orange-500" />;
+                      }
+                      if (mimeType.includes("image") || name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+                        return <ImageIcon className="w-5 h-5 text-indigo-500" />;
+                      }
+                      return <File className="w-5 h-5 text-slate-500" />;
+                    };
+
+                    const handleItemClick = () => {
+                      if (isFolder) {
+                        setCurrentFolderId(file.id);
+                        setFolderBreadcrumbs(prev => [...prev, { id: file.id, name: file.name.replace(" 📁", "") }]);
+                        setSelectedPreviewFile(null);
+                      } else {
+                        setSelectedPreviewFile(file);
+                      }
+                    };
+
+                    return (
+                      <div 
+                        key={file.id} 
+                        onClick={handleItemClick}
+                        className={`p-3 border rounded-xl flex items-center justify-between transition-all duration-200 cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 dark:border-blue-400 shadow-xs translate-x-0.5"
+                            : "bg-slate-50 hover:bg-slate-100/55 dark:bg-slate-950/25 dark:hover:bg-slate-850/25 border-slate-150 dark:border-slate-850"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 overflow-hidden mr-2">
+                          <div className="shrink-0 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-2xs border border-slate-100 dark:border-slate-800">
+                            {getFileIcon(file.mimeType, file.name)}
+                          </div>
+                          <div className="truncate text-left space-y-0.5">
+                            <p className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate">{file.name}</p>
+                            <div className="flex items-center gap-2 text-[9px] text-slate-400 font-mono">
+                              <span className="capitalize">{file.mimeType === "application/vnd.google-apps.folder" ? "Folder" : file.mimeType.split("/").pop()?.split(".").pop()}</span>
+                              {file.size && <span>• {file.size}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {!isFolder && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPreviewFile(file);
+                              }}
+                              className="p-1 px-1.5 hover:bg-white dark:hover:bg-slate-800 text-blue-500 dark:text-blue-400 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-755 transition-all cursor-pointer text-[10px] uppercase font-mono font-bold"
+                              title="Render file previewer"
+                            >
+                              <Eye className="w-3.5 h-3.5 inline mr-1" />
+                              View
+                            </button>
+                          )}
+                          {file.webViewLink && file.webViewLink !== "#" ? (
+                            <a 
+                              href={file.webViewLink} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="p-1.5 hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-amber-400 rounded-lg transition-all"
+                              title="Open original Cloud document in standard Google Tab"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          ) : (
+                            file.id.startsWith("sb-") && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSandboxDriveFiles(prev => prev.filter(f => f.id !== file.id));
+                                  if (isSelected) setSelectedPreviewFile(null);
+                                  showNotification("Simulated file removed.");
+                                }}
+                                className="p-1.5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-lg transition-all"
+                                title="Delete local sandbox file"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Advanced folder & document simulation suite (Offline sandbox tools) */}
+              {needsAuth && (
+                <div className="mt-4 pt-4 border-t border-slate-150 dark:border-slate-800 space-y-4 text-left">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    
+                    {/* Create simulated folder card */}
+                    <div className="bg-slate-50/50 dark:bg-slate-950/20 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850 space-y-2">
+                      <h5 className="font-semibold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <Folder className="w-3.5 h-3.5 text-amber-500 fill-amber-500/15" />
+                        Create Simulated Sub-Folder
+                      </h5>
+                      <div className="flex gap-1.5">
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Finals Revision" 
+                          value={sandboxNewFolderName} 
+                          onChange={e => setSandboxNewFolderName(e.target.value)}
+                          className="flex-1 text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-705"
+                          onKeyDown={e => {
+                            if (e.key === "Enter" && sandboxNewFolderName.trim()) {
+                              const newFolder: GDriveFile = {
+                                id: `sb-fld-${Date.now()}`,
+                                name: sandboxNewFolderName.trim() + " 📁",
+                                mimeType: "application/vnd.google-apps.folder",
+                                parentId: currentFolderId
+                              };
+                              setSandboxDriveFiles(prev => [newFolder, ...prev]);
+                              setSandboxNewFolderName("");
+                              showNotification("Simulated folder created in active directory!");
+                            }
+                          }}
+                        />
+                        <button 
+                          onClick={() => {
+                            if (!sandboxNewFolderName.trim()) return;
+                            const newFolder: GDriveFile = {
+                              id: `sb-fld-${Date.now()}`,
+                              name: sandboxNewFolderName.trim() + " 📁",
+                              mimeType: "application/vnd.google-apps.folder",
+                              parentId: currentFolderId
+                            };
+                            setSandboxDriveFiles(prev => [newFolder, ...prev]);
+                            setSandboxNewFolderName("");
+                            showNotification("Simulated folder created in active directory!");
+                          }}
+                          className="bg-slate-200 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-755 text-slate-700 dark:text-slate-350 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Create
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Simulate PDF/Doc creation card */}
+                    <div className="bg-slate-50/50 dark:bg-slate-950/20 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850 space-y-2">
+                      <h5 className="font-semibold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <Plus className="w-3.5 h-3.5 text-blue-500" />
+                        Simulate Classroom File/PDF
+                      </h5>
+                      <div className="flex gap-1.5">
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Revision_Notes.pdf" 
+                          value={sandboxUploadName} 
+                          onChange={e => setSandboxUploadName(e.target.value)}
+                          className="flex-1 text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-705"
+                          onKeyDown={e => {
+                            if (e.key === "Enter" && sandboxUploadName.trim()) {
+                              const suffix = sandboxUploadName.trim().split('.').pop()?.toLowerCase();
+                              let mime = "document";
+                              if (suffix === "pdf") mime = "application/pdf";
+                              else if (suffix === "xlsx" || suffix === "xls") mime = "application/vnd.google-apps.spreadsheet";
+                              else if (suffix === "pptx" || suffix === "ppt") mime = "application/vnd.google-apps.presentation";
+                              else if (suffix === "png" || suffix === "jpg" || suffix === "jpeg") mime = "image/png";
+
+                              const newFile = {
+                                id: `sb-dr-${Date.now()}`,
+                                name: sandboxUploadName.trim(),
+                                mimeType: mime,
+                                parentId: currentFolderId,
+                                webViewLink: "#"
+                              };
+                              setSandboxDriveFiles(prev => [newFile, ...prev]);
+                              setSandboxUploadName("");
+                              showNotification("Simulated document linked successfully to active directory!");
+                            }
+                          }}
+                        />
+                        <button 
+                          onClick={() => {
+                            if (!sandboxUploadName.trim()) return;
+                            const suffix = sandboxUploadName.trim().split('.').pop()?.toLowerCase();
+                            let mime = "document";
+                            if (suffix === "pdf") mime = "application/pdf";
+                            else if (suffix === "xlsx" || suffix === "xls") mime = "application/vnd.google-apps.spreadsheet";
+                            else if (suffix === "pptx" || suffix === "ppt") mime = "application/vnd.google-apps.presentation";
+                            else if (suffix === "png" || suffix === "jpg" || suffix === "jpeg") mime = "image/png";
+
+                            const newFile = {
+                              id: `sb-dr-${Date.now()}`,
+                              name: sandboxUploadName.trim(),
+                              mimeType: mime,
+                              parentId: currentFolderId,
+                              webViewLink: "#"
+                            };
+                            setSandboxDriveFiles(prev => [newFile, ...prev]);
+                            setSandboxUploadName("");
+                            showNotification("Simulated document linked successfully to active directory!");
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Upload
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right side: High contrast side-by-side active previewer */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <h4 className="font-display font-semibold text-sm text-slate-900 dark:text-slate-50 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-blue-500" />
+                    Document & PDF Reader
+                  </h4>
+                  {selectedPreviewFile && (
+                    <button 
+                      onClick={() => setSelectedPreviewFile(null)}
+                      className="text-[10px] uppercase font-mono font-bold text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="pt-3">
+                  {selectedPreviewFile ? (
+                    <div className="space-y-4 animate-fade-in text-left">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-500 rounded-lg mt-0.5 shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs text-slate-800 dark:text-slate-100 leading-snug break-all">{selectedPreviewFile.name}</p>
+                          <span className="text-[9px] uppercase font-mono bg-blue-100/40 dark:bg-slate-800/80 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md font-semibold inline-block mt-1">
+                            {selectedPreviewFile.id.startsWith("sb-") ? "Local Sandbox Simulated File" : "Google Drive Active Document"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Display live document rendering */}
+                      <div className="pt-1.5">
+                        {(() => {
+                          const file = selectedPreviewFile;
+                          const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.mimeType === "application/pdf";
+                          const isDoc = file.mimeType.includes("document") || file.name.toLowerCase().endsWith(".docx") || file.name.toLowerCase().endsWith(".pages");
+                          const isSheet = file.mimeType.includes("spreadsheet") || file.name.toLowerCase().endsWith(".xlsx");
+                          const isImage = file.mimeType.includes("image") || file.name.toLowerCase().endsWith(".png") || file.name.toLowerCase().endsWith(".jpg") || file.name.toLowerCase().endsWith(".jpeg");
+
+                          if (!file.id.startsWith("sb-")) {
+                            // Real live active Google Drive file!
+                            return (
+                              <div className="w-full h-[280px] bg-slate-50 dark:bg-slate-950 rounded-xl overflow-hidden relative border border-slate-200/50 dark:border-slate-850">
+                                <iframe 
+                                  src={`https://drive.google.com/file/d/${file.id}/preview`} 
+                                  className="w-full h-full border-0" 
+                                  allow="autoplay"
+                                  allowFullScreen
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            );
+                          }
+
+                          // Formatted Sandbox rendering
+                          if (isPdf) {
+                            if (file.name.includes("Chemistry")) {
+                              return (
+                                <div className="text-left space-y-3 bg-red-50/10 dark:bg-slate-950 p-4 rounded-xl border border-red-500/10 font-sans text-xs text-slate-700 dark:text-slate-350 h-[280px] overflow-y-auto no-scrollbar">
+                                  <h5 className="font-bold text-red-650 dark:text-red-400 text-[13px] border-b border-red-500/20 pb-1">🧪 Chemistry Fall 2026 Outline</h5>
+                                  <div className="space-y-1 text-[11px]">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">Session Schedule:</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Week 1-3: Thermodynamics & Chemical Kinetics</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Week 4-6: Chemical Equilibrium & Buffers</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Week 7-9: Electrochemistry & Redox Reactions</p>
+                                  </div>
+                                  <div className="space-y-1 text-[11px]">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">Laboratory Work:</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Midterm Practice Session: 30%</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Lab Rubric Logs: 25% | Midterm Exam: 45%</p>
+                                  </div>
+                                  <p className="text-[10px] text-slate-450 italic mt-3 border-t pt-2 border-slate-100 dark:border-slate-900">Faculty: room 402-B, Mon/Wed 14:00 - 16:30</p>
+                                </div>
+                              );
+                            } else if (file.name.includes("Hydrocarbons") || file.name.includes("Chemistry")) {
+                              return (
+                                <div className="text-left space-y-3 bg-red-50/10 dark:bg-slate-950 p-4 rounded-xl border border-red-500/10 font-sans text-xs text-slate-700 dark:text-slate-350 h-[280px] overflow-y-auto no-scrollbar">
+                                  <h5 className="font-bold text-red-650 dark:text-red-400 text-[13px] border-b border-red-500/20 pb-1">🧪 Organic Hydrocarbons Lab Guide</h5>
+                                  <div className="space-y-1.5 text-[11px]">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">Objective Guidelines:</p>
+                                    <p className="text-slate-550 dark:text-slate-400 leading-relaxed">Synthesis of simple hydrocarbons under controlled lab settings. Testing density using bromine reagent.</p>
+                                  </div>
+                                  <div className="space-y-1 text-[11px]">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">Safety Commands:</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Perform exclusively within active fume hood.</p>
+                                    <p className="pl-2 text-slate-550 dark:text-slate-400">• Double glove and eye goggles mandatory.</p>
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="text-left space-y-3 bg-red-50/10 dark:bg-slate-950 p-4 rounded-xl border border-red-500/10 font-sans text-xs text-slate-700 dark:text-slate-350 h-[280px] overflow-y-auto no-scrollbar">
+                                  <h5 className="font-bold text-red-650 dark:text-red-400 text-[13px] border-b border-red-500/20 pb-1">📄 Custom PDF Study Resource</h5>
+                                  <p className="text-[11px] text-slate-550 dark:text-slate-400 leading-relaxed">
+                                    Format detected as standard Portable Document (PDF). Simulated page layouts loaded successfully.
+                                  </p>
+                                  <div className="p-2 bg-white dark:bg-slate-950 rounded-lg text-center font-mono text-[10px] text-slate-450 border border-slate-100 dark:border-slate-850">
+                                    [PDF Binary Reference: {file.id}]
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 italic">Created within sandbox productivity hub.</p>
+                                </div>
+                              );
+                            }
+                          }
+
+                          if (isDoc) {
+                            return (
+                              <div className="text-left space-y-2 bg-blue-50/10 dark:bg-slate-950 p-4 rounded-xl border border-blue-500/10 font-serif text-xs text-slate-700 dark:text-slate-300 h-[280px] overflow-y-auto no-scrollbar">
+                                <h5 className="font-sans font-bold text-blue-600 dark:text-blue-400 text-[13px] border-b border-blue-500/20 pb-1">✍️ History Thesis Draft</h5>
+                                <p className="font-medium text-slate-800 dark:text-slate-100 italic">"The Socioeconomic Catalysts of Maritime Trade..."</p>
+                                <div className="space-y-1.5 leading-relaxed text-[11px] font-sans text-slate-550 dark:text-slate-400">
+                                  <p><strong>Abstract:</strong> This research inspects mercantile structures and contributing silver currencies in the trans-continental lanes.</p>
+                                  <p><strong>Primary Hypotheses:</strong> Trading route consolidation directly enhanced core urban centers at critical junctions.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (isSheet) {
+                            return (
+                              <div className="text-left space-y-3 bg-emerald-50/10 dark:bg-slate-950 p-3.5 rounded-xl border border-emerald-500/10 font-mono text-xs text-slate-700 dark:text-slate-300 h-[280px] overflow-y-auto no-scrollbar">
+                                <h5 className="font-sans font-bold text-emerald-600 dark:text-emerald-400 text-xs border-b border-emerald-500/20 pb-1">📊 Grades tracker sheet</h5>
+                                <table className="w-full text-[10px] border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-emerald-500/20 text-slate-550">
+                                      <th className="py-1 text-left">Subject</th>
+                                      <th className="py-1 text-right">Target</th>
+                                      <th className="py-1 text-right">Current</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td className="py-1">Biology 101</td>
+                                      <td className="py-1 text-right">95%</td>
+                                      <td className="py-1 text-right text-emerald-600 dark:text-emerald-400">92%</td>
+                                    </tr>
+                                    <tr>
+                                      <td className="py-1">Discrete Math</td>
+                                      <td className="py-1 text-right">90%</td>
+                                      <td className="py-1 text-right text-emerald-600 dark:text-emerald-400 font-bold">94%</td>
+                                    </tr>
+                                    <tr>
+                                      <td className="py-1">World History</td>
+                                      <td className="py-1 text-right">92%</td>
+                                      <td className="py-1 text-right text-slate-400">89%</td>
+                                    </tr>
+                                    <tr className="border-t font-semibold">
+                                      <td className="py-1 text-slate-800 dark:text-slate-200">GPA Result</td>
+                                      <td className="py-1 text-right">3.85</td>
+                                      <td className="py-1 text-right text-emerald-500 font-bold">3.91</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          }
+
+                          // General plaintext / math formulas
+                          return (
+                            <div className="text-left space-y-2 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-850 font-mono text-[11px] text-slate-650 dark:text-slate-400 h-[280px] overflow-y-auto no-scrollbar">
+                              <h5 className="font-bold text-slate-800 dark:text-slate-200 border-b pb-1 text-xs">📐 Calculus Core Rules Cheat Sheet</h5>
+                              <div className="space-y-1.5 leading-snug">
+                                <p className="font-semibold text-slate-750 dark:text-slate-350">Limit Axioms:</p>
+                                <p>• lim (x-&gt;a) [f(x) + g(x)] = L + M</p>
+                                <p>• Squeeze Theorem: If f &lt;= g &lt;= h and we have lim f = lim h = L, then lim g = L</p>
+                                <p className="text-[10px] text-slate-450 italic mt-2 border-t pt-1">L'Hopital's Rule applies dynamically to indeterminate functions.</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-24 text-center space-y-3 px-4">
+                      <div className="w-10 h-10 bg-blue-100/50 dark:bg-blue-900/10 text-blue-500 rounded-full flex items-center justify-center mx-auto">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No active file preview</p>
+                        <p className="text-[10px] text-slate-455 leading-relaxed">
+                          Select any classroom PDF, spreadsheet, or World History draft from the left column to view its contents live inside your study hub.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedPreviewFile?.webViewLink && selectedPreviewFile.webViewLink !== "#" && (
+                <div className="pt-2">
+                  <a 
+                    href={selectedPreviewFile.webViewLink} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all text-center"
+                    id="drive-preview-external-tab"
+                  >
+                    Open Original in New Tab
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
 
           </div>
         )}

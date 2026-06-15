@@ -3,7 +3,7 @@ import {
   BarChart2, Trophy, Clock, ShieldCheck, Dumbbell, BookOpen, Music, 
   Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, 
   Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
-  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight
+  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock
 } from "lucide-react";
 
 interface FeatureSidebarProps {
@@ -16,6 +16,7 @@ interface FeatureSidebarProps {
   setIsOfflineMode: (val: boolean) => void;
   onResetAllData: () => void;
   onSimulateNewDay?: () => void;
+  userXp?: number;
 }
 
 export default function FeatureSidebar({
@@ -28,6 +29,7 @@ export default function FeatureSidebar({
   setIsOfflineMode,
   onResetAllData,
   onSimulateNewDay,
+  userXp = 0
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -682,30 +684,52 @@ export default function FeatureSidebar({
                 
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   {[
-                    { id: "dark-classic", name: "Classic Steel & Slate", bg: "bg-slate-500", desc: "Crisp corporate elegance" },
-                    { id: "amoled", name: "Modern High Contrast / OLED", bg: "bg-black", desc: "Pitch black or vivid white" },
-                    { id: "forest", name: "Matcha Forest & Mint", bg: "bg-[#0b1c15]", desc: "Cozy focus greens" },
-                    { id: "crimson", name: "Sunset Crimson & Cherry", bg: "bg-[#210206]", desc: "Deep study warmth" },
-                    { id: "honey", name: "Amber Honey & Vanilla", bg: "bg-[#fca311]", desc: "Golden hour coziness" }
-                  ].map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => {
-                        onThemeSelect(preset.id);
-                        onClose();
-                      }}
-                      className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/65 dark:border-slate-800 hover:border-[#f26419]/50 dark:hover:border-slate-700 bg-[#fbfbfc]/85 dark:bg-[#161616]/80 cursor-pointer hover:scale-[1.01] transition-all text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`w-4 h-4 rounded-full border border-slate-300 dark:border-slate-700 shrink-0 ${preset.bg}`}></span>
-                        <div>
-                          <span className="text-xs font-black block text-slate-800 dark:text-slate-100 leading-none">{preset.name}</span>
-                          <span className="text-[9.5px] text-slate-450 dark:text-slate-505 font-mono mt-0.5 block">{preset.desc}</span>
+                    { id: "dark-classic", name: "Default Theme (No Accent Preset)", bg: "bg-slate-350 dark:bg-slate-600", desc: "No custom color presets or overlays applied", reqLevel: 1 },
+                    { id: "forest", name: "Matcha Forest & Mint", bg: "bg-[#0b1c15]", desc: "Cozy focus greens", reqLevel: 3 },
+                    { id: "crimson", name: "Sunset Crimson & Cherry", bg: "bg-[#210206]", desc: "Deep study warmth", reqLevel: 6 },
+                    { id: "honey", name: "Amber Honey & Vanilla", bg: "bg-[#fca311]", desc: "Golden hour coziness", reqLevel: 10 },
+                    { id: "amoled", name: "Modern High Contrast / OLED", bg: "bg-black", desc: "Pitch black or vivid white", reqLevel: 15 }
+                  ].map((preset) => {
+                    const userLevel = Math.floor(userXp / 500) + 1;
+                    const isLocked = userLevel < preset.reqLevel;
+                    return (
+                      <button
+                        key={preset.id}
+                        disabled={isLocked}
+                        onClick={() => {
+                          if (!isLocked) {
+                            onThemeSelect(preset.id);
+                            onClose();
+                          }
+                        }}
+                        className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left w-full ${
+                          isLocked 
+                            ? "opacity-55 bg-slate-100 dark:bg-[#1b1b1b] border-dashed border-slate-300 dark:border-zinc-800 cursor-not-allowed" 
+                            : "border-slate-200/65 dark:border-slate-800 hover:border-[#f26419]/50 dark:hover:border-slate-700 bg-[#fbfbfc]/85 dark:bg-[#161616]/80 cursor-pointer hover:scale-[1.01]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`w-4 h-4 rounded-full border border-slate-300 dark:border-slate-700 shrink-0 ${preset.bg}`}></span>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-black block leading-none ${isLocked ? "text-slate-450 dark:text-zinc-500" : "text-slate-800 dark:text-slate-100"}`}>{preset.name}</span>
+                              {isLocked && (
+                                <span className="text-[8.5px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-mono font-black shrink-0">Lvl {preset.reqLevel}</span>
+                              )}
+                            </div>
+                            <span className="text-[9.5px] text-slate-450 dark:text-slate-505 font-mono mt-1 block leading-none">{preset.desc}</span>
+                          </div>
                         </div>
-                      </div>
-                      <span className="text-[10px] text-[#f26419] font-black uppercase tracking-wider">Apply</span>
-                    </button>
-                  ))}
+                        {isLocked ? (
+                          <span className="text-[8.5px] text-zinc-550 dark:text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1 shrink-0">
+                            <Lock className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#f26419] font-black uppercase tracking-wider">Apply</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

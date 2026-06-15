@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Trash, Check, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 import { Subject, Task } from "../types";
 
@@ -17,18 +17,48 @@ export default function PlannerHub({
   onToggleTask,
   onRemoveTask,
 }: PlannerHubProps) {
-  // Lock dates for Week indicator matching mockup (May 18 to May 24, 2026, centering Wed 20)
-  const [selectedDay, setSelectedDay] = useState("2026-05-20");
+  // Helper to format Date objects as 'YYYY-MM-DD'
+  const getLocalDateString = (d: Date = new Date()): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayLocalStr = getLocalDateString();
+
+  // Dynamically compute the current week's dates centering the current day
+  const [selectedDay, setSelectedDay] = useState(todayLocalStr);
   
-  const weekDays = [
-    { num: 18, label: "Mon", dateStr: "2026-05-18" },
-    { num: 19, label: "Tue", dateStr: "2026-05-19" },
-    { num: 20, label: "Wed", dateStr: "2026-05-20" },
-    { num: 21, label: "Thu", dateStr: "2026-05-21" },
-    { num: 22, label: "Fri", dateStr: "2026-05-22" },
-    { num: 23, label: "Sat", dateStr: "2026-05-23" },
-    { num: 24, label: "Sun", dateStr: "2026-05-24" },
-  ];
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const days = [];
+    const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+    // Calculate distance to current week's Monday (1 is Monday, Sunday (0) stays as week's end)
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + distanceToMonday);
+
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push({
+        num: d.getDate(),
+        label: labels[i],
+        dateStr: getLocalDateString(d)
+      });
+    }
+    return days;
+  }, []);
+
+  // Format the selected day to text: "Wed, 5/20"
+  const formattedSelectedDay = useMemo(() => {
+    const d = new Date(selectedDay + "T00:00:00"); // local parsing safely
+    if (isNaN(d.getTime())) return "Today";
+    const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return `${labels[d.getDay()]}, ${d.getMonth() + 1}/${d.getDate()}`;
+  }, [selectedDay]);
 
   // Subject colors map for the left vertical borders
   const getAccentBorder = (colorStyle: string) => {
@@ -74,7 +104,7 @@ export default function PlannerHub({
       {/* Header Month Day Title */}
       <div className="flex items-center justify-between pb-4">
         <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-1">
-          Wed, 5/20
+          {formattedSelectedDay}
         </h2>
         <span className="text-[10px] font-mono bg-slate-800/80 text-slate-400 px-2 py-0.5 rounded border border-slate-700/50">
           Chekoff Log
@@ -96,13 +126,21 @@ export default function PlannerHub({
                 {wd.num}.{wd.label}
               </span>
               <button 
-                className={`w-7 h-7 rounded-lg mt-1 text-[11px] font-black leading-none flex items-center justify-center transition-all ${
+                className={`w-7 h-7 rounded-lg mt-1 text-[10px] font-mono font-bold leading-none flex items-center justify-center transition-all ${
                   isSelected 
                     ? "bg-white text-slate-950 scale-105" 
                     : "bg-[#161616]/70 hover:bg-[#1a1a1a] text-slate-400"
                 }`}
               >
-                -
+                {wd.dateStr === todayLocalStr ? (
+                  tasks.length > 0 ? (
+                    `${tasks.filter(t => t.isCompleted).length}/${tasks.length}`
+                  ) : (
+                    "-"
+                  )
+                ) : (
+                  "-"
+                )}
               </button>
               {isSelected && (
                 <div className="w-5 h-0.5 bg-white rounded-full mt-1.5 animate-pulse"></div>

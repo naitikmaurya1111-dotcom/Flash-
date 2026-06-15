@@ -269,21 +269,40 @@ export interface GDriveFile {
   mimeType: string;
   webViewLink?: string;
   thumbnailLink?: string;
+  iconLink?: string;
+  size?: string;
+  modifiedTime?: string;
+  parentId?: string;
 }
 
-export const fetchDriveFiles = async (token: string, mimeTypes?: string[]): Promise<GDriveFile[]> => {
+export const fetchDriveFiles = async (
+  token: string, 
+  folderId: string = "root", 
+  searchQuery?: string
+): Promise<GDriveFile[]> => {
   let query = "trashed = false";
-  if (mimeTypes && mimeTypes.length > 0) {
-    const mimeQuery = mimeTypes.map(t => `mimeType = '${t}'`).join(" or ");
-    query += ` and (${mimeQuery})`;
+  if (searchQuery && searchQuery.trim().length > 0) {
+    const escapedSearch = searchQuery.replace(/'/g, "\\'");
+    query += ` and name contains '${escapedSearch}'`;
+  } else {
+    query += ` and '${folderId}' in parents`;
   }
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,webViewLink,thumbnailLink)&pageSize=30`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,webViewLink,thumbnailLink,iconLink,size,modifiedTime)&pageSize=100`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error("Failed to fetch Google Drive files");
   const data = await res.json();
-  return data.files || [];
+  const files = data.files || [];
+  
+  // Sort files so folders are grouped at the top, then alphabetically
+  return files.sort((a: GDriveFile, b: GDriveFile) => {
+    const isFolderA = a.mimeType === "application/vnd.google-apps.folder";
+    const isFolderB = b.mimeType === "application/vnd.google-apps.folder";
+    if (isFolderA && !isFolderB) return -1;
+    if (!isFolderA && isFolderB) return 1;
+    return a.name.localeCompare(b.name);
+  });
 };
 
 // 4. Google Docs wrappers

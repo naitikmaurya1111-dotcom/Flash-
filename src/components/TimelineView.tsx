@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Play, 
   Pause, 
@@ -27,7 +27,8 @@ import {
   Flame,
   Heart
 } from "lucide-react";
-import { Subject, StudyLog } from "../types";
+import { Subject, StudyLog, ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
+import { Info, X } from "lucide-react"; // Import Info & X icon specifically
 
 interface TimelineViewProps {
   subjects: Subject[];
@@ -58,6 +59,9 @@ interface TimelineViewProps {
   pomoSecondsLeft: number;
   setPomoSecondsLeft: React.Dispatch<React.SetStateAction<number>>;
   onUpdateSubjectGoal: (subjectId: string, goalMinutes: number) => Promise<void>;
+  themePreset?: string;
+  userXp?: number;
+  onAddXp?: (reason: string, amount: number) => Promise<void>;
 }
 
 export default function TimelineView({
@@ -87,9 +91,80 @@ export default function TimelineView({
   pomoSecondsLeft,
   setPomoSecondsLeft,
   onUpdateSubjectGoal,
+  themePreset = "dark-classic",
+  userXp = 0,
+  onAddXp,
 }: TimelineViewProps) {
   // Navigation inside the Focus subtab
   const [subView, setSubView] = useState<"stopwatch" | "timeline">("stopwatch");
+  const [showLevelGuide, setShowLevelGuide] = useState(false);
+  
+  const gradientStops = useMemo(() => {
+    switch (themePreset) {
+      case "forest":
+        return {
+          start: "#10b981",
+          mid: "#34d399",
+          end: "#059669"
+        };
+      case "crimson":
+        return {
+          start: "#e11d48",
+          mid: "#f43f5e",
+          end: "#9f1239"
+        };
+      case "honey":
+        return {
+          start: "#d97706",
+          mid: "#f59e0b",
+          end: "#b45309"
+        };
+      case "amoled":
+        return {
+          start: "#3b82f6",
+          mid: "#6366f1",
+          end: "#a855f7"
+        };
+      default: // classic-dark / steel
+        return {
+          start: "#f26419",
+          mid: "#f34825",
+          end: "#ff9f43"
+        };
+    }
+  }, [themePreset]);
+
+  const themeHexAccent = gradientStops.start;
+
+  const themeTextAccent = useMemo(() => {
+    switch (themePreset) {
+      case "forest":
+        return "text-[#10b981]";
+      case "crimson":
+        return "text-[#e11d48]";
+      case "honey":
+        return "text-[#d97706]";
+      case "amoled":
+        return "text-[#3b82f6] dark:text-[#6366f1]";
+      default:
+        return "text-[#f26419]";
+    }
+  }, [themePreset]);
+
+  const themeBgAccent = useMemo(() => {
+    switch (themePreset) {
+      case "forest":
+        return "bg-[#10b981] hover:bg-[#059669]";
+      case "crimson":
+        return "bg-[#e11d48] hover:bg-[#be123c]";
+      case "honey":
+        return "bg-[#d97706] hover:bg-[#b45309]";
+      case "amoled":
+        return "bg-[#3b82f6] hover:bg-[#2563eb] dark:bg-[#6366f1] dark:hover:bg-[#4f46e5]";
+      default:
+        return "bg-[#f26419] hover:bg-[#df5214]";
+    }
+  }, [themePreset]);
   const [showSubjectsModal, setShowSubjectsModal] = useState(false);
   const [isEditingSubjectsList, setIsEditingSubjectsList] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -417,6 +492,10 @@ export default function TimelineView({
       setTimeout(() => setShowDiscardConfirm(false), 5000);
       return;
     }
+    // Penalize if studied for at least 15 seconds
+    if (activeSeconds >= 15 && onAddXp) {
+      onAddXp("Abandoned stopwatch study session ❌", -25);
+    }
     setActiveSeconds(0);
     setIsStudying(false);
     setShowDiscardConfirm(false);
@@ -430,6 +509,12 @@ export default function TimelineView({
   };
 
   const handleSkipPomo = () => {
+    if (isStudying && pomoState === "focus") {
+      const elapsedSeconds = (pomoFocusDuration * 60) - pomoSecondsLeft;
+      if (elapsedSeconds >= 15 && onAddXp) {
+        onAddXp("Skipped active focus sprint ⏱️", -30);
+      }
+    }
     setIsStudying(false);
     if (pomoState === "focus") {
       if (pomoRound >= 4) {
@@ -448,6 +533,12 @@ export default function TimelineView({
   };
 
   const handleResetPomo = () => {
+    if (isStudying && pomoState === "focus") {
+      const elapsedSeconds = (pomoFocusDuration * 60) - pomoSecondsLeft;
+      if (elapsedSeconds >= 15 && onAddXp) {
+        onAddXp("Aborted Pomodoro focus block early ⏱️", -40);
+      }
+    }
     setIsStudying(false);
     setPomoSecondsLeft(pomoFocusDuration * 60);
     setPomoState("focus");
@@ -560,7 +651,19 @@ export default function TimelineView({
           </button>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button 
+            type="button"
+            onClick={() => setShowLevelGuide(true)}
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-md transition-all text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 cursor-pointer shadow-xs active:scale-98"
+            title="View Level Milestones & Unlockable Rewards Guide"
+          >
+            <span>🏆 Lvl {calculateStudentLevel(userXp).level}</span>
+            <span className="opacity-40">|</span>
+            <span>{calculateStudentLevel(userXp).xpInCurrentLevel}/{calculateStudentLevel(userXp).xpSegmentTotal} XP</span>
+            <Info className="w-3 h-3 ml-0.5" />
+          </button>
+
           <span className="text-[10px] font-mono font-black uppercase text-slate-500 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md">
             {currentDateString || "Today"}
           </span>
@@ -638,21 +741,31 @@ export default function TimelineView({
                 
                 {/* Multi-layered Pulsing Halo Outer Rings */}
                 {isStudying && (
-                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-[#f26419]/20 animate-spin" style={{ animationDuration: '30s' }} />
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 border-dashed animate-spin" 
+                    style={{ animationDuration: '30s', borderColor: themeHexAccent + "33" }} 
+                  />
                 )}
                 {isStudying && (
-                  <div className="absolute -inset-1.5 rounded-full border border-solid border-[#f26419]/10 animate-ping opacity-40 duration-2000" style={{ animationDuration: '3s' }} />
+                  <div 
+                    className="absolute -inset-1.5 rounded-full border border-solid animate-ping opacity-40" 
+                    style={{ animationDuration: '3s', borderColor: themeHexAccent + "1a" }} 
+                  />
                 )}
 
                 {/* Mindful Breathing Animated Anchor Overlays */}
                 {showBreathingCoach && isStudying && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
                     <div 
-                      className={`absolute rounded-full border border-[#f26419]/20 bg-[#f26419]/5 transition-all duration-[4000ms] ease-in-out ${
+                      className={`absolute rounded-full transition-all duration-[4000ms] ease-in-out ${
                         breathState === "inhale" ? "inset-2 opacity-75 scale-110"
                         : breathState === "hold" ? "inset-1.5 opacity-90 blur-[1px] scale-115 animate-pulse"
                         : "inset-6 opacity-30 scale-95"
                       }`}
+                      style={{ 
+                        borderColor: themeHexAccent + "33", 
+                        backgroundColor: themeHexAccent + "0d" 
+                      }}
                     />
                   </div>
                 )}
@@ -660,13 +773,13 @@ export default function TimelineView({
                 <svg className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
                   <defs>
                     <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#f26419" />
-                      <stop offset="50%" stopColor="#f34825" />
-                      <stop offset="100%" stopColor="#ff9f43" />
+                      <stop offset="0%" stopColor={gradientStops.start} />
+                      <stop offset="50%" stopColor={gradientStops.mid} />
+                      <stop offset="100%" stopColor={gradientStops.end} />
                     </linearGradient>
                     <radialGradient id="ringBackground" cx="50%" cy="50%" r="50%">
                       <stop offset="70%" stopColor="transparent" />
-                      <stop offset="100%" stopColor="rgba(242, 100, 25, 0.03)" />
+                      <stop offset="100%" stopColor={`${gradientStops.start}08`} />
                     </radialGradient>
                   </defs>
                   
@@ -747,7 +860,7 @@ export default function TimelineView({
                       <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[150px]">
                         {activeSubject.name}
                       </span>
-                      <div className="flex items-center gap-1 text-[9px] text-[#f26419] font-mono font-black mt-0.5">
+                      <div className="flex items-center gap-1 text-[9px] font-mono font-black mt-0.5" style={{ color: themeHexAccent }}>
                         <span>Goal: {activeSubject.goalMinutes}m</span>
                         <span className="opacity-40">•</span>
                         <span>
@@ -771,13 +884,20 @@ export default function TimelineView({
                   </span>
 
                   <div className="mt-2.5 flex flex-col items-center gap-1.5">
-                    <div className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-extrabold ${
-                      isStudying 
-                        ? pomoState === "focus" || timerType === "stopwatch"
-                          ? "bg-[#f26419]/10 border-[#f26419]/30 text-[#f26419] animate-pulse" 
-                          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
-                        : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
-                    }`}>
+                    <div 
+                      className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-extrabold ${
+                        isStudying 
+                          ? pomoState === "focus" || timerType === "stopwatch"
+                            ? "animate-pulse" 
+                            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
+                          : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
+                        }`}
+                      style={isStudying && (pomoState === "focus" || timerType === "stopwatch") ? {
+                        backgroundColor: themeHexAccent + "1a",
+                        borderColor: themeHexAccent + "4d",
+                        color: themeHexAccent
+                      } : {}}
+                    >
                       {timerType === "stopwatch" ? (
                         isStudying ? "Focus Flowing" : "Stopwatch Paused"
                       ) : (
@@ -790,9 +910,18 @@ export default function TimelineView({
                     </div>
 
                     {showBreathingCoach && isStudying && (
-                      <div className="flex items-center justify-center gap-1 bg-[#f26419]/5 dark:bg-[#f26419]/15 border border-[#f26419]/20 px-2.5 py-0.5 rounded-full animate-pulse">
-                        <span className="w-1 h-1 rounded-full bg-[#f26419]" />
-                        <span className="text-[7.5px] font-mono font-black uppercase text-[#f26419] tracking-widest leading-none">
+                      <div 
+                        className="flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full animate-pulse border"
+                        style={{
+                          backgroundColor: themeHexAccent + "14",
+                          borderColor: themeHexAccent + "26"
+                        }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeHexAccent }} />
+                        <span 
+                          className="text-[7.5px] font-mono font-black uppercase tracking-widest leading-none"
+                          style={{ color: themeHexAccent }}
+                        >
                           {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
                         </span>
                       </div>
@@ -1243,12 +1372,13 @@ export default function TimelineView({
               className={`flex-1 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-wider select-none transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-98 ${
                 isStudying 
                   ? "bg-slate-900 hover:bg-slate-800 text-slate-105 border border-slate-850 dark:bg-[#16171d]/90 dark:text-neutral-200"
-                  : "bg-[#f26419] hover:bg-[#d6510d] text-white hover:shadow-[#f26419]/20 hover:scale-[1.01]"
+                  : `${themeBgAccent} text-white hover:scale-[1.01]`
               }`}
+              style={{ boxShadow: isStudying ? "" : `0 10px 25px -5px ${themeHexAccent}33` }}
             >
               {isStudying ? (
                 <>
-                  <Pause className="w-4 h-4 fill-current stroke-[3] text-[#f26419]" /> Pause Focus Flow
+                  <Pause className="w-4 h-4 fill-current stroke-[3]" style={{ color: themeHexAccent }} /> Pause Focus Flow
                 </>
               ) : (
                 <>
@@ -1534,6 +1664,129 @@ export default function TimelineView({
                     Finish Session ({Math.round(activeSeconds / 60)}m)
                   </button>
                 )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Level progression popup modal */}
+      {showLevelGuide && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-50 animate-fade-in text-white leading-normal">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
+            
+            {/* Header section with gradient */}
+            <div className="p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-left">
+                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                  <Award className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <span className="text-[10px] bg-amber-500/10 text-amber-400 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Student Milestones
+                  </span>
+                  <h3 className="text-base font-black text-white mt-1 antialiased uppercase tracking-wide">
+                    Study XP Rank & Level Guide
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLevelGuide(false)}
+                className="p-2 hover:bg-slate-800 rounded-xl transition-all cursor-pointer border border-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current status display banner */}
+            <div className="p-5.5 bg-slate-950/50 border-b border-slate-850 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-left w-full sm:w-auto">
+                <div className="h-16 w-16 bg-slate-900 border-2 border-amber-500 rounded-2xl flex items-center justify-center text-2xl font-black shrink-0 relative shadow-inner">
+                  <span>{calculateStudentLevel(userXp).rank.split(" ").slice(-1)[0]}</span>
+                  <div className="absolute -bottom-1.5 -right-1.5 bg-amber-500 text-[10px] font-black font-mono text-white px-1.5 py-0.5 rounded-md leading-none">
+                    Lvl {calculateStudentLevel(userXp).level}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-100">{calculateStudentLevel(userXp).rank}</h4>
+                  <p className="text-xs text-slate-400 mt-1 font-mono font-medium">
+                    Total Earned Score: <span className="text-[#f26419] font-bold">{userXp} XP</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Next level triggers in <span className="text-indigo-400 font-bold">{calculateStudentLevel(userXp).nextLevelXpRemaining} XP</span> (10 XP per minute studied)
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress bar info */}
+              <div className="w-full sm:w-48 space-y-1 text-left">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                  <span>Level progress</span>
+                  <span>{calculateStudentLevel(userXp).percent}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-950 border border-slate-800/80 rounded-full overflow-hidden p-[1px]">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-500 to-indigo-500 rounded-full transition-all duration-750 font-medium" 
+                    style={{ width: `${calculateStudentLevel(userXp).percent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable List grid of 20 levels */}
+            <div className="p-6 overflow-y-auto space-y-3 flex-1 no-scrollbar bg-slate-900/40">
+              <div className="text-left space-y-1 mb-4">
+                <p className="text-[10px] uppercase tracking-widest font-black text-[#f26419]">
+                  XP Milestones & Specialized Perk Integrations
+                </p>
+                <p className="text-xs text-slate-400">
+                  Select color themes, buzzer ringtones, and priority cloud diagnostic tools unlock naturally as your academic XP gains accumulate.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {ALL_STUDENT_LEVELS.map((tier) => {
+                  const isCurrent = calculateStudentLevel(userXp).level === tier.level;
+                  const isUnlocked = calculateStudentLevel(userXp).level >= tier.level;
+                  
+                  return (
+                    <div 
+                      key={tier.level}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between text-left gap-3.5 ${
+                        isCurrent 
+                          ? "bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-950/30" 
+                          : isUnlocked 
+                          ? "bg-slate-950/30 border-slate-800/60 opacity-85 hover:opacity-100" 
+                          : "bg-slate-950/70 border-slate-900/60 opacity-60"
+                      }`}
+                    >
+                      {/* Left: Badge, Level & Rank name */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{tier.badge}</span>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Level {tier.level}</span>
+                            <h5 className="font-bold text-sm text-slate-100">{tier.rank}</h5>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{tier.perk}</p>
+                        </div>
+                      </div>
+
+                      {/* Right: Lock Status */}
+                      <div className="shrink-0 text-left md:text-right">
+                        {isCurrent ? (
+                          <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-md">ACTIVE</span>
+                        ) : isUnlocked ? (
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">UNLOCKED</span>
+                        ) : (
+                          <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-850 border border-slate-800 px-2.5 py-1 rounded-md">LOCKED ({tier.xpRequired} XP)</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

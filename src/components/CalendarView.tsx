@@ -27,6 +27,83 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   const [manualMinutes, setManualMinutes] = useState(45);
   const [logSuccessText, setLogSuccessText] = useState<string | null>(null);
 
+  // Calculate consecutive active study days from actual log history
+  const consecutiveStreak = React.useMemo(() => {
+    if (!studyLogs || studyLogs.length === 0) return 0;
+    
+    // Sort study logs by date string (YYYY-MM-DD) descending
+    const uniqueDates = Array.from(new Set(
+      studyLogs
+        .filter(l => l.durationMinutes > 0)
+        .map(l => l.date)
+    )).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    if (uniqueDates.length === 0) return 0;
+    
+    const getFormattedDateStr = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const todayStr = getFormattedDateStr(new Date());
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getFormattedDateStr(yesterday);
+    
+    // Streak continues if student has at least 1 study min today or yesterday
+    const hasToday = uniqueDates.includes(todayStr);
+    const hasYesterday = uniqueDates.includes(yesterdayStr);
+    
+    if (!hasToday && !hasYesterday) {
+      return 0; // broken
+    }
+    
+    let currentCheckDate = hasToday ? new Date() : yesterday;
+    let streakCount = 0;
+    
+    // Subtract dates iteratively to build a bulletproof streak count
+    while (true) {
+      const checkStr = getFormattedDateStr(currentCheckDate);
+      if (uniqueDates.includes(checkStr)) {
+        streakCount++;
+        currentCheckDate.setDate(currentCheckDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    
+    return streakCount;
+  }, [studyLogs]);
+
+  // Mini contribution heatmap data for the past 14 days
+  const miniHeatmapData = React.useMemo(() => {
+    const today = new Date();
+    const data = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const dayMinutes = studyLogs
+        .filter(l => l.date === dateStr)
+        .reduce((sum, l) => sum + l.durationMinutes, 0);
+        
+      data.push({
+        dateStr,
+        dayNum: d.getDate(),
+        monthShort: d.toLocaleString("default", { month: "short" }),
+        minutes: dayMinutes
+      });
+    }
+    return data;
+  }, [studyLogs]);
+
+
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -112,8 +189,9 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   const handleOpenDayModal = (dateStr: string) => {
     setSelectedLogsDate(dateStr);
     setLogSuccessText(null);
-    // Auto-select first subject
-    if (subjects.length > 0 && !manualSubjectId) {
+    // Auto-select first subject if currently selected is not in active list or empty
+    const exists = subjects.some(s => s.id === manualSubjectId);
+    if ((!exists || !manualSubjectId) && subjects.length > 0) {
       setManualSubjectId(subjects[0].id);
     }
   };
@@ -175,6 +253,62 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
         ))}
       </div>
 
+      {/* Streak Fire Banner & Heatmap Panel */}
+      <div className="bg-slate-50 dark:bg-[#0c0c0c] border-b border-slate-150 dark:border-slate-900/50 p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+        {/* Streak Flame Container */}
+        <div className="flex items-center gap-3">
+          <div className="bg-orange-500/10 border border-orange-500/30 p-2.5 rounded-2xl animate-pulse text-orange-500">
+            <span className="text-2xl">🔥</span>
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              <span>Habit Streak Flame</span>
+              <span className="bg-orange-500 text-white text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full">LIVE</span>
+            </h4>
+            <p className="text-lg font-mono font-black text-orange-500 leading-snug">
+              {consecutiveStreak} Consecutive Days!
+            </p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              Keep checking in daily to maintain combustion.
+            </p>
+          </div>
+        </div>
+
+        {/* Miniature Interactive Contribution Heatmap Tracker */}
+        <div className="bg-white dark:bg-black/40 border border-slate-100 dark:border-slate-800/80 p-3 rounded-2xl space-y-1.5 self-stretch flex flex-col justify-center">
+          <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span className="uppercase tracking-wider">Mini Streak-Heatmap Tracker (Past 14 Days)</span>
+            <span>{miniHeatmapData.filter(d => d.minutes >= 1).length} / 14 Studied</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {miniHeatmapData.map((block, i) => {
+              const m = block.minutes;
+              let bg = "bg-slate-100 dark:bg-slate-800";
+              if (m >= 120) bg = "bg-emerald-750 shadow-sm border border-emerald-500/10";
+              else if (m >= 60) bg = "bg-emerald-500";
+              else if (m >= 30) bg = "bg-emerald-300";
+              else if (m > 0) bg = "bg-emerald-100";
+
+              return (
+                <div
+                  key={i}
+                  className={`h-6 w-6 rounded-lg flex items-center justify-center font-mono text-[9px] font-bold shrink-0 relative group ${bg} ${m > 0 ? "text-emerald-950" : "text-slate-450"}`}
+                >
+                  {block.dayNum}
+                  
+                  {/* micro tooltip */}
+                  <div className="absolute bottom-8 scale-0 group-hover:scale-100 transition-all z-10 bg-slate-900 text-white text-[9px] p-1.5 rounded-md font-mono whitespace-nowrap shadow-md pointer-events-none">
+                    {block.monthShort} {block.dayNum}: {block.minutes} mins studied
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+
       {/* Calendar Grid Area */}
       <div className="grid grid-cols-7 flex-1 border-b border-slate-150 dark:border-slate-900/20 min-h-[380px]">
         {gridCells.map((cell, idx) => {
@@ -222,11 +356,16 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
               {/* Day Number Header */}
               <div className="flex justify-between items-center px-1">
                 {isSpecialDay ? (
-                  <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-black text-[10px] flex items-center justify-center font-mono leading-none shadow-sm">
+                  <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-black text-[10px] flex items-center justify-center font-mono leading-none shadow-sm pb-0.5">
                     {cell.day}
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono font-bold text-slate-405 dark:text-slate-500">{cell.day}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">{cell.day}</span>
+                    {matchedTotalMinutes >= 30 && (
+                      <span className="text-xs animate-bounce" title="30+ Minute Daily Focus Streak 🔥">🔥</span>
+                    )}
+                  </div>
                 )}
 
                 {/* Study block pills (e.g., 2:45, 0:56) */}

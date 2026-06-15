@@ -1,10 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { Bell, BellOff, Volume2, Plus, Trash, Check, Clock, Sparkles, ShieldCheck, Dumbbell, BookOpen, ChevronDown, ChevronUp, Play, HelpCircle, Info, Lock } from "lucide-react";
-import { Subject, Reminder } from "../types";
+import { Subject, Reminder, NotificationSettings } from "../types";
 
 // Synthesis of high-quality ambient sound wave chimes natively using the Web Audio API
 export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
   try {
+    // 1. Trigger robust physical haptic engine alarms on mobile devices if supported (Android Chrome/Safari support)
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      if (preset === "chime") {
+        // Rhythmic alert vibration: pulse-pause-pulse-pause-longer pulse
+        navigator.vibrate([350, 100, 350, 100, 600]);
+      } else if (preset === "success") {
+        // Fast dual success pulse
+        navigator.vibrate([180, 80, 180]);
+      } else {
+        // Deep warning hum vibration
+        navigator.vibrate([500, 150, 500]);
+      }
+    }
+
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
@@ -22,11 +36,13 @@ export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
       osc2.type = "triangle";
       
       osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5 code frequency
+      osc1.frequency.exponentialRampToValueAtTime(587.33, ctx.currentTime + 1.0); // Pitch drift for urgency
       osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5 major
       
+      // LOUDER gain parameters for maximum projection on mobile media volume channels
       gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.08);
-      gainNode.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 1.0);
+      gainNode.gain.linearRampToValueAtTime(0.85, ctx.currentTime + 0.08); // Boosted from 0.15
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
       
       osc1.start();
       osc2.start();
@@ -39,14 +55,14 @@ export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
         osc3.type = "sine";
         osc3.frequency.setValueAtTime(783.99, ctx.currentTime); // G5 ascending pitch
         gain3.gain.setValueAtTime(0, ctx.currentTime);
-        gain3.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.05);
-        gain3.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 0.7);
+        gain3.gain.linearRampToValueAtTime(0.75, ctx.currentTime + 0.05); // Boosted from 0.12
+        gain3.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.9);
         osc3.start();
-        osc3.stop(ctx.currentTime + 0.8);
+        osc3.stop(ctx.currentTime + 1.0);
       }, 150);
       
-      osc1.stop(ctx.currentTime + 1.2);
-      osc2.stop(ctx.currentTime + 1.2);
+      osc1.stop(ctx.currentTime + 1.4);
+      osc2.stop(ctx.currentTime + 1.4);
     } else if (preset === "success") {
       // Arpeggio chimes indicating task success complete
       const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
@@ -57,10 +73,10 @@ export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
         gain.connect(ctx.destination);
         osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.1);
         gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.1);
-        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + idx * 0.1 + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + idx * 0.1 + 0.5);
+        gain.gain.linearRampToValueAtTime(0.72, ctx.currentTime + idx * 0.1 + 0.05); // Boosted from 0.1
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + idx * 0.1 + 0.6);
         osc.start(ctx.currentTime + idx * 0.1);
-        osc.stop(ctx.currentTime + idx * 0.1 + 0.6);
+        osc.stop(ctx.currentTime + idx * 0.1 + 0.7);
       });
     } else {
       // Relaxing low pitch vibration for long system break alerts
@@ -73,10 +89,10 @@ export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
       osc.frequency.exponentialRampToValueAtTime(329.63, ctx.currentTime + 0.6);
       
       gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 1.8);
+      gain.gain.linearRampToValueAtTime(0.90, ctx.currentTime + 0.08); // Boosted from 0.18 for alarm hum
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2.0);
       osc.start();
-      osc.stop(ctx.currentTime + 2.0);
+      osc.stop(ctx.currentTime + 2.2);
     }
   } catch (err) {
     console.warn("Dynamic Audio Chime Synthesizer warning:", err);
@@ -92,6 +108,8 @@ interface RemindersHubProps {
   notificationPermission?: NotificationPermission;
   audioAutoplayApproved?: boolean;
   onGrantPermissions?: () => void;
+  notificationSettings?: NotificationSettings;
+  onUpdateNotificationSettings?: (settings: NotificationSettings) => void;
 }
 
 export default function RemindersHub({
@@ -103,6 +121,16 @@ export default function RemindersHub({
   notificationPermission,
   audioAutoplayApproved,
   onGrantPermissions,
+  notificationSettings = {
+    enableDesktopBanners: true,
+    enableSoundEffects: true,
+    notifyOnTimerAlerts: true,
+    notifyOnReminderDue: true,
+    notifyOnDailyGoalMet: true,
+    notifyOnLevelUp: true,
+    activeSoundPreset: "chime"
+  },
+  onUpdateNotificationSettings = () => {}
 }: RemindersHubProps) {
   const [localPermissionStatus, setLocalPermissionStatus] = useState<NotificationPermission>("default");
   const [localAudioAutoplayApproved, setLocalAudioAutoplayApproved] = useState<boolean>(() => {
@@ -338,6 +366,129 @@ export default function RemindersHub({
               >
                 {isAudioApproved ? "Test Sound Buzzer ♫" : "Authorize & Test Sound ♫"}
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Notification Custom Settings Board */}
+        <div className="p-5 bg-white/40 dark:bg-black/25 border border-slate-200/50 dark:border-slate-900/40 rounded-2xl space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-200/30 dark:border-slate-900/30 pb-2">
+            <ShieldCheck className="w-4 h-4 text-indigo-500 animate-pulse" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-350">Configure Notification Events & Choice Targets</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Column 1: Channels & Sound settings */}
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Desktop Notification Banners</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Trigger native operating system banner tray popups.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableDesktopBanners: !notificationSettings.enableDesktopBanners })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableDesktopBanners ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableDesktopBanners ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Synthesized Sound Alarm Chimes</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Play high-fidelity resonant audio alarms when study timers trigger.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableSoundEffects: !notificationSettings.enableSoundEffects })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableSoundEffects ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableSoundEffects ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              <div className="pt-2">
+                <label className="text-[10px] uppercase font-black text-slate-500 block mb-1">Alert Alarm Ringtone Preset</label>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200/20 dark:border-slate-900/30">
+                  {(["chime", "success", "break"] as const).map((tone) => (
+                    <button
+                      key={tone}
+                      type="button"
+                      onClick={() => {
+                        onUpdateNotificationSettings({ ...notificationSettings, activeSoundPreset: tone });
+                        playChime(tone);
+                      }}
+                      className={`py-1.5 rounded-lg text-center text-[10px] font-bold cursor-pointer transition-colors ${
+                        notificationSettings.activeSoundPreset === tone
+                          ? "bg-[#f26419] text-white shadow-sm"
+                          : "text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      {tone === "chime" ? "Bell Ring" : tone === "success" ? "Ascent Arp" : "Harmonic Hum"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Event triggers */}
+            <div className="space-y-3.5 border-t md:border-t-0 md:border-l border-slate-200/30 dark:border-slate-800/50 pt-3 md:pt-0 md:pl-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Focus Session Ended</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Fires immediately when standard study slots or Pomodoros conclude.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnTimerAlerts: !notificationSettings.notifyOnTimerAlerts })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnTimerAlerts ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnTimerAlerts ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Personal Reminders & Cycles</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Buzzer fires on custom clocks, checklist tasks, and relative timers.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnReminderDue: !notificationSettings.notifyOnReminderDue })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnReminderDue ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnReminderDue ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Daily Study Goal Finished</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Celebrates when your customized minutes targets are finalized.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnDailyGoalMet: !notificationSettings.notifyOnDailyGoalMet })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnDailyGoalMet ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnDailyGoalMet ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Student Levels & Milestone Upgrades</label>
+                  <span className="text-[10px] text-slate-500 leading-normal">Alert and play chimes automatically when your XP triggers leveling up.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnLevelUp: !notificationSettings.notifyOnLevelUp })}
+                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnLevelUp ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnLevelUp ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

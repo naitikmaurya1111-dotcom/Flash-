@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { 
   Gift, 
   ExternalLink, 
@@ -18,34 +18,10 @@ import {
   Link2,
   Lock,
   Unlock,
-  Check
+  Check,
+  Info
 } from "lucide-react";
-import { GiftReward, XpGainLog, QuestChallenge } from "../types";
-
-// Levels and ranks engine
-export const calculateStudentLevel = (xp: number) => {
-  const level = Math.floor(xp / 500) + 1;
-  const xpInCurrentLevel = xp % 500;
-  const percent = Math.min(100, Math.round((xpInCurrentLevel / 500) * 100));
-  
-  let rank = "Bronze Scholar 🥉";
-  let color = "from-amber-600 to-amber-800 text-amber-500";
-  if (level >= 20) {
-    rank = "Grandmaster Mindful 🏆";
-    color = "from-amber-400 via-rose-500 to-indigo-600 text-amber-400 animate-pulse";
-  } else if (level >= 15) {
-    rank = "Platinum Flow Alchemist 💎";
-    color = "from-cyan-400 to-blue-600 text-cyan-400";
-  } else if (level >= 10) {
-    rank = "Gold Polymath 🥇";
-    color = "from-yellow-400 to-amber-500 text-yellow-500";
-  } else if (level >= 5) {
-    rank = "Silver Deep Worker 🥈";
-    color = "from-slate-350 to-slate-500 text-slate-300";
-  }
-  
-  return { level, xpInCurrentLevel, percent, rank, color };
-};
+import { GiftReward, XpGainLog, QuestChallenge, StudentLevelConfig, ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
 
 interface RewardSystemProps {
   userXp: number;
@@ -60,6 +36,7 @@ interface RewardSystemProps {
   onCompleteQuest: (questId: string) => Promise<void>;
   totalStudiedTodayMins: number;
   completedTasksCountToday: number;
+  themePreset?: string;
 }
 
 export default function RewardSystem({
@@ -74,7 +51,8 @@ export default function RewardSystem({
   onAddXp,
   onCompleteQuest,
   totalStudiedTodayMins,
-  completedTasksCountToday
+  completedTasksCountToday,
+  themePreset = "dark-classic"
 }: RewardSystemProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingReward, setEditingReward] = useState<GiftReward | null>(null);
@@ -87,8 +65,39 @@ export default function RewardSystem({
   const [notes, setNotes] = useState("");
 
   const [celebrationReward, setCelebrationReward] = useState<GiftReward | null>(null);
+  const [showLevelGuide, setShowLevelGuide] = useState(false);
 
   const levelInfo = calculateStudentLevel(userXp);
+
+  const themeHexAccent = useMemo(() => {
+    switch (themePreset) {
+      case "forest": return "#10b981";
+      case "crimson": return "#e11d48";
+      case "honey": return "#d97706";
+      case "amoled": return "#6366f1";
+      default: return "#f26419";
+    }
+  }, [themePreset]);
+
+  const themeTextAccent = useMemo(() => {
+    switch (themePreset) {
+      case "forest": return "text-[#10b981]";
+      case "crimson": return "text-[#e11d48]";
+      case "honey": return "text-[#d97706]";
+      case "amoled": return "text-[#3b82f6] dark:text-[#6366f1]";
+      default: return "text-[#f26419]";
+    }
+  }, [themePreset]);
+
+  const themeBgAccent = useMemo(() => {
+    switch (themePreset) {
+      case "forest": return "bg-[#10b981] hover:bg-[#059669]";
+      case "crimson": return "bg-[#e11d48] hover:bg-[#be123c]";
+      case "honey": return "bg-[#d97706] hover:bg-[#b45309]";
+      case "amoled": return "bg-[#3b82f6] hover:bg-[#2563eb] dark:bg-[#6366f1] dark:hover:bg-[#4f46e5]";
+      default: return "bg-[#f26419] hover:bg-[#df5214]";
+    }
+  }, [themePreset]);
 
   const handleOpenAdd = () => {
     setTitle("");
@@ -170,9 +179,9 @@ export default function RewardSystem({
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center relative z-10">
           
-          {/* Circular level wheel widget */}
+          {/* Circular level wheel widget with interactive Rank Board (i) triggers */}
           <div className="md:col-span-4 flex flex-col items-center justify-center relative">
-            <div className="relative w-32 h-32 flex items-center justify-center">
+            <div className="relative w-32 h-32 flex items-center justify-center group select-none">
               <svg className="w-full h-full transform -rotate-90">
                 <circle 
                   cx="64" 
@@ -186,23 +195,40 @@ export default function RewardSystem({
                   cx="64" 
                   cy="64" 
                   r="56" 
-                  className="stroke-amber-500 transition-all duration-1000 ease-out" 
+                  className="stroke-amber-550 stroke-amber-500 transition-all duration-1000 ease-out" 
                   strokeWidth="8" 
                   fill="none" 
                   strokeDasharray="351.8"
                   strokeDashoffset={351.8 - (351.8 * levelInfo.percent) / 100}
                 />
               </svg>
-              <div className="absolute flex flex-col items-center justify-center">
+              <div className="absolute flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Level</span>
                 <span className="text-3xl font-black font-display text-white">{levelInfo.level}</span>
-                <span className="text-[10px] font-mono text-amber-400 font-bold">{userXp % 500} / 500 XP</span>
+                <span className="text-[10.5px] font-mono text-amber-400 font-bold">{levelInfo.xpInCurrentLevel} / {levelInfo.xpSegmentTotal} XP</span>
               </div>
+              
+              {/* Absoluted info button overlay */}
+              <button
+                type="button"
+                onClick={() => setShowLevelGuide(true)}
+                className="absolute top-0 right-0 p-1.5 bg-slate-900 border border-slate-700 hover:border-amber-400 rounded-full text-slate-300 hover:text-white cursor-pointer transition-all hover:scale-110 shadow-lg"
+                title="Level Progress & Unlocks Guide"
+              >
+                <Info className="w-3.5 h-3.5 text-amber-400" />
+              </button>
             </div>
             
-            <div className={`mt-3 px-3.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-xs font-black tracking-tight text-center ${levelInfo.color.split(" ")[levelInfo.color.split(" ").length-1]}`}>
-              {levelInfo.rank}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowLevelGuide(true)}
+              className="mt-3 px-4 py-1.5 rounded-full bg-slate-900/95 border border-slate-800 hover:border-slate-700 text-xs font-black tracking-wide text-center flex items-center justify-center gap-1.5 cursor-pointer text-slate-200 transition-all hover:scale-102 active:scale-98 shadow-sm group"
+            >
+              <span className={levelInfo.color.split(" ")[levelInfo.color.split(" ").length-1]}>
+                {levelInfo.rank}
+              </span>
+              <Info className="w-3.5 h-3.5 text-indigo-400 group-hover:text-amber-400 transition-colors" />
+            </button>
           </div>
 
           {/* Level up descriptor details */}
@@ -416,16 +442,34 @@ export default function RewardSystem({
                   }`}
                 >
                   {/* Category Accent Stripe Badge */}
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-amber-500 to-[#f26419]" />
+                  <div 
+                    className="absolute top-0 left-0 right-0 h-1.5" 
+                    style={{ background: `linear-gradient(to right, #6366f1, #f59e0b, ${themeHexAccent})` }}
+                  />
                   
                   {/* Upper details */}
                   <div className="space-y-3 pt-2">
                     
                     {/* Header meta badge */}
                     <div className="flex justify-between items-center">
-                      <span className="text-[8.5px] uppercase font-bold tracking-wider font-mono text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-0.5 rounded-full">
-                        {r.category}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[8.5px] uppercase font-bold tracking-wider font-mono text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-0.5 rounded-full">
+                          {r.category}
+                        </span>
+                        {r.isClaimed ? (
+                          <span className="flex items-center gap-1 text-[8px] font-mono font-extrabold text-emerald-550 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase">
+                            <Check className="w-2.5 h-2.5 stroke-[3.5]" /> Achieved
+                          </span>
+                        ) : hasEnough ? (
+                          <span className="flex items-center gap-1 text-[8px] font-mono font-extrabold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase animate-pulse">
+                            <Unlock className="w-2.5 h-2.5" /> Unlocked
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[8px] font-mono font-extrabold text-slate-400 bg-slate-100 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 px-2 py-0.5 rounded-full uppercase">
+                            <Lock className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 text-slate-400">
                         <button 
                           onClick={() => handleOpenEdit(r)}
@@ -446,7 +490,7 @@ export default function RewardSystem({
 
                     {/* Title */}
                     <div className="text-left space-y-1">
-                      <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-[#f26419] transition-colors">{r.title}</h4>
+                      <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 transition-colors hover:opacity-80" style={{ color: r.isClaimed ? "" : "" }}>{r.title}</h4>
                       {r.notes ? (
                         <p className="text-[11px] text-slate-400 font-sans line-clamp-2 italic leading-normal">
                           "{r.notes}"
@@ -475,8 +519,8 @@ export default function RewardSystem({
                         </div>
                         <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
                           <div 
-                            className={`h-full transition-all duration-500 ${hasEnough ? 'bg-gradient-to-r from-amber-400 to-amber-600 animate-pulse' : 'bg-[#f26419]'}`} 
-                            style={{ width: `${percent}%` }}
+                            className={`h-full transition-all duration-500 ${hasEnough ? 'bg-gradient-to-r from-amber-400 to-amber-600 animate-pulse' : ''}`} 
+                            style={hasEnough ? {} : { backgroundColor: themeHexAccent, width: `${percent}%` }}
                           />
                         </div>
                       </div>
@@ -544,37 +588,81 @@ export default function RewardSystem({
         )}
       </div>
 
-      {/* 4. XP Earnings Logs / Ledger History feed */}
-      <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs">
-        <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3.5 flex items-center gap-1.5 justify-start">
-          <Clock className="w-4 h-4 text-emerald-400" /> Career XP Achievement Feed ({xpLogs.length})
-        </h4>
+      {/* 4. XP Earnings & claimed rewards logs ledger */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pointer-events-auto">
+        
+        {/* Left column: XP logs */}
+        <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs">
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3.5 flex items-center gap-1.5 justify-start">
+            <Clock className="w-4 h-4 text-emerald-400" /> Career XP Achievement Feed ({xpLogs.length})
+          </h4>
 
-        <div className="space-y-2 overflow-y-auto max-h-[220px] no-scrollbar">
-          {xpLogs.length === 0 ? (
-            <div className="p-6 text-center text-slate-500 italic text-xs">
-              No XP gains chronicled yet! Start studying or finish a checklist item to gain level ranks.
-            </div>
-          ) : (
-            xpLogs.map((log) => (
-              <div 
-                key={log.id} 
-                className="flex justify-between items-center bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-900/50 text-xs text-left"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-[#f26419]" />
-                  <div>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">{log.reason}</p>
-                    <p className="text-[10px] text-slate-500">
-                      {new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-                <span className="font-mono font-black text-amber-500">+{log.amount} XP</span>
+          <div className="space-y-2 overflow-y-auto max-h-[220px] no-scrollbar">
+            {xpLogs.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 italic text-xs">
+                No XP gains chronicled yet! Start studying or finish a checklist item to gain level ranks.
               </div>
-            ))
-          )}
+            ) : (
+              xpLogs.map((log) => (
+                <div 
+                  key={log.id} 
+                  className="flex justify-between items-center bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-900/50 text-xs text-left"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-2 h-2 rounded-full ${log.amount < 0 ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-200">{log.reason}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`font-mono font-black ${log.amount < 0 ? "text-rose-500" : "text-amber-500"}`}>
+                    {log.amount > 0 ? `+${log.amount}` : log.amount} XP
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
+
+        {/* Right column: Claimed Rewards Logs */}
+        <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs text-left">
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3.5 flex items-center gap-1.5 justify-start">
+            <Gift className="w-4 h-4 text-[#f26419]" /> Dream Milestones Claim History ({rewards.filter(r => r.isClaimed).length})
+          </h4>
+
+          <div className="space-y-2 overflow-y-auto max-h-[220px] no-scrollbar">
+            {rewards.filter(r => r.isClaimed).length === 0 ? (
+              <div className="p-6 text-center text-slate-500 italic text-xs leading-relaxed">
+                No rewards claimed yet! Keep studying to lock in enough XP to redeem your first product!
+              </div>
+            ) : (
+              rewards.filter(r => r.isClaimed).map((r) => (
+                <div 
+                  key={r.id} 
+                  className="flex justify-between items-center bg-emerald-500/5 dark:bg-emerald-950/10 p-3 rounded-2xl border border-emerald-500/10 dark:border-emerald-900/20 text-xs text-left"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center text-[10px] text-emerald-555 text-emerald-500 font-bold shrink-0">
+                      ✓
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-850 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                        {r.title}
+                      </p>
+                      <p className="text-[10px] text-slate-550 dark:text-slate-500 mt-0.5">
+                        Unlocked & claimed milestone
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-black text-rose-500 shrink-0 font-bold ml-2">-{r.costXp} XP</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* 5. ADD / EDIT WISHLIST PRODUCT DIALOG POPUP MODAL */}
@@ -743,6 +831,165 @@ export default function RewardSystem({
                 Close & Return
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. INTERACTIVE LEVEL CHART BOARD MODAL */}
+      {showLevelGuide && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-50 animate-fade-in text-white leading-normal">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
+            
+            {/* Header section with gradient */}
+            <div className="p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                  <Award className="w-5 h-5 text-amber-500 animate-pulse" />
+                </div>
+                <div className="text-left">
+                  <span className="text-[10px] bg-amber-500/10 text-amber-400 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Student Milestones
+                  </span>
+                  <h3 className="text-base font-black text-white mt-1 antialiased uppercase tracking-wide">
+                    Study XP Rank & Level Guide
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLevelGuide(false)}
+                className="p-2 hover:bg-slate-800 rounded-xl transition-all cursor-pointer border border-slate-805 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current status display banner */}
+            <div className="p-5.5 bg-slate-950/50 border-b border-slate-850 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-left w-full sm:w-auto">
+                <div className="h-16 w-16 bg-slate-900 border-2 border-amber-500 rounded-2xl flex items-center justify-center text-2xl font-black shrink-0 relative shadow-inner">
+                  <span>{calculateStudentLevel(userXp).rank.split(" ").slice(-1)[0]}</span>
+                  <div className="absolute -bottom-1.5 -right-1.5 bg-amber-550 bg-amber-550 bg-amber-500 text-[10px] font-black font-mono text-white px-1.5 py-0.5 rounded-md leading-none">
+                    Lvl {calculateStudentLevel(userXp).level}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-100">{calculateStudentLevel(userXp).rank}</h4>
+                  <p className="text-xs text-slate-400 mt-1 font-mono font-medium">
+                    Total Earned Score: <span className="text-[#f26419] font-bold">{userXp} XP</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Next level triggers in <span className="text-indigo-400 font-bold">{calculateStudentLevel(userXp).nextLevelXpRemaining} XP</span> (10 XP per minute studied)
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress bar info */}
+              <div className="w-full sm:w-48 space-y-1 text-left">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                  <span>Level progress</span>
+                  <span>{calculateStudentLevel(userXp).percent}%</span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-950 border border-slate-800/80 rounded-full overflow-hidden p-[1px]">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-550 via-amber-500 to-indigo-500 rounded-full transition-all duration-750" 
+                    style={{ width: `${calculateStudentLevel(userXp).percent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable List grid of 20 levels */}
+            <div className="p-6 overflow-y-auto space-y-3 flex-1 no-scrollbar bg-slate-900/40">
+              <div className="text-left space-y-1 mb-4">
+                <p className="text-[10px] uppercase tracking-widest font-black text-[#f26419]">
+                  XP Milestones & Specialized Perk Integrations
+                </p>
+                <p className="text-xs text-slate-400">
+                  Select color themes, buzzer ringtones, and priority cloud diagnostic tools unlock naturally as your academic XP gains accumulate.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {ALL_STUDENT_LEVELS.map((tier) => {
+                  const isCurrent = calculateStudentLevel(userXp).level === tier.level;
+                  const isUnlocked = calculateStudentLevel(userXp).level >= tier.level;
+                  
+                  return (
+                    <div 
+                      key={tier.level}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between text-left gap-3.5 ${
+                        isCurrent 
+                          ? "bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-950/30" 
+                          : isUnlocked 
+                          ? "bg-slate-950/30 border-slate-800/60 opacity-85 hover:opacity-100" 
+                          : "bg-slate-950/70 border-slate-900/60 opacity-60"
+                      }`}
+                    >
+                      {/* Left: Badge, Level & Rank name */}
+                      <div className="flex items-center gap-3">
+                        <div className={`h-11 w-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                          isUnlocked ? "bg-slate-900 border border-slate-750" : "bg-slate-950 border border-slate-900"
+                        }`}>
+                          <span>{tier.badge}</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] uppercase font-bold tracking-tight text-[#f26419] font-mono leading-none">
+                              Level {tier.level}
+                            </span>
+                            <span className="text-[9px] bg-slate-800 dark:bg-slate-950 text-slate-400 px-1.5 py-0.5 rounded leading-none font-medium">
+                              {tier.category} Tier
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-slate-102 hover:text-white block mt-1">{tier.rank}</span>
+                          <span className="text-[10px] text-slate-400 mt-0.5 block leading-relaxed">{tier.perk}</span>
+                        </div>
+                      </div>
+
+                      {/* Right: XP limit & Unlocked Status info */}
+                      <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 border-t md:border-t-0 border-slate-800/55 pt-2.5 md:pt-0">
+                        <div className="text-left md:text-right">
+                          <span className="text-[10px] font-mono text-slate-500 block uppercase">Requires accumulated</span>
+                          <span className="text-xs font-bold font-mono text-amber-500">{tier.xpRequired} XP</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {isCurrent ? (
+                            <span className="text-[9px] uppercase font-black px-2.5 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 rounded-md animate-pulse">
+                              Current Rank
+                            </span>
+                          ) : isUnlocked ? (
+                            <span className="text-[9px] uppercase font-bold px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md flex items-center gap-1">
+                              <Unlock className="w-2.5 h-2.5 text-emerald-400" /> Active
+                            </span>
+                          ) : (
+                            <span className="text-[9px] uppercase font-bold px-2 py-1 bg-slate-950 text-slate-500 border border-slate-900 rounded-md flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-slate-500" /> Locked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer containing closure */}
+            <div className="p-4.5 bg-slate-950 border-t border-slate-850 text-center flex items-center justify-between gap-4">
+              <span className="text-[10.5px] text-slate-400 text-left font-sans block leading-normal hidden md:inline ml-1">
+                Study regularly to earn XP, level up, unlock themes, sounds and progress.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLevelGuide(false)}
+                className="w-full md:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer shadow-md inline-flex items-center justify-center ml-auto"
+              >
+                Got it, Continue Focusing
+              </button>
+            </div>
+
           </div>
         </div>
       )}

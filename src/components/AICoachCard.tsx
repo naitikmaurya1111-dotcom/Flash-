@@ -12,6 +12,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
   const [advice, setAdvice] = useState<AICoachAdvice | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [persona, setPersona] = useState<"Minerva" | "Sgt" | "Zen">("Minerva");
 
   const handleSummonCoach = async () => {
     setLoading(true);
@@ -27,7 +28,8 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
         body: JSON.stringify({
           subjects,
           streak,
-          dailyTargetMinutes
+          dailyTargetMinutes,
+          persona
         })
       });
 
@@ -46,30 +48,70 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
       const totalHours = subjects.reduce((acc, s) => acc + (s.totalMinutes || 0), 0) / 60;
       const hoursStr = totalHours.toFixed(1);
       
-      const levelTitle = streak >= 7 
-        ? "Legendary Persistence Master" 
-        : streak >= 3 
-          ? "Consistent Study Pulse Achiever" 
-          : "Rising Scholastic Explorer";
+      let levelTitle = "Rising Scholastic Explorer";
+      let characterQuote = "";
+      let characterInsights = [];
+      let characterStrategies = [];
+      let characterScheduleTip = "";
 
-      const localFallbackAdvice: AICoachAdvice = {
-        rating: levelTitle,
-        quote: streak >= 3 
+      if (persona === "Sgt") {
+        levelTitle = "GRUNT CADET OF FOCUS (LEVEL 1)";
+        characterQuote = `COWER OR CONQUER, CADET! Your consecutive active check-in streak of ${streak} days is a start, but if you look away for a split-second, you fall back to absolute mud! PRIVATE FOCUS, PICK UP THE TOOLS AND HIT THE DESK INSTANTLY!`;
+        characterInsights = [
+          `RAW HEADCOUNT CHECK: You launched ${subjects.length} study subject divisions on the field with ${hoursStr} study hours.`,
+          `DAILY OBJECTIVE INTEL: You are pointing to a daily objective of ${dailyTargetMinutes} focus minutes. Push harder!`,
+          `DRILL SGT WARNING: Eliminate all target gaps where individual subjects have zero minutes logged!`
+        ];
+        characterStrategies = [
+          "SHUT DOWN THE PHONE EXCLUSIVELY: Lock the screen and perform 50 pushups if you lose focus!",
+          "RUN HIGH INTENSITY Sprints: study 55 minutes strictly, and allow only 5 minutes of basic floor stretching.",
+          "Use the Co-study classmate channels for hard structural social accountability. Peer pressure yields victory!"
+        ];
+        characterScheduleTip = "SGT FOCUS ATTACK ORDER: Begin with the hardest target division first. No compromises!";
+      } else if (persona === "Zen") {
+        levelTitle = "Gently Blossoming Lotus Sage";
+        characterQuote = `Let your scholastic thoughts flow like tranquil crystal spring water. Your peaceful ${streak}-day habit path highlights deeply grounded roots. Be kind to the student soul.`;
+        characterInsights = [
+          `SOUL ALIGNMENT INDEX: You have established ${subjects.length} custom areas of growth, nurturing ${hoursStr} hours of beautiful mindfulness.`,
+          `REST THRESHOLD INDEX: Your daily focus intention of ${dailyTargetMinutes} minutes represents a perfect pathway of quiet concentration.`,
+          `BURNOUT WARNING: Take slow breathing deep breaths if any single category feels overly taxing. Balance is priority.`
+        ];
+        characterStrategies = [
+          "Breathe with the Soundboard Ocean Wave: sync the chest expansion loops with local synthesizers.",
+          "Clear the desk, burn a dynamic stick of incense, and hold the attention lightly like a soft bird.",
+          "Take slow 5-minute walks to look at greenery under dynamic focus intervals."
+        ];
+        characterScheduleTip = "ZEN PRIORITY PATHWAY: Transition lightly from the subject that brings you the most peaceful flow first, leading safely into tougher fields.";
+      } else {
+        levelTitle = streak >= 7 
+          ? "Legendary Persistence Master" 
+          : streak >= 3 
+            ? "Consistent Study Pulse Achiever" 
+            : "Rising Scholastic Explorer";
+        characterQuote = streak >= 3 
           ? `Impressive consistency! Your ${streak}-day active study streak places you ahead of 89% of focus peers. Keep compiling daily metrics.`
-          : "The journey of a thousand scholarly milestones begins with a single focused Pomodoro. Set your baseline today.",
-        insights: [
+          : "The journey of a thousand scholarly milestones begins with a single focused Pomodoro. Set your baseline today.";
+        characterInsights = [
           `Subject Range Check: You have established ${subjects.length} active subject tracking cards with ${hoursStr} accumulated study hours.`,
           `Target Comparison: Your daily threshold of ${dailyTargetMinutes} minutes is optimally tuned for focused cognitive retention cycles without fatigue.`,
           `Focus Imbalance: Recommended to pay immediate margin attention to subjects with less recorded study minutes.`
-        ],
-        strategies: [
+        ];
+        characterStrategies = [
           "Employ custom interleaved learning: alternate deep work sessions in 45-minute blocks with 10-minute micro-stretches.",
           "Compile your pinned revision card topics in Docs Exporter to build a personalized study bible.",
           "Utilize the Co-study desk floor to co-work alongside simulated classmate peers for passive social accountability."
-        ],
-        scheduleTip: subjects.length > 0
+        ];
+        characterScheduleTip = subjects.length > 0
           ? `Optimized Focus Priority: ${subjects.map(s => s.name).join(" (45m) ➔ ")} (15m Recap)`
-          : "Optimized Focus Priority: Add custom subject fields in Planner Hub first to map priority priority chains."
+          : "Optimized Focus Priority: Add custom subject fields in Planner Hub first to map priority priority chains.";
+      }
+
+      const localFallbackAdvice: AICoachAdvice = {
+        rating: levelTitle,
+        quote: characterQuote,
+        insights: characterInsights,
+        strategies: characterStrategies,
+        scheduleTip: characterScheduleTip
       };
 
       setAdvice(localFallbackAdvice);
@@ -77,7 +119,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
       window.dispatchEvent(new Event("study_ai_advice_updated"));
       
       setErrorMessage(
-        "Bypassed live remote fetch. We have generated an offline academic habits analysis for you! Map your actual GEMINI_API_KEY inside 'Secrets' settings to enable live custom generative recommendations."
+        "Bypassed live remote fetch. We have generated an offline character habits analysis depending on your custom Coach choice! Map your actual GEMINI_API_KEY inside 'Secrets' settings to enable live generative recommendations."
       );
     } finally {
       setLoading(false);
@@ -121,6 +163,49 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
           )}
         </button>
       </div>
+
+      {/* Advisor Selectors Board */}
+      <div className="space-y-3 bg-slate-50 dark:bg-[#121212]/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-mono font-bold uppercase text-slate-400">
+            Select Your Focus Coach Character
+          </label>
+          <span className="text-[10px] font-mono text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+            Active: {persona === "Minerva" ? "Prof. Minerva" : (persona === "Sgt" ? "Sgt. Focus" : "Zen Master Lao")}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[
+            { id: "Minerva", name: "Prof. Minerva 🎓", role: "Sage Academic", bio: "Uses brain science, Leitner systems, and active recall suggestions." },
+            { id: "Sgt", name: "Sgt. Focus ⚔️", role: "Disciplinarian", bio: "Strict drill coach. Demands focus, hates excuses, uses army jargon." },
+            { id: "Zen", name: "Master Lao 🌸", role: "Mindful Sage", bio: "Gentle guiding loops, breath control, and burnout prevention tips." }
+          ].map((c) => {
+            const isMatch = persona === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setPersona(c.id as any)}
+                type="button"
+                className={`p-3 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between h-full ${
+                  isMatch
+                    ? "border-indigo-500 bg-indigo-500/10 text-indigo-950 dark:text-indigo-400 font-medium"
+                    : "border-slate-150 bg-white/70 hover:bg-slate-100/50 text-slate-650 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-850/55 text-slate-705"
+                }`}
+              >
+                <div>
+                  <h4 className="text-xs font-bold font-display">{c.name}</h4>
+                  <p className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">{c.role}</p>
+                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
+                    {c.bio}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
 
       {/* Loading state placeholders */}
       {loading && (

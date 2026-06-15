@@ -43,10 +43,10 @@
 }
 
 .dark .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: none;
+  background: rgba(18, 19, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.65);
 }
 
 /* Liquid glass panel design system (Inspired by luxurious futuristic OS like Android 17 style) */
@@ -58,10 +58,10 @@
 }
 
 .dark .liquid-glass {
-  background: rgba(12, 12, 12, 0.55);
-  backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  background: rgba(18, 19, 26, 0.88);
+  backdrop-filter: blur(24px) saturate(175%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.65), inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* Glass-card-tint for active study components */
@@ -73,10 +73,10 @@
 }
 
 .dark .glass-card-tint {
-  background: rgba(18, 18, 18, 0.65);
+  background: rgba(24, 25, 33, 0.88);
   backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.5);
 }
 
 /* Premium drifting glowing blobs */
@@ -135,3 +135,110 @@ html, body {
 .animate-slide-in {
   animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ==========================================================================
+   ADVANCED HIGH-CONTRAST DARK MODE ENHANCEMENTS & LAYERED UI DEPTH
+   ========================================================================== */
+
+.dark {
+  /* Overwrite Tailwind root color declarations inside .dark to render high-contrast boundaries */
+  --color-slate-800: rgba(255, 255, 255, 0.16) !important;
+  --color-slate-850: rgba(255, 255, 255, 0.12) !important;
+  --color-slate-700: rgba(255, 255, 255, 0.22) !important;
+  --color-gray-800: rgba(255, 255, 255, 0.16) !important;
+  --color-zinc-800: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Explicit layout styling overrides to optimize contrast and element isolation on very dark presets */
+.dark .dark\:bg-slate-900,
+.dark .bg-slate-900 {
+  background-color: #111219;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dark .dark\:bg-slate-950,
+.dark .bg-slate-950 {
+  background-color: #06070b;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Sub-card container depth (translucent white surface highlights over cards) */
+.dark .bg-slate-50,
+.dark .bg-slate-50\/50,
+.dark .dark\:bg-slate-50\/50,
+.dark .dark\:bg-slate-950\/20,
+.dark .dark\:bg-slate-950\/25,
+.dark .dark\:bg-slate-950\/40,
+.dark .bg-slate-100\/40,
+.dark .bg-slate-100\/50 {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.dark .bg-slate-100,
+.dark .dark\:bg-slate-800,
+.dark .bg-slate-200 {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+}
+
+/* Direct input and controller styles for crisp form fields */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="email"],
+.dark select,
+.dark textarea {
+  background-color: #06070a !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: #f8fafc !important;
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="number"]:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Absolute text contrast upgrades to prevent grey-on-dark washout */
+.dark .text-slate-400,
+.dark .dark\:text-slate-400 {
+  color: #94a3b8 !important; /* Light slate for readable captions */
+}
+
+.dark .text-slate-500,
+.dark .dark\:text-slate-500 {
+  color: #cbd5e1 !important; /* Silver for standard body descriptions */
+}
+
+.dark .text-slate-600,
+.dark .dark\:text-slate-600 {
+  color: #e2e8f0 !important; /* Soft white/light gray for maximum readability */
+}
+
+.dark .text-slate-700,
+.dark .dark\:text-slate-300 {
+  color: #f1f5f9 !important; /* Prominent readable elements */
+}
+
+/* Contrast enhancement for standard dividers and borders */
+.dark .border-slate-100,
+.dark .dark\:border-slate-800,
+.dark .border-slate-150,
+.dark .border-slate-200,
+.dark .dark\:border-slate-250,
+.dark .border-slate-205,
+.dark .dark\:border-slate-850 {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Custom visual accent states for workspace list selection */
+.dark .border-blue-500,
+.dark .dark\:border-blue-400 {
+  border-color: #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+

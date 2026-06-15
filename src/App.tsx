@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft } from "lucide-react";
-import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge } from "./types";
+import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
 import { 
@@ -135,6 +135,27 @@ export default function App() {
   // YPT configuration overlays
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [themePreset, setThemePreset] = useState(() => localStorage.getItem("ypt_theme_preset") || "dark-classic");
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    const local = localStorage.getItem("study_notification_settings");
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {}
+    }
+    return {
+      enableDesktopBanners: true,
+      enableSoundEffects: true,
+      notifyOnTimerAlerts: true,
+      notifyOnReminderDue: true,
+      notifyOnDailyGoalMet: true,
+      notifyOnLevelUp: true,
+      activeSoundPreset: "chime"
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem("study_notification_settings", JSON.stringify(notificationSettings));
+  }, [notificationSettings]);
   const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(() => {
     return (localStorage.getItem("study_theme_mode") as "light" | "dark" | "system") || "system";
   });
@@ -149,6 +170,72 @@ export default function App() {
     return saved as "light" | "dark";
   });
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const dynamicBlobs = useMemo(() => {
+    const isLight = activeTheme === "light";
+    switch (themePreset) {
+      case "forest":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-emerald-200/25 to-teal-200/25 opacity-80"
+            : "bg-gradient-to-tr from-emerald-950/30 to-teal-900/30 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-lime-200/20 to-emerald-250/20 opacity-70"
+            : "bg-gradient-to-br from-emerald-900/25 to-zinc-900/25 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-amber-150/30 to-emerald-200/35 opacity-70"
+            : "bg-gradient-to-tl from-emerald-950/20 to-teal-950/20 opacity-100"
+        };
+      case "crimson":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-rose-200/25 to-red-200/25 opacity-80"
+            : "bg-gradient-to-tr from-red-950/25 to-rose-950/25 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-amber-100/30 to-rose-200/30 opacity-70"
+            : "bg-gradient-to-br from-rose-950/25 to-red-950/25 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-orange-200/25 to-red-100/35 opacity-70"
+            : "bg-gradient-to-tl from-rose-900/20 to-orange-950/20 opacity-100"
+        };
+      case "honey":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-amber-200/35 to-yellow-250/30 opacity-80"
+            : "bg-gradient-to-tr from-amber-950/35 to-yellow-950/30 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-orange-100/30 to-amber-200/30 opacity-70"
+            : "bg-gradient-to-br from-amber-950/25 to-neutral-900/25 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-yellow-100/40 to-amber-200/35 opacity-80"
+            : "bg-gradient-to-tl from-amber-900/25 to-stone-900/25 opacity-100"
+        };
+      case "amoled":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-zinc-200/30 to-slate-200/30 opacity-80"
+            : "bg-gradient-to-tr from-zinc-900/45 to-neutral-800/45 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-slate-100/35 to-zinc-200/35 opacity-75"
+            : "bg-gradient-to-br from-neutral-950/50 to-zinc-950/50 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-zinc-100/40 to-slate-100/40 opacity-85"
+            : "bg-gradient-to-tl from-neutral-900/30 to-zinc-950/30 opacity-100"
+        };
+      default: // dark-classic / steel secondary slate
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-orange-200/20 to-rose-200/20 opacity-70"
+            : "bg-gradient-to-tr from-[#f26419]/15 to-[#e73c7e]/15 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-indigo-200/15 to-purple-200/15 opacity-60"
+            : "bg-gradient-to-br from-indigo-950/20 to-purple-950/25 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-emerald-200/20 to-teal-200/20 opacity-65"
+            : "bg-gradient-to-tl from-emerald-950/15 to-teal-950/20 opacity-100"
+        };
+    }
+  }, [themePreset, activeTheme]);
+
   const [isWideHud, setIsWideHud] = useState(() => {
     const local = localStorage.getItem("ypt_wide_hud");
     return local !== null ? local === "true" : true; // Default to wide hud enabled for premium tablet landscape feel
@@ -916,7 +1003,12 @@ export default function App() {
     
     // Check did study today
     const todayStr = getLocalDateString();
-    const studiedToday = studyLogs.some(l => l.date === todayStr && l.durationMinutes >= 1) || (isStudyingUser && activeSecondsUser > 0);
+    const isActivelyFocusing = isStudyingUser && (
+      timerType === "stopwatch"
+        ? activeSecondsUser > 0
+        : (pomoState === "focus" && (pomoFocusDuration * 60 - pomoSecondsLeft) > 0)
+    );
+    const studiedToday = studyLogs.some(l => l.date === todayStr && l.durationMinutes >= 1) || isActivelyFocusing;
     if (studiedToday) {
       uniqueDatesSet.add(todayStr);
     }
@@ -957,7 +1049,7 @@ export default function App() {
     }
 
     return streakVal;
-  }, [studyLogs, isStudyingUser, activeSecondsUser]);
+  }, [studyLogs, isStudyingUser, activeSecondsUser, timerType, pomoState, pomoFocusDuration, pomoSecondsLeft]);
 
   // Sync to local systems
   useEffect(() => {
@@ -1077,23 +1169,43 @@ export default function App() {
     }
   };
 
-  // Trigger browser & full system alerts
-  const handleTriggerAlarm = (title: string) => {
-    playChime("chime");
-    
-    // Attempt standard OS Web Notification
+  // Show native systems notifications leveraging the registration service worker fallback for mobile trays
+  const showSystemNotification = (title: string, body: string) => {
+    if (!notificationSettings.enableDesktopBanners) return;
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       try {
-        new Notification("Flash5tudy Focus Alert", {
-          body: title,
-          icon: "/favicon.ico"
-        });
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.ready.then((reg) => {
+            reg.showNotification(title, {
+              body: body,
+              icon: "/favicon.ico",
+              vibrate: [300, 100, 305, 101, 400],
+              tag: "study-alarm",
+              requireInteraction: true
+            } as any);
+          }).catch(() => {
+            new Notification(title, { body, icon: "/favicon.ico" });
+          });
+        } else {
+          new Notification(title, { body, icon: "/favicon.ico" });
+        }
       } catch (err) {
-        console.warn("Push alert failed, falling back to in-app overlay:", err);
+        console.warn("System notification presentation failed:", err);
       }
     }
-    
-    setFiredNotification(title);
+  };
+
+  // Trigger browser & full system alerts
+  const handleTriggerAlarm = (title: string) => {
+    if (notificationSettings.notifyOnReminderDue) {
+      if (notificationSettings.enableSoundEffects) {
+        playChime(notificationSettings.activeSoundPreset);
+      }
+      if (notificationSettings.enableDesktopBanners) {
+        showSystemNotification("Flash5tudy Focus Alert", title);
+      }
+      setFiredNotification(title);
+    }
   };
 
   // Background clock check and interactive timer ticker checks
@@ -1139,16 +1251,27 @@ export default function App() {
 
   // Dynamic ticking countdown relative timers checking linked directly to focus seconds!
   useEffect(() => {
-    if (!isStudyingUser || activeSecondsUser <= 0) return;
+    if (!isStudyingUser) return;
+    
+    const currentSessionFocusSeconds = timerType === "stopwatch"
+      ? activeSecondsUser
+      : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) : 0);
+      
+    if (currentSessionFocusSeconds <= 0) return;
     
     // Check did we hit a minute boundary?
-    if (activeSecondsUser % 60 === 0) {
-      const elapsedMins = activeSecondsUser / 60;
+    if (currentSessionFocusSeconds % 60 === 0) {
+      const elapsedMins = Math.floor(currentSessionFocusSeconds / 60);
       let triggeredTitle: string | null = null;
       let updatedReminders = [...reminders];
 
       updatedReminders = updatedReminders.map(rem => {
         if (!rem.isActive || rem.type !== "timer" || !rem.durationMinutes) return rem;
+
+        // Prevent double triggering on the exact same minute boundary
+        const lastTriggeredTime = rem.triggeredAt ? new Date(rem.triggeredAt).getTime() : 0;
+        const nowMs = Date.now();
+        if (nowMs - lastTriggeredTime < 50000) return rem;
 
         if (elapsedMins % rem.durationMinutes === 0) {
           triggeredTitle = `${rem.title} (Studied for ${elapsedMins}m of active focus!)`;
@@ -1165,43 +1288,14 @@ export default function App() {
         handleTriggerAlarm(triggeredTitle);
       }
     }
-  }, [activeSecondsUser, isStudyingUser]);
+  }, [activeSecondsUser, pomoSecondsLeft, isStudyingUser, timerType, pomoState, pomoFocusDuration, reminders]);
 
 
   // Web Audio double bell chime generator
   const playPomoChime = () => {
+    if (!notificationSettings.enableSoundEffects) return;
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-      const ctx = new AudioContextClass();
-      const currentTime = ctx.currentTime;
-      
-      // Dual high frequency bell note combination resembling an analog study alarm
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(523.25, currentTime); // C5
-      gain1.gain.setValueAtTime(0.25, currentTime);
-      gain1.gain.exponentialRampToValueAtTime(0.01, currentTime + 1.0);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start();
-      osc1.stop(currentTime + 1.1);
-      
-      setTimeout(() => {
-        try {
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.type = "sine";
-          osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
-          gain2.gain.setValueAtTime(0.3, ctx.currentTime);
-          gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.4);
-          osc2.connect(gain2);
-          gain2.connect(ctx.destination);
-          osc2.start();
-          osc2.stop(ctx.currentTime + 1.5);
-        } catch (_) {}
-      }, 150);
+      playChime(notificationSettings.activeSoundPreset);
     } catch (e) {
       console.warn("Web audio playback bypassed due to environment constraints: ", e);
     }
@@ -1288,17 +1382,8 @@ export default function App() {
         const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
         setFiredNotification(completionMsg);
         
-        // Push Native Desktop Notification if granted
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          try {
-            new Notification("Flash5tudy Focus Alert", {
-              body: completionMsg,
-              icon: "/favicon.ico"
-            });
-          } catch (err) {
-            console.warn("Native Notification failed in background:", err);
-          }
-        }
+        // Push Native Desktop / Mobile Notification if granted
+        showSystemNotification("Flash5tudy Focus Alert", completionMsg);
         
         // Advance rounds or shift to break
         if (pomoRound >= 4) {
@@ -1315,17 +1400,8 @@ export default function App() {
         const breakEndMsg = `💪 ${breakLabel} ended! Excellent job resting, you are ready to focus!`;
         setFiredNotification(breakEndMsg);
 
-        // Push Native Desktop Notification if granted
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          try {
-            new Notification("Flash5tudy Focus Alert", {
-              body: breakEndMsg,
-              icon: "/favicon.ico"
-            });
-          } catch (err) {
-            console.warn("Native Notification failed in background:", err);
-          }
-        }
+        // Push Native Desktop / Mobile Notification if granted
+        showSystemNotification("Flash5tudy Focus Alert", breakEndMsg);
 
         setPomoState("focus");
         setPomoSecondsLeft(pomoFocusDuration * 60);
@@ -1530,8 +1606,8 @@ export default function App() {
   // 2. Data modification callbacks with cloud synchronization
   // ==================== GAMIFIED REWARDS SYSTEMS MOTIVATIONS ====================
   const handleAddXp = async (reason: string, amount: number) => {
-    if (amount <= 0) return;
-    const nextXp = userXp + amount;
+    if (amount === 0) return;
+    const nextXp = Math.max(0, userXp + amount);
     setUserXp(nextXp);
 
     const newLog: XpGainLog = {
@@ -1541,19 +1617,27 @@ export default function App() {
       timestamp: new Date().toISOString()
     };
 
-    setXpLogs(prev => [newLog, ...prev]);
+    setXpLogs(prev => {
+      const nextLogs = [newLog, ...prev];
+      secureStorage.setItem("study_xp_logs", JSON.stringify(nextLogs));
+      return nextLogs;
+    });
 
-    // Also auto-unlock items in state
-    setRewards(prev => prev.map(r => {
-      if (!r.isUnlocked && nextXp >= r.costXp) {
-        return { ...r, isUnlocked: true };
-      }
-      return r;
-    }));
+    // Also auto-unlock/lock items in state based on new XP
+    setRewards(prev => {
+      const nextRewards = prev.map(r => {
+        const shouldBeUnlocked = nextXp >= r.costXp;
+        if (r.isUnlocked !== shouldBeUnlocked) {
+          return { ...r, isUnlocked: shouldBeUnlocked };
+        }
+        return r;
+      });
+      secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+      return nextRewards;
+    });
 
     // Local instant persistence
     secureStorage.setItem("study_user_xp", String(nextXp));
-    secureStorage.setItem("study_xp_logs", JSON.stringify([newLog, ...xpLogs]));
 
     // Sync to Cloud asynchronously in background
     if (currentUser) {
@@ -1641,9 +1725,11 @@ export default function App() {
     const targetQ = quests.find(q => q.id === questId);
     if (!targetQ || targetQ.isCompleted) return;
 
-    const nextQuests = quests.map(q => q.id === questId ? { ...q, isCompleted: true } : q);
-    setQuests(nextQuests);
-    secureStorage.setItem("study_quests", JSON.stringify(nextQuests));
+    setQuests(prev => {
+      const nextQuests = prev.map(q => q.id === questId ? { ...q, isCompleted: true } : q);
+      secureStorage.setItem("study_quests", JSON.stringify(nextQuests));
+      return nextQuests;
+    });
 
     // Do NOT await, execute synchronously in memory
     handleAddXp(`Completed quest: ${targetQ.title}`, targetQ.xpReward);
@@ -1669,16 +1755,18 @@ export default function App() {
       timestamp: new Date().toISOString()
     };
 
-    // Update state
-    const nextLogs = [newLog, ...studyLogs];
-    const nextSubjects = subjects.map(s => (s.id === subjectId ? { ...s, totalMinutes: Math.round(s.totalMinutes + minutes) } : s));
+    // Update state using functional approach
+    setStudyLogs(prev => {
+      const nextLogs = [newLog, ...prev];
+      secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
+      return nextLogs;
+    });
 
-    setStudyLogs(nextLogs);
-    setSubjects(nextSubjects);
-
-    // Persist immediately in secure storage in case of connection dropouts
-    secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
-    secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+    setSubjects(prev => {
+      const nextSubjects = prev.map(s => (s.id === subjectId ? { ...s, totalMinutes: Math.round(s.totalMinutes + minutes) } : s));
+      secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+      return nextSubjects;
+    });
 
     // Earn 10 XP per minute studied!
     const earnedXp = minutes * 10;
@@ -1733,20 +1821,27 @@ export default function App() {
   };
 
   const handleRemoveSubject = async (subjectId: string) => {
-    const nextSubjects = subjects.filter(s => s.id !== subjectId);
-    setSubjects(nextSubjects);
+    let finalSubjects: Subject[] = [];
+    setSubjects(prev => {
+      const filtered = prev.filter(s => s.id !== subjectId);
+      finalSubjects = filtered;
+      secureStorage.setItem("study_subjects", JSON.stringify(filtered));
+      return filtered;
+    });
     
-    const nextTasks = tasks.map(t => (t.subjectId === subjectId ? { ...t, subjectId: "general" } : t));
-    setTasks(nextTasks);
-
-    secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
-    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    setTasks(prev => {
+      const nextTasks = prev.map(t => (t.subjectId === subjectId ? { ...t, subjectId: "general" } : t));
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
+    });
     
     // set another active subject if deleted active
     if (activeSubjectId === subjectId) {
-      if (nextSubjects.length > 0) {
-        setActiveSubjectId(nextSubjects[0].id);
-      }
+      setTimeout(() => {
+        if (finalSubjects.length > 0) {
+          setActiveSubjectId(finalSubjects[0].id);
+        }
+      }, 0);
     }
 
     if (currentUser) {
@@ -1762,9 +1857,12 @@ export default function App() {
       isCompleted: false,
       subjectId
     };
-    const nextTasks = [...tasks, newTask];
-    setTasks(nextTasks);
-    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    
+    setTasks(prev => {
+      const nextTasks = [...prev, newTask];
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
+    });
 
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "tasks", newTask.id), newTask)
@@ -1774,32 +1872,38 @@ export default function App() {
 
   const handleToggleTask = async (taskId: string) => {
     let tskToUpdate: Task | undefined;
-    const nextTasks = tasks.map(t => {
-      if (t.id === taskId) {
-        tskToUpdate = { ...t, isCompleted: !t.isCompleted };
-        return tskToUpdate;
-      }
-      return t;
+    
+    setTasks(prev => {
+      const nextTasks = prev.map(t => {
+        if (t.id === taskId) {
+          tskToUpdate = { ...t, isCompleted: !t.isCompleted };
+          return tskToUpdate;
+        }
+        return t;
+      });
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
     });
 
-    setTasks(nextTasks);
-    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
-
-    if (tskToUpdate && tskToUpdate.isCompleted) {
-      // Do NOT await, execute synchronously in memory
-      handleAddXp(`Completed Task: ${tskToUpdate.title} ✔️`, 50);
-    }
-
-    if (currentUser && tskToUpdate) {
-      setDoc(doc(db, "users", currentUser.uid, "tasks", taskId), tskToUpdate)
-        .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}/tasks/${taskId}`));
-    }
+    setTimeout(() => {
+      if (tskToUpdate) {
+        if (tskToUpdate.isCompleted) {
+          handleAddXp(`Completed Task: ${tskToUpdate.title} ✔️`, 50);
+        }
+        if (currentUser) {
+          setDoc(doc(db, "users", currentUser.uid, "tasks", taskId), tskToUpdate)
+            .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}/tasks/${taskId}`));
+        }
+      }
+    }, 0);
   };
 
   const handleRemoveTask = async (taskId: string) => {
-    const nextTasks = tasks.filter(t => t.id !== taskId);
-    setTasks(nextTasks);
-    secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+    setTasks(prev => {
+      const nextTasks = prev.filter(t => t.id !== taskId);
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
+    });
 
     if (currentUser) {
       deleteDoc(doc(db, "users", currentUser.uid, "tasks", taskId))
@@ -1818,9 +1922,13 @@ export default function App() {
     const logMinsToday = studyLogs
       .filter(l => l.date === todayStr)
       .reduce((sum, l) => sum + l.durationMinutes, 0);
-    const liveMins = isStudyingUser ? activeSecondsUser / 60 : 0;
+    const liveMins = isStudyingUser
+      ? (timerType === "stopwatch"
+          ? activeSecondsUser / 60
+          : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) / 60 : 0))
+      : 0;
     return Math.round(logMinsToday + liveMins);
-  }, [studyLogs, isStudyingUser, activeSecondsUser]);
+  }, [studyLogs, isStudyingUser, activeSecondsUser, timerType, pomoState, pomoFocusDuration, pomoSecondsLeft]);
 
   const handleSimulateTomorrow = async () => {
     // Force reset today's session as if a new day has arrived
@@ -1979,42 +2087,154 @@ export default function App() {
       
       {/* Liquid Glass Background Drifting Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${
-          activeTheme === "light"
-            ? "bg-gradient-to-tr from-orange-200/20 to-rose-200/20 opacity-70"
-            : "bg-gradient-to-tr from-[#f26419]/15 to-[#e73c7e]/15 opacity-100"
-        }`}></div>
-        <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${
-          activeTheme === "light"
-            ? "bg-gradient-to-br from-indigo-200/15 to-purple-200/15 opacity-60"
-            : "bg-gradient-to-br from-indigo-950/20 to-purple-950/25 opacity-100"
-        }`}></div>
-        <div className={`absolute top-[45%] right-[22%] w-60 h-60 sm:w-85 sm:h-85 rounded-full blur-[55px] sm:blur-[85px] animate-blob-3 transition-all duration-1000 ${
-          activeTheme === "light"
-            ? "bg-gradient-to-tl from-emerald-200/20 to-teal-200/20 opacity-65"
-            : "bg-gradient-to-tl from-emerald-950/15 to-teal-950/20 opacity-100"
-        }`}></div>
+        <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${dynamicBlobs.blob1}`}></div>
+        <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${dynamicBlobs.blob2}`}></div>
+        <div className={`absolute top-[45%] right-[22%] w-60 h-60 sm:w-85 sm:h-85 rounded-full blur-[55px] sm:blur-[85px] animate-blob-3 transition-all duration-1000 ${dynamicBlobs.blob3}`}></div>
       </div>
 
       {/* Floating active alarm overlay banner */}
       {firedNotification && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-sm px-4 animate-slide-in">
-          <div className="bg-slate-900/95 dark:bg-[#161616]/95 backdrop-blur-md border border-amber-500/40 text-slate-100 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-left">
-              <div className="p-2 bg-amber-500/15 text-amber-500 rounded-xl animate-pulse">
-                <Bell className="w-5 h-5 text-amber-400" />
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4 animate-slide-in">
+          <div className="bg-slate-900/98 dark:bg-[#121213]/98 border border-amber-500/35 text-slate-100 p-5 rounded-2xl shadow-2xl space-y-4">
+            
+            {/* 1. Header with Fired Message */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 text-left">
+                <div className="p-2.5 bg-amber-500/15 text-amber-500 rounded-xl animate-pulse shrink-0">
+                  <Bell className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#f26419]">Event Notification</p>
+                  <p className="text-sm font-bold text-slate-100 mt-0.5 leading-snug">{firedNotification}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-amber-500">Focus Alarm Check</p>
-                <p className="text-xs font-bold text-slate-200 mt-0.5">{firedNotification}</p>
-              </div>
+              <button
+                onClick={() => setFiredNotification(null)}
+                className="text-[10px] uppercase font-black text-slate-300 hover:text-white bg-slate-950 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors shrink-0"
+              >
+                Dismiss
+              </button>
             </div>
-            <button
-              onClick={() => setFiredNotification(null)}
-              className="text-[10px] font-bold text-slate-300 hover:text-white bg-slate-950 border border-slate-800 hover:border-slate-700 p-1.5 px-3 rounded-md cursor-pointer transition-colors"
-            >
-              Dismiss
-            </button>
+
+            {/* 2. Interactive Focus Timer status (the active "timer" inside notification) */}
+            <div className="p-3.5 bg-slate-950/75 border border-slate-900 rounded-xl space-y-2">
+              <div className="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-slate-400">
+                <span>{isStudyingUser ? "⏱️ Active Study Stream" : "⚠️ Study Stream Paused"}</span>
+                <span className="text-indigo-400 font-mono">
+                  {timerType === "stopwatch" ? "Stopwatch Mode" : `Pomodoro (${pomoState})`}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="text-left font-mono font-black text-xl text-white">
+                  {timerType === "stopwatch" ? (
+                    `${String(Math.floor(activeSecondsUser / 3600)).padStart(2, "0")}:${String(Math.floor((activeSecondsUser % 3600) / 60)).padStart(2, "0")}:${String(activeSecondsUser % 60).padStart(2, "0")}`
+                  ) : (
+                    `${String(Math.floor(pomoSecondsLeft / 60)).padStart(2, "0")}:${String(pomoSecondsLeft % 60).padStart(2, "0")}`
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setIsStudyingUser(!isStudyingUser)}
+                    className={`px-3 py-1.5 rounded-lg text-[9px] uppercase font-black cursor-pointer transition-colors ${
+                      isStudyingUser
+                        ? "bg-amber-600/20 text-amber-500 hover:bg-amber-600/30 border border-amber-500/25"
+                        : "bg-emerald-600 text-white hover:bg-emerald-700"
+                    }`}
+                  >
+                    {isStudyingUser ? "Pause" : "Resume"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsStudyingUser(false);
+                      if (timerType === "stopwatch") {
+                        setActiveSecondsUser(0);
+                      } else {
+                        setPomoSecondsLeft(pomoFocusDuration * 60);
+                        setPomoState("focus");
+                        setPomoRound(1);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-[9px] uppercase font-black text-slate-350 cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              {/* Dynamic visual miniature progress bar for Pomodoro */}
+              {timerType === "pomodoro" && (
+                <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-indigo-500 transition-all duration-300"
+                    style={{ 
+                      width: `${
+                        (pomoSecondsLeft / (
+                          (pomoState === "focus" ? pomoFocusDuration : pomoState === "shortBreak" ? pomoShortBreakDuration : pomoLongBreakDuration) * 60
+                        )) * 100
+                      }%` 
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 3. "Remainders" (Upcoming Active Reminders remaining time checks) */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] uppercase font-black tracking-widest text-[#f26419] text-left">
+                Study Alarms & Reminders Status
+              </p>
+              
+              {reminders.filter(r => r.isActive && !r.isCompleted).length === 0 ? (
+                <p className="text-[10px] text-slate-500 italic text-left">No other active reminders scheduled.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar pr-1">
+                  {reminders.filter(r => r.isActive && !r.isCompleted).slice(0, 3).map((r) => {
+                    // Calculate countdown remaining for timers
+                    let statusLabel = "";
+                    if (r.type === "timer" && r.durationMinutes) {
+                      const currentSessionSeconds = timerType === "stopwatch"
+                        ? activeSecondsUser
+                        : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) : 0);
+                      const currentMins = Math.floor(currentSessionSeconds / 60);
+                      const minsRemaining = r.durationMinutes - (currentMins % r.durationMinutes);
+                      statusLabel = `💦 Cycles: triggers in ~${minsRemaining > 0 ? minsRemaining : r.durationMinutes}m`;
+                    } else {
+                      statusLabel = `⏰ Alarm @ ${r.time}`;
+                    }
+
+                    return (
+                      <div key={r.id} className="p-2.5 bg-slate-950/40 border border-slate-900 rounded-xl flex items-center justify-between text-left gap-2 hover:bg-slate-950/70 transition-colors">
+                        <div className="flex items-center gap-2 max-w-[80%]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#f26419] shrink-0" />
+                          <div className="truncate">
+                            <span className="text-[10.5px] font-bold text-slate-200 block truncate">{r.title}</span>
+                            <span className="text-[8.5px] font-mono text-slate-505 text-slate-400 leading-none">{statusLabel}</span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            handleToggleReminder(r.id);
+                          }}
+                          className="text-[8px] uppercase font-black px-2 py-1 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 rounded-md cursor-pointer transition-colors"
+                        >
+                          Mute
+                        </button>
+                      </div>
+                    );
+                  })}
+                  
+                  {reminders.filter(r => r.isActive && !r.isCompleted).length > 3 && (
+                    <p className="text-[8px] uppercase tracking-wider font-mono font-black text-indigo-400 text-left pl-1">
+                      + {reminders.filter(r => r.isActive && !r.isCompleted).length - 3} more active alarms pending in queue
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       )}
@@ -2173,7 +2393,7 @@ export default function App() {
               <button
                 onClick={() => handleHeaderLogin(false)}
                 disabled={authLoading}
-                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-50 dark:text-[#0a0a0a] text-xs font-black py-1.5 px-3.5 rounded-full cursor-pointer active:scale-95 transition-all select-none border border-slate-200 dark:border-white/10"
+                className="flex items-center gap-1.5 bg-[#f26419] hover:bg-[#d85311] text-white text-xs font-black py-1.5 px-3.5 rounded-full cursor-pointer active:scale-95 transition-all select-none border border-transparent shadow-sm shadow-orange-500/10"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Sign In</span>
@@ -2260,13 +2480,16 @@ export default function App() {
               setPomoRound={setPomoRound}
               pomoFocusDuration={pomoFocusDuration}
               setPomoFocusDuration={setPomoFocusDuration}
-              pomoShortBreakDuration={pomoShortBreakDuration}
+               pomoShortBreakDuration={pomoShortBreakDuration}
               setPomoShortBreakDuration={setPomoShortBreakDuration}
               pomoLongBreakDuration={pomoLongBreakDuration}
               setPomoLongBreakDuration={setPomoLongBreakDuration}
               pomoSecondsLeft={pomoSecondsLeft}
               setPomoSecondsLeft={setPomoSecondsLeft}
               onUpdateSubjectGoal={handleUpdateSubjectGoal}
+              themePreset={themePreset}
+              userXp={userXp}
+              onAddXp={handleAddXp}
             />
           )}
 
@@ -2303,6 +2526,7 @@ export default function App() {
                 onCompleteQuest={handleCompleteQuest}
                 totalStudiedTodayMins={totalStudiedTodayMins}
                 completedTasksCountToday={completedTasksCountToday}
+                themePreset={themePreset}
               />
             </div>
           )}
@@ -2326,6 +2550,7 @@ export default function App() {
                 studyLogs={studyLogs}
                 streak={activeStreakCount}
                 dailyTargetMinutes={dailyTargetMinutes}
+                totalMinutesToday={totalStudiedTodayMins}
               />
             </div>
           )}
@@ -2363,6 +2588,8 @@ export default function App() {
                 notificationPermission={notificationPermission}
                 audioAutoplayApproved={audioAutoplayApproved}
                 onGrantPermissions={handleGrantAllPermissions}
+                notificationSettings={notificationSettings}
+                onUpdateNotificationSettings={setNotificationSettings}
               />
             </div>
           )}
@@ -2500,6 +2727,7 @@ export default function App() {
         setIsOfflineMode={setIsOfflineMode}
         onResetAllData={handleResetAllData}
         onSimulateNewDay={handleSimulateTomorrow}
+        userXp={userXp}
       />
 
       {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}
@@ -2654,7 +2882,7 @@ export default function App() {
                   className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
                     authMode === "signup"
                       ? "bg-white dark:bg-[#1e1e1e] text-orange-500 shadow-sm font-black scale-102"
-                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   }`}
                 >
                   <span className="text-[11px] animate-pulse">✨</span> 1. Create Free Account
@@ -2668,7 +2896,7 @@ export default function App() {
                   className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
                     authMode === "signin"
                       ? "bg-white dark:bg-[#1e1e1e] text-[#4285F4] shadow-sm font-black scale-102"
-                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   }`}
                 >
                   <span>🔑</span> 2. Sign In Instead
@@ -2801,7 +3029,7 @@ export default function App() {
 
                 <form onSubmit={handleEmailNext} className="space-y-4">
                   <div className="space-y-1">
-                    <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-550 dark:text-slate-400">
+                    <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
                       Email Address
                     </label>
                     <div className="relative">
@@ -2816,7 +3044,7 @@ export default function App() {
                         onChange={(e) => setAuthEmail(e.target.value)}
                         disabled={authLoading}
                         required
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
                       />
                     </div>
                   </div>
@@ -2889,7 +3117,7 @@ export default function App() {
                         onChange={(e) => setAuthDisplayName(e.target.value)}
                         disabled={authLoading}
                         required
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
                       />
                     </div>
                   </div>
@@ -2897,7 +3125,7 @@ export default function App() {
 
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-505 dark:text-slate-400">
+                    <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
                       Password
                     </label>
                     {authMode === "signin" && (
@@ -2925,7 +3153,7 @@ export default function App() {
                       onChange={(e) => setAuthPassword(e.target.value)}
                       disabled={authLoading}
                       required
-                      className="w-full pl-9 pr-10 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
+                      className="w-full pl-9 pr-10 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
                     />
                     <button
                       type="button"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Users, Search, Compass, Award, Plus, LogIn, LogOut, Send, MessageSquare, Coffee, Library, Moon, Sparkles, AlertCircle, Sparkle } from "lucide-react";
+import { Users, Search, Compass, Award, Plus, LogIn, LogOut, Send, MessageSquare, Coffee, Library, Moon, Sparkles, AlertCircle, Sparkle, Flame, ThumbsUp } from "lucide-react";
 import { RoomMember, RoomChat, StudyRoom } from "../types";
 import { 
   collection, 
@@ -93,6 +93,34 @@ export default function ClassmateGrid({
   const triggerNotify = (text: string, type: "success" | "error" | "info" = "success") => {
     setShowNotification({ text, type });
     setTimeout(() => setShowNotification(null), 4000);
+  };
+
+  // Floating peer-motivation reactions state
+  const [reactions, setReactions] = useState<Record<string, { id: string; emoji: string }[]>>({});
+
+  const handleSendReaction = (mateId: string, name: string, emoji: string, verb: string) => {
+    const lines = [
+      `You ${verb} ${name}! 🚀 Keep the peer energy high!`,
+      `Motivational ${emoji} beam successfully transmitted to ${name}!`,
+      `Study buddies rock! You sent ${name} a motivation spark! ${emoji}`
+    ];
+    triggerNotify(lines[Math.floor(Math.random() * lines.length)], "success");
+
+    const reactionId = `react-${Date.now()}-${Math.random()}`;
+    setReactions(prev => ({
+      ...prev,
+      [mateId]: [...(prev[mateId] || []), { id: reactionId, emoji }]
+    }));
+
+    setTimeout(() => {
+      setReactions(prev => {
+        const list = prev[mateId] || [];
+        return {
+          ...prev,
+          [mateId]: list.filter(r => r.id !== reactionId)
+        };
+      });
+    }, 1500);
   };
 
   // Bot ticking simulation to showcase ticking study floors (ticks every second)
@@ -871,7 +899,72 @@ export default function ClassmateGrid({
                           <span>ACCUMULATED</span>
                           <span className="font-bold text-slate-600 dark:text-slate-350">{formatTotalHours(mate.studyDurationTodayMinutes)}</span>
                         </div>
+
+                        {/* Interactive Co-Study Motivation features */}
+                        {!isCurrentMock && (
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-850/80 flex items-center justify-between gap-1.5 leading-none">
+                            <span className="text-[8px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">NUDGE MATE:</span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleSendReaction(mate.id, mate.name, "🔥", "poked with study motivation flame")}
+                                className="p-1 hover:bg-orange-500/10 dark:hover:bg-orange-500/20 text-orange-500 rounded-lg transition-all scale-95 hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Send Study Flame 🔥"
+                              >
+                                <Flame className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendReaction(mate.id, mate.name, "☕", "sent a fresh co-study espresso cup")}
+                                className="p-1 hover:bg-amber-600/10 dark:hover:bg-amber-600/20 text-amber-500 rounded-lg transition-all scale-95 hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Virtual Coffee Break ☕"
+                              >
+                                <Coffee className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendReaction(mate.id, mate.name, "✨", "sent motivational stars")}
+                                className="p-1 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-500 rounded-lg transition-all scale-95 hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Shaped Sparkles Encourage ✨"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendReaction(mate.id, mate.name, "👍", "gave a giant virtual thumb's up")}
+                                className="p-1 hover:bg-teal-500/10 dark:hover:bg-teal-500/20 text-teal-505 text-teal-500 rounded-lg transition-all scale-95 hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Thumbs Up Support 👍"
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Emitter Container for Visual Sparks */}
+                      <div className="absolute right-3.5 top-3.5 pointer-events-none z-30 overflow-visible">
+                        {(reactions[mate.id] || []).map(r => (
+                          <span 
+                            key={r.id} 
+                            className="absolute bottom-0 right-0 text-lg select-none filter drop-shadow animate-bounce"
+                            style={{
+                              animation: "floatUpReaction 1.2s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards",
+                            }}
+                          >
+                            {r.emoji}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Embed keyframes inside the component specifically for flawless reactivity */}
+                      <style>{`
+                        @keyframes floatUpReaction {
+                          0% { transform: translateY(0) scale(0.6); opacity: 0; }
+                          15% { opacity: 1; }
+                          100% { transform: translateY(-45px) scale(1.2); opacity: 0; }
+                        }
+                      `}</style>
                     </div>
                   );
                 })}

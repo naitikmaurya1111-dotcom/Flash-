@@ -47,14 +47,20 @@ async function startServer() {
         });
       }
 
-      const { subjects, streak, dailyTargetMinutes } = req.body;
+      const { subjects, streak, dailyTargetMinutes, persona = "Minerva" } = req.body;
 
       const subListText = Array.isArray(subjects) 
         ? subjects.map((sub: any) => `- ${sub.name}: ${sub.totalMinutes || 0} minutes studied today (Daily Goal: ${sub.goalMinutes || 60} mins)`).join("\n")
         : "No subjects studied yet.";
 
-      const prompt = `You are an elite academic habits coach inspired by modern productivity systems like Yeolpumta, Atomic Habits, and Focus Deep Work. 
-Analyze the student's daily study profile and deliver custom habit coaching and actionable insights.
+      const personaLabel = persona === "Sgt" 
+        ? "Sgt. Focus (Military Drill Instructor - Strict, intense, yelling, demands ultimate focus, uses military cadet slang)" 
+        : persona === "Zen"
+          ? "Zen Master Lao (Mindful sage - Peaceful, calming, encourages smooth pacing, breathing exercises, focus zen and avoidance of burnout)"
+          : "Professor Minerva (Eminent Academic Mentor - Wise, analytical, cites scientific memory, active recall, spaced repetition, elite brain theory)";
+
+      const prompt = `You are an elite academic habits coach acting in the character style of: ${personaLabel}. 
+Analyze the student's daily study profile and deliver custom habit coaching and actionable insights. IMPORTANT: Make your entire response style, wording, and vocabulary match this persona's tone very strongly!
 
 Student Study Profile:
 - Current Streak: ${streak || 0} days studied consistently
@@ -64,11 +70,11 @@ ${subListText}
 
 Please generate a premium, highly encouraging structured advice coach response matching exact JSON format:
 {
-  "quote": "Highly motivating micro-quote about study consistency",
-  "rating": "An encouraging study personality rating (e.g., 'Ascending Scholar', 'Deep Focus Titan', 'Steady Habit builder')",
-  "insights": ["Specific insight 1 on study balance or streak milestone", "Specific insight 2 on subject pacing"],
-  "strategies": ["High-yield habit routine advice to hit daily goals", "Actionable tactic to maintain energy/focus"],
-  "scheduleTip": "Suggested study flow order (e.g. starting with difficult topics first, Pomodoro configuration recommendation)"
+  "quote": "Highly motivating micro-quote in the EXACT character voice of this coach",
+  "rating": "An encouraging study personality rating matching the persona's style (e.g., 'CADET OF TRUE GRIT' or 'Lotus Bloom')",
+  "insights": ["Specific character insight 1 on study balance or streak milestone", "Specific character insight 2 on subject pacing"],
+  "strategies": ["High-yield habit routine advice mimicking the coach's personality", "Actionable tactic to maintain energy/focus"],
+  "scheduleTip": "Suggested study flow order written in the character's unique manner"
 }`;
 
       const response = await client.models.generateContent({

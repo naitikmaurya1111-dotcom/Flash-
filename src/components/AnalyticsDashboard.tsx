@@ -8,22 +8,26 @@ interface AnalyticsDashboardProps {
   studyLogs: StudyLog[];
   streak: number;
   dailyTargetMinutes: number;
+  totalMinutesToday: number; // Accurate, live-updated real-time minutes passed from App.tsx
 }
 
 export default function AnalyticsDashboard({
   subjects,
   studyLogs,
   streak,
-  dailyTargetMinutes
+  dailyTargetMinutes,
+  totalMinutesToday
 }: AnalyticsDashboardProps) {
 
-  // 1. Calculate Core focus metrics
-  const totalMinutesToday = useMemo(() => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    return studyLogs
-      .filter(l => l.date === todayStr)
-      .reduce((acc, log) => acc + log.durationMinutes, 0);
-  }, [studyLogs]);
+  // Helper to format Date objects consistently as 'YYYY-MM-DD' in local timezone
+  const getLocalDateString = (d: Date = new Date()): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayLocalStr = getLocalDateString();
 
   const totalAllTimeMinutes = useMemo(() => {
     return studyLogs.reduce((acc, log) => acc + log.durationMinutes, 0);
@@ -43,7 +47,7 @@ export default function AnalyticsDashboard({
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = getLocalDateString(d);
       const dayName = days[d.getDay()];
       
       // Calculate minutes from logs
@@ -53,7 +57,7 @@ export default function AnalyticsDashboard({
         .reduce((sum, l) => sum + l.durationMinutes, 0);
 
       // Note: If date matches today, merge live tracking states from subjects
-      if (dateStr === today.toISOString().split("T")[0]) {
+      if (dateStr === todayLocalStr) {
         dayMins = totalMinutesToday;
       }
 
@@ -64,7 +68,7 @@ export default function AnalyticsDashboard({
       });
     }
     return data;
-  }, [studyLogs, totalMinutesToday]);
+  }, [studyLogs, totalMinutesToday, todayLocalStr]);
 
   // Distribution chart of studied subject topics
   const subjectDistributionData = useMemo(() => {
@@ -93,13 +97,13 @@ export default function AnalyticsDashboard({
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = getLocalDateString(d);
       
       let dayMins = studyLogs
         .filter(l => l.date === dateStr)
         .reduce((sum, l) => sum + l.durationMinutes, 0);
 
-      if (dateStr === today.toISOString().split("T")[0]) {
+      if (dateStr === todayLocalStr) {
         dayMins = totalMinutesToday;
       }
 
@@ -111,7 +115,7 @@ export default function AnalyticsDashboard({
       });
     }
     return data;
-  }, [studyLogs, totalMinutesToday]);
+  }, [studyLogs, totalMinutesToday, todayLocalStr]);
 
   const activeDaysCount = useMemo(() => {
     return heatmapData.filter(d => d.minutes >= 10).length;
