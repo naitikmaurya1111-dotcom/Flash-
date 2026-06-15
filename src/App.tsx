@@ -1423,10 +1423,10 @@ export default function App() {
         handleAddStudyMinutes(activeSubjectId, minsToSave);
         
         const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
-        setFiredNotification(completionMsg);
+        setFiredNotification("You did it! Study session completed!");
         
         // Push Native Desktop / Mobile Notification if granted
-        showSystemNotification("Flash5tudy Focus Alert", completionMsg);
+        showSystemNotification("You did it! Study session completed!", completionMsg);
         
         // Advance rounds or shift to break
         if (pomoRound >= 4) {

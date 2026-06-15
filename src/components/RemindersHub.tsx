@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Bell, BellOff, Volume2, Plus, Trash, Check, Clock, Sparkles, ShieldCheck, Dumbbell, BookOpen, ChevronDown, ChevronUp, Play, HelpCircle, Info, Lock } from "lucide-react";
+import { Bell, BellOff, Volume2, Plus, Trash, Check, Clock, Sparkles, ShieldCheck, Dumbbell, BookOpen, ChevronDown, ChevronUp, Play, HelpCircle, Info, Lock, AlertTriangle } from "lucide-react";
 import { Subject, Reminder, NotificationSettings } from "../types";
 
 // Synthesis of high-quality ambient sound wave chimes natively using the Web Audio API
@@ -137,6 +137,14 @@ export default function RemindersHub({
     return localStorage.getItem("audio_autoplay_approved") === "true";
   });
   
+  const isIframe = typeof window !== "undefined" && window.self !== window.top;
+  
+  const handleOpenNewTab = () => {
+    if (typeof window !== "undefined") {
+      window.open(window.location.href, "_blank");
+    }
+  };
+  
   // Custom states
   const [remText, setRemText] = useState("");
   const [remType, setRemType] = useState<"daily" | "one-shot" | "timer">("daily");
@@ -148,16 +156,17 @@ export default function RemindersHub({
   const [testCountdown, setTestCountdown] = useState<number | null>(null);
   const [selectedTestTone, setSelectedTestTone] = useState<"chime" | "success" | "break">("chime");
   const [isChromeGuideOpen, setIsChromeGuideOpen] = useState(false);
+  const [customTestTitle, setCustomTestTitle] = useState("You did it! Study session completed!");
+  const [customTestBody, setCustomTestBody] = useState("🍅 Great job! Keep maintaining your hyperfocused study streak!");
 
   useEffect(() => {
     if (testCountdown === null) return;
     if (testCountdown <= 0) {
       playChime(selectedTestTone);
-      const title = `🚨 Chrome Alarm Push test: [${selectedTestTone.toUpperCase()}] triggered!`;
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
         try {
-          new Notification("Flash5tudy Chrome Test Success", {
-            body: `Excellent study chimes are now fully active on your tab! Keep up the hyperfocused work.`,
+          new Notification(customTestTitle, {
+            body: customTestBody,
             icon: "/favicon.ico"
           });
         } catch (err) {
@@ -173,7 +182,7 @@ export default function RemindersHub({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [testCountdown, selectedTestTone]);
+  }, [testCountdown, selectedTestTone, customTestTitle, customTestBody]);
 
   const handleImmediatePushTest = () => {
     playChime(selectedTestTone);
@@ -183,8 +192,8 @@ export default function RemindersHub({
         return;
       }
       try {
-        new Notification("🔔 Chrome Alert Activated!", {
-          body: `Testing the "${selectedTestTone}" tone trigger! Excellent, your Chrome notification pipeline is active.`,
+        new Notification(customTestTitle, {
+          body: customTestBody,
           icon: "/favicon.ico"
         });
       } catch (err) {
@@ -270,6 +279,29 @@ export default function RemindersHub({
       
       {/* OS Notifications & Audio Authorization Info Banner */}
       <div className="bg-gradient-to-r from-slate-50 to-slate-100/85 dark:from-[#151515] dark:to-[#111111] p-5 rounded-3xl border border-slate-200/70 dark:border-slate-900/90 shadow-xl space-y-4">
+        
+        {isIframe && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-left flex flex-col md:flex-row md:items-center justify-between gap-3.5 animate-pulse">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                Preview Limitation: Sandboxed Iframe Detected!
+              </p>
+              <p className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                Operating systems block security popups and push notifications when pages are inside nested frames (like the AI Studio chat preview). 
+                To receive desktop or phone system notifications, please click the button on the right to load the app in its own top-level browser tab!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenNewTab}
+              className="px-4 py-2 bg-gradient-to-r from-[#f26419] to-amber-600 hover:opacity-90 active:scale-95 text-[10px] text-white uppercase tracking-wider font-semibold rounded-xl transition-all shrink-0 cursor-pointer shadow-md"
+            >
+              Open in New Tab 🚀
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-slate-900/50 pb-4">
           <div className="flex items-start gap-4">
             <div className="p-3.5 bg-indigo-550/10 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-200/20 dark:border-indigo-900/40 animate-pulse shrink-0">
@@ -530,25 +562,34 @@ export default function RemindersHub({
               Chrome Notification Troubleshooting Handbook:
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3 bg-amber-550/5 dark:bg-amber-950/20 rounded-xl border border-amber-500/10 space-y-1">
+                <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> 1. Open Top Tab
+                </span>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Browser security blocks push checks inside iframes. You **must** open the app in its own browser tab (click <b>Open in New Tab</b> above).
+                </p>
+              </div>
+
               <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
-                <span className="text-[9px] font-black uppercase text-indigo-500">1. Click Lock Icon</span>
+                <span className="text-[9px] font-black uppercase text-indigo-500">2. Address Bar Lock</span>
                 <p className="text-[10px] text-slate-500 leading-normal">
                   In Chrome's address bar, click the **Lock (🔒) or Tune slider** immediately to the left of the website URL.
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
-                <span className="text-[9px] font-black uppercase text-emerald-500">2. Enable Notifications</span>
+                <span className="text-[9px] font-black uppercase text-emerald-500">3. Set to Allow</span>
                 <p className="text-[10px] text-slate-500 leading-normal">
                   Find **Notifications** inside the dropdown menu and set its toggle to **Allow**. Reload the tab when prompted.
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50/50 dark:bg-[#161616]/40 rounded-xl border border-slate-100 dark:border-slate-900 space-y-1">
-                <span className="text-[9px] font-black uppercase text-amber-500">3. System Focus Rules</span>
+                <span className="text-[9px] font-black uppercase text-amber-500">4. System Focus</span>
                 <p className="text-[10px] text-slate-500 leading-normal">
-                  Ensure Windows "Focus Assist" or Mac "Do Not Disturb" is turned off, as operating systems can block Chrome from presenting popups.
+                  Ensure Windows "Focus Assist" or Mac "Do Not Disturb" is turned off, as operating systems can block background popups.
                 </p>
               </div>
             </div>
@@ -591,18 +632,75 @@ export default function RemindersHub({
           <div className="bg-white dark:bg-[#121212] border border-slate-200/50 dark:border-slate-900/50 rounded-2xl p-4 flex flex-col justify-between gap-4">
             <div>
               <span className="block text-[10px] uppercase font-black tracking-wider text-slate-500 mb-2">
-                ⚡ Interactive Background Alarm Toggles
+                ⚡ Customize & Trigger Test Alert
               </span>
-              <p className="text-[10px] text-slate-500 leading-relaxed">
-                Test that alarm audio and Chrome notifications fire correctly. Try the 5-second countdown option, minimize Chrome or switch tabs, and verify the background push alert.
+              <p className="text-[10px] text-slate-500 leading-relaxed mb-3">
+                Change the banner context below to verify that notifications trigger with customized content on your desktop or phone.
               </p>
+              
+              <div className="space-y-2 mb-2">
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Notification Title</label>
+                  <input
+                    type="text"
+                    value={customTestTitle}
+                    onChange={(e) => setCustomTestTitle(e.target.value)}
+                    placeholder="e.g. You did it! Study session completed!"
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Notification Body</label>
+                  <input
+                    type="text"
+                    value={customTestBody}
+                    onChange={(e) => setCustomTestBody(e.target.value)}
+                    placeholder="e.g. 🍅 Great job! Keep maintaining your streak!"
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Preset Quick Actions */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomTestTitle("You did it! Study session completed!");
+                    setCustomTestBody("🍅 Great job! Keep maintaining your hyperfocused study streak!");
+                  }}
+                  className="px-2 py-0.5 text-[8.5px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900 rounded-md hover:bg-indigo-100 transition-colors cursor-pointer"
+                >
+                  🎓 Study Session Complete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomTestTitle("💧 Hydration Break!");
+                    setCustomTestBody("It is time to drink water and take a quick 3-minute screen rest.");
+                  }}
+                  className="px-2 py-0.5 text-[8.5px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900 rounded-md hover:bg-sky-100 transition-colors cursor-pointer"
+                >
+                  💧 Water Break
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomTestTitle("🚨 Personalized Reminder");
+                    setCustomTestBody("Keep pushing forward! Success is built block by block.");
+                  }}
+                  className="px-2 py-0.5 text-[8.5px] font-bold bg-[#f26419]/5 text-[#f26419] border border-[#f26419]/10 rounded-md hover:bg-[#f26419]/10 transition-colors cursor-pointer"
+                >
+                  🎯 Goal Reminder
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
                 onClick={handleImmediatePushTest}
-                className="flex-1 min-w-[140px] px-4 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-800 text-slate-100 text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5"
+                className="flex-1 min-w-[130px] px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-800 text-slate-100 text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-sm"
               >
                 <Bell className="w-3.5 h-3.5 text-indigo-400" />
                 Test Alarm (Now)
@@ -612,7 +710,7 @@ export default function RemindersHub({
                 type="button"
                 disabled={testCountdown !== null}
                 onClick={handleStartDelayedTest}
-                className={`flex-1 min-w-[140px] px-4 py-2.5 bg-gradient-to-r from-[#f26419] to-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 ${
+                className={`flex-1 min-w-[130px] px-4 py-2 bg-gradient-to-r from-[#f26419] to-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-md shadow-[#f26419]/10 ${
                   testCountdown !== null ? "opacity-60 cursor-not-allowed animate-pulse" : ""
                 }`}
               >
