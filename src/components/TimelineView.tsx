@@ -28,7 +28,7 @@ import {
   Heart
 } from "lucide-react";
 import { Subject, StudyLog, ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
-import { Info, X } from "lucide-react"; // Import Info & X icon specifically
+import { Info, X, Target, Lock } from "lucide-react"; // Import Info, X, Target, Lock icon specifically
 
 interface TimelineViewProps {
   subjects: Subject[];
@@ -44,8 +44,8 @@ interface TimelineViewProps {
   onToggleSidebar: () => void;
 
   // Pomodoro & custom timer props
-  timerType: "stopwatch" | "pomodoro";
-  setTimerType: (type: "stopwatch" | "pomodoro") => void;
+  timerType: "stopwatch" | "pomodoro" | "custom";
+  setTimerType: (type: "stopwatch" | "pomodoro" | "custom") => void;
   pomoState: "focus" | "shortBreak" | "longBreak";
   setPomoState: (state: "focus" | "shortBreak" | "longBreak") => void;
   pomoRound: number;
@@ -59,9 +59,12 @@ interface TimelineViewProps {
   pomoSecondsLeft: number;
   setPomoSecondsLeft: React.Dispatch<React.SetStateAction<number>>;
   onUpdateSubjectGoal: (subjectId: string, goalMinutes: number) => Promise<void>;
+  onAddSubject: (name: string, goalMinutes: number, colorStyle: string) => Promise<void>;
+  onRemoveSubject: (subjectId: string) => Promise<void>;
   themePreset?: string;
   userXp?: number;
   onAddXp?: (reason: string, amount: number) => Promise<void>;
+  onChangeTab?: (tab: any) => void;
 }
 
 export default function TimelineView({
@@ -91,13 +94,17 @@ export default function TimelineView({
   pomoSecondsLeft,
   setPomoSecondsLeft,
   onUpdateSubjectGoal,
+  onAddSubject,
+  onRemoveSubject,
   themePreset = "dark-classic",
   userXp = 0,
   onAddXp,
+  onChangeTab,
 }: TimelineViewProps) {
   // Navigation inside the Focus subtab
-  const [subView, setSubView] = useState<"stopwatch" | "timeline">("stopwatch");
+  const [subView, setSubView] = useState<"timer" | "timeline">("timer");
   const [showLevelGuide, setShowLevelGuide] = useState(false);
+  const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(() => localStorage.getItem("ypt_launchpad_open") !== "false");
   
   const gradientStops = useMemo(() => {
     switch (themePreset) {
@@ -165,6 +172,181 @@ export default function TimelineView({
         return "bg-[#f26419] hover:bg-[#df5214]";
     }
   }, [themePreset]);
+
+  // ==================== YPT ADAPTIVE STUDY HABIT & STREAK CALCULATOR ====================
+  const calculatedStreak = useMemo(() => {
+    const uniqueDatesSet = new Set<string>();
+    studyLogs.forEach(l => {
+      if (l.durationMinutes >= 1) {
+        uniqueDatesSet.add(l.date);
+      }
+    });
+
+    if (uniqueDatesSet.size === 0) return 0;
+
+    const getLocalDateStr = (d: Date) => {
+      const offset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - offset * 60 * 1000);
+      return local.toISOString().split("T")[0];
+    };
+
+    let streakVal = 0;
+    const trackerDate = new Date();
+    
+    const containsToday = uniqueDatesSet.has(getLocalDateStr(trackerDate));
+    trackerDate.setDate(trackerDate.getDate() - 1);
+    const containsYesterday = uniqueDatesSet.has(getLocalDateStr(trackerDate));
+
+    if (!containsToday && !containsYesterday) {
+      return 0;
+    }
+
+    const testDate = new Date();
+    if (!containsToday && containsYesterday) {
+      testDate.setDate(testDate.getDate() - 1);
+    }
+
+    while (true) {
+      const curDateStr = getLocalDateStr(testDate);
+      if (uniqueDatesSet.has(curDateStr)) {
+        streakVal++;
+        testDate.setDate(testDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return streakVal;
+  }, [studyLogs]);
+
+  // ==================== TOTAL FOCUS SECONDS / MINUTES OF TODAY ====================
+  const totalFocusMinutesToday = useMemo(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const logged = studyLogs
+      .filter(l => l.date === todayStr)
+      .reduce((acc, l) => acc + l.durationMinutes, 0);
+    
+    let liveMinutes = 0;
+    if (isStudying) {
+      if (timerType === "stopwatch" || timerType === "custom") {
+        liveMinutes = activeSeconds / 60;
+      } else if (timerType === "pomodoro" && pomoState === "focus") {
+        const fullPeriodSecs = pomoFocusDuration * 60;
+        liveMinutes = (fullPeriodSecs - pomoSecondsLeft) / 60;
+      }
+    }
+    
+    return Math.round(logged + liveMinutes);
+  }, [studyLogs, isStudying, timerType, activeSeconds, pomoState, pomoSecondsLeft, pomoFocusDuration]);
+
+  // ==================== YPT CIRCULAR WHEEL ARC COORDINATES GENERATOR ====================
+  const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+    return {
+      x: centerX + radius * Math.cos(angleInRadians),
+      y: centerY + radius * Math.sin(angleInRadians),
+    };
+  };
+
+  const describeArc = (x: number, y: number, radius: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(x, y, radius, endAngle);
+    const end = polarToCartesian(x, y, radius, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+    return [
+      "M", start.x, start.y,
+      "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
+    ].join(" ");
+  };
+
+  const getSubjectColorHex = (colorClass: string) => {
+    if (colorClass.includes("orange") || colorClass === "bg-[#f26419]" || colorClass.includes("accent")) return "#f26419";
+    if (colorClass.includes("emerald") || colorClass.includes("green")) return "#10b981";
+    if (colorClass.includes("blue")) return "#3b82f6";
+    if (colorClass.includes("purple") || colorClass.includes("violet")) return "#a855f7";
+    if (colorClass.includes("indigo")) return "#6366f1";
+    if (colorClass.includes("rose") || colorClass.includes("pink") || colorClass.includes("red")) return "#f43f5e";
+    if (colorClass.includes("teal") || colorClass.includes("cyan")) return "#14b8a6";
+    return "#8b5cf6"; // default purple
+  };
+
+  // Convert logs to 24 hourly study blocks
+  const hourlyStudiedSectors = useMemo(() => {
+    type SectorInfo = { subjectId: string; name: string; color: string; duration: number };
+    const segments = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      studies: [] as SectorInfo[]
+    }));
+
+    const getLocalFormattedDate = (d: Date = new Date()): string => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const todayStr = getLocalFormattedDate();
+    const todaysLogs = studyLogs.filter(log => log.date === todayStr);
+
+    todaysLogs.forEach(log => {
+      if (!log.timestamp) return;
+      try {
+        const endTime = new Date(log.timestamp);
+        const startTime = new Date(endTime.getTime() - log.durationMinutes * 60 * 1000);
+        
+        let pointer = new Date(startTime.getTime());
+        while (pointer.getTime() < endTime.getTime()) {
+          const hr = pointer.getHours();
+          const subjectOfLog = subjects.find(s => s.id === log.subjectId);
+          const colorBg = subjectOfLog?.color || "bg-indigo-500";
+          const subId = log.subjectId || "unknown";
+          const name = log.subjectName || "Focus Study";
+          
+          let existing = segments[hr].studies.find(s => s.subjectId === subId);
+          if (!existing) {
+            existing = { subjectId: subId, name, color: colorBg, duration: 0 };
+            segments[hr].studies.push(existing);
+          }
+          existing.duration += 1;
+          
+          pointer.setTime(pointer.getTime() + 60 * 1000);
+        }
+      } catch (e) {}
+    });
+
+    if (isStudying && activeSubjectId && activeSeconds > 0) {
+      try {
+        const now = new Date();
+        const start = new Date(now.getTime() - activeSeconds * 1000);
+        const activeSubject = subjects.find(s => s.id === activeSubjectId);
+        const colorBg = activeSubject?.color || "bg-indigo-500";
+        const name = activeSubject?.name || "Focus Subject";
+        
+        let pointer = new Date(start.getTime());
+        while (pointer.getTime() < now.getTime()) {
+          const hr = pointer.getHours();
+          let existing = segments[hr].studies.find(s => s.subjectId === activeSubjectId);
+          if (!existing) {
+            existing = { subjectId: activeSubjectId, name, color: colorBg, duration: 0 };
+            segments[hr].studies.push(existing);
+          }
+          existing.duration += 1;
+          pointer.setTime(pointer.getTime() + 60 * 1000);
+        }
+      } catch (e) {}
+    }
+
+    return segments.map(seg => {
+      if (seg.studies.length === 0) return { hour: seg.hour, color: null, dominantName: null, totalMinutes: 0 };
+      const sorted = [...seg.studies].sort((a, b) => b.duration - a.duration);
+      const totalMinutes = seg.studies.reduce((sum, s) => sum + s.duration, 0);
+      return {
+        hour: seg.hour,
+        color: sorted[0].color,
+        dominantName: sorted[0].name,
+        totalMinutes: Math.min(60, totalMinutes)
+      };
+    });
+  }, [studyLogs, isStudying, activeSubjectId, activeSeconds, subjects]);
+
   const [showSubjectsModal, setShowSubjectsModal] = useState(false);
   const [isEditingSubjectsList, setIsEditingSubjectsList] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -218,6 +400,90 @@ export default function TimelineView({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [focusGuard, isStudying, setIsStudying]);
+
+  // ==================== NEW CUSTOM TIMER STUDY STATES ====================
+  const [customTargetMinutes, setCustomTargetMinutes] = useState<number>(() => {
+    const cached = localStorage.getItem("study_custom_target_minutes");
+    return cached ? parseInt(cached, 10) : 45; // default to 45 mins
+  });
+  const [customTargetMinutesInput, setCustomTargetMinutesInput] = useState<string>("45");
+
+  const [sessionGoalText, setSessionGoalText] = useState<string>(() => {
+    return localStorage.getItem("study_session_goal_text") || "";
+  });
+
+  interface SessionTodo {
+    id: string;
+    text: string;
+    isDone: boolean;
+  }
+  const [sessionTodos, setSessionTodos] = useState<SessionTodo[]>(() => {
+    const cached = localStorage.getItem("study_session_todos");
+    return cached ? JSON.parse(cached) : [
+      { id: "s-1", text: "Create draft layout highlights", isDone: false },
+      { id: "s-2", text: "Review active memory flashcards", isDone: false }
+    ];
+  });
+  const [newTodoText, setNewTodoText] = useState<string>("");
+
+  // Reflection and celebration states
+  const [showReflectionModal, setShowReflectionModal] = useState<boolean>(false);
+  const [reflectionRating, setReflectionRating] = useState<number>(5);
+  const [reflectionNotes, setReflectionNotes] = useState<string>("");
+  const [isTargetCompleted, setIsTargetCompleted] = useState<boolean>(false);
+  const [sessionSavedMinutes, setSessionSavedMinutes] = useState<number>(0);
+  const [reflectionErrorText, setReflectionErrorText] = useState<string | null>(null);
+  const [timerAlertMessage, setTimerAlertMessage] = useState<string | null>(null);
+
+  // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem("study_custom_target_minutes", String(customTargetMinutes));
+  }, [customTargetMinutes]);
+
+  useEffect(() => {
+    localStorage.setItem("study_session_goal_text", sessionGoalText);
+  }, [sessionGoalText]);
+
+  useEffect(() => {
+    localStorage.setItem("study_session_todos", JSON.stringify(sessionTodos));
+  }, [sessionTodos]);
+
+  const handleAddTodo = () => {
+    if (!newTodoText.trim()) return;
+    const newTodo: SessionTodo = {
+      id: "s-" + Date.now(),
+      text: newTodoText,
+      isDone: false
+    };
+    setSessionTodos(prev => [...prev, newTodo]);
+    setNewTodoText("");
+  };
+
+  const handleToggleTodo = (id: string) => {
+    setSessionTodos(prev => prev.map(t => t.id === id ? { ...t, isDone: !t.isDone } : t));
+  };
+
+  const handleDeleteTodo = (id: string) => {
+    setSessionTodos(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Trigger custom countdown target complete when activeSeconds >= customTargetMinutes * 60
+  useEffect(() => {
+    if (isStudying && timerType === "custom" && activeSeconds >= customTargetMinutes * 60) {
+      setIsStudying(false);
+      setIsTargetCompleted(true);
+      setSessionSavedMinutes(customTargetMinutes);
+      setReflectionNotes(sessionGoalText ? `Completed custom quest: ${sessionGoalText}` : "Achieved custom study target session! 🚀");
+      setShowReflectionModal(true);
+      
+      // Try playing the chime
+      try {
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav");
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+      } catch (e) {}
+    }
+  }, [isStudying, timerType, activeSeconds, customTargetMinutes, sessionGoalText]);
 
   const getActiveSessionBadge = (seconds: number) => {
     if (seconds < 120) return { title: "Focus Initiated", badge: "🌱 Seedling", desc: "Just started. Shielding thoughts from distractions.", color: "text-[#f26419] bg-[#f26419]/5 border-[#f26419]/20" };
@@ -468,21 +734,77 @@ export default function TimelineView({
   };
 
   const handleStartStudy = (subjectId: string) => {
-    if (isStudying && activeSubjectId === subjectId) {
-      setIsStudying(false);
-    } else {
+    if (timerType === "custom") {
       setActiveSubjectId(subjectId);
-      setIsStudying(true);
+    } else {
+      if (isStudying && activeSubjectId === subjectId) {
+        setIsStudying(false);
+      } else {
+        setActiveSubjectId(subjectId);
+        setIsStudying(true);
+      }
     }
   };
 
   const handleStopAndSave = async () => {
     if (activeSeconds > 0 && activeSubjectId) {
-      const roundedMinutes = Math.max(1, Math.round(activeSeconds / 60));
-      await onAddStudyMinutes(activeSubjectId, roundedMinutes);
-      setActiveSeconds(0);
-      setIsStudying(false);
-      setShowDiscardConfirm(false);
+      setReflectionErrorText(null);
+      if (timerType === "custom") {
+        const roundedMinutes = Math.max(1, Math.round(activeSeconds / 60));
+        setSessionSavedMinutes(roundedMinutes);
+        const hitTarget = roundedMinutes >= customTargetMinutes;
+        setIsTargetCompleted(hitTarget);
+        setReflectionNotes(sessionGoalText ? `Focused on: ${sessionGoalText}` : "Achieved custom study focus session! 🚀");
+        setIsStudying(false);
+        setShowReflectionModal(true);
+      } else {
+        const roundedMinutes = Math.max(1, Math.round(activeSeconds / 60));
+        try {
+          await onAddStudyMinutes(activeSubjectId, roundedMinutes);
+          setActiveSeconds(0);
+          setIsStudying(false);
+          setShowDiscardConfirm(false);
+        } catch (e) {
+          setSessionSavedMinutes(roundedMinutes);
+          setIsTargetCompleted(false);
+          setReflectionNotes("Daily study limit reached. ☕");
+          setReflectionErrorText(e instanceof Error ? e.message : "Academic integrity cap exceeded.");
+          setIsStudying(false);
+          setShowReflectionModal(true);
+        }
+      }
+    }
+  };
+
+  const handleSubmitReflection = async () => {
+    if (sessionSavedMinutes > 0 && activeSubjectId) {
+      setReflectionErrorText(null);
+      try {
+        // 1. Log the study minutes (which awards Base XP)
+        await onAddStudyMinutes(activeSubjectId, sessionSavedMinutes);
+        
+        // 2. Extra Reward for achieving target (User gets single XP etc properly synced)
+        if (isTargetCompleted && onAddXp) {
+          onAddXp(`Completed Target Countdown: "${sessionGoalText || 'Study Goal'}" 🏆`, 100);
+        } else if (onAddXp) {
+          onAddXp(`Custom study effort completed successfully ☕`, 20);
+        }
+        
+        // 3. Clear the custom states safely
+        setActiveSeconds(0);
+        setSessionTodos([]);
+        setSessionGoalText("");
+        setShowReflectionModal(false);
+        
+        // Try playing triumph sound
+        try {
+          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-2019.wav");
+          audio.volume = 0.35;
+          audio.play().catch(() => {});
+        } catch (e) {}
+      } catch (err) {
+        setReflectionErrorText(err instanceof Error ? err.message : "Failed to record study minutes.");
+      }
     }
   };
 
@@ -587,25 +909,16 @@ export default function TimelineView({
     { bg: "bg-red-500", fromTo: "from-red-500 to-rose-600" },
   ];
 
-  const handleCreateSubject = () => {
+  const handleCreateSubject = async () => {
     if (!newSubjectName.trim()) return;
     const matchedColor = colorOptions.find(c => c.bg === newSubjectColor) || colorOptions[0];
-    const newSub: Subject = {
-      id: "subject-" + Date.now(),
-      name: newSubjectName,
-      color: matchedColor.fromTo,
-      icon: "BookOpen",
-      totalMinutes: 0,
-      goalMinutes: 120
-    };
-    setSubjects(prev => [...prev, newSub]);
-    setActiveSubjectId(newSub.id);
+    await onAddSubject(newSubjectName, 120, matchedColor.fromTo);
     setNewSubjectName("");
     setIsEditingSubjectsList(false);
   };
 
-  const handleDeleteSubject = (id: string) => {
-    setSubjects(prev => prev.filter(s => s.id !== id));
+  const handleDeleteSubject = async (id: string) => {
+    await onRemoveSubject(id);
   };
 
   const hoursArray = Array.from({ length: 24 }, (_, i) => {
@@ -625,51 +938,107 @@ export default function TimelineView({
   };
 
   return (
-    <div id="ypt-active-focus-pane" className="relative flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-900/50 bg-white/75 dark:bg-[#0c0d10]/90 backdrop-blur-md">
+    <div id="ypt-active-focus-pane" className="relative flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800 bg-white/70 dark:bg-[#0c0d10]/95 backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-350">
           {/* Dynamic layout tabs control bar */}
-      <div className="flex items-center justify-between px-6 pt-5 pb-3.5 border-b border-slate-100 dark:border-slate-900/50">
-        <div className="flex items-center gap-1.5 font-sans bg-slate-100 dark:bg-slate-950 p-1 rounded-xl">
+      <div className="flex items-center justify-between px-6 pt-5 pb-3.5 border-b border-slate-100 dark:border-slate-900/60">
+        <div className="flex items-center gap-1 font-sans bg-slate-100/80 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/30 dark:border-slate-900">
           <button 
             onClick={() => setSubView("timer")}
-            className={`px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4.5 py-2 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
               subView === "timer" 
-                ? "bg-white dark:bg-[#121212] text-[#f26419] shadow-sm font-black" 
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-205"
+                ? "bg-white dark:bg-[#15161d] text-[#f26419] shadow-sm font-black border border-slate-200/60 dark:border-slate-800 scale-[1.02]" 
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Clock className="w-3.5 h-3.5" /> Study Timer
           </button>
           <button 
             onClick={() => setSubView("timeline")}
-            className={`px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4.5 py-2 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
               subView === "timeline" 
-                ? "bg-white dark:bg-[#121212] text-[#f26419] shadow-sm font-black" 
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-205"
+                ? "bg-white dark:bg-[#15161d] text-[#f26419] shadow-sm font-black border border-slate-200/60 dark:border-slate-800 scale-[1.02]" 
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Calendar className="w-3.5 h-3.5" /> Hour Timeline
           </button>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button 
             type="button"
             onClick={() => setShowLevelGuide(true)}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-md transition-all text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 cursor-pointer shadow-xs active:scale-98"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 dark:border-amber-500/30 rounded-xl transition-all duration-300 text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 cursor-pointer hover-lift shadow-sm shadow-amber-500/5 active:scale-95"
             title="View Level Milestones & Unlockable Rewards Guide"
           >
-            <span>🏆 Lvl {calculateStudentLevel(userXp).level}</span>
-            <span className="opacity-40">|</span>
+            <span className="flex items-center gap-1">🏆 Lvl {calculateStudentLevel(userXp).level}</span>
+            <span className="opacity-30">|</span>
             <span>{calculateStudentLevel(userXp).xpInCurrentLevel}/{calculateStudentLevel(userXp).xpSegmentTotal} XP</span>
-            <Info className="w-3 h-3 ml-0.5" />
+            <Info className="w-3.5 h-3.5 ml-0.5 text-amber-500" />
           </button>
 
-          <span className="text-[10px] font-mono font-black uppercase text-slate-500 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md">
+          <span className="text-[10px] font-mono font-black uppercase text-slate-500 bg-slate-100/80 dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200/20 dark:border-slate-900">
             {currentDateString || "Today"}
           </span>
-          <button onClick={onToggleSidebar} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 rounded-xl text-slate-500 dark:text-slate-400 cursor-pointer" title="Switch features">
+          <button onClick={onToggleSidebar} className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-900 hover:scale-105 rounded-xl text-slate-500 dark:text-slate-400 cursor-pointer border border-slate-200/20 dark:border-slate-950 transition-all duration-200" title="Switch features">
             <Grid className="w-4 h-4 stroke-[2]" />
           </button>
+        </div>
+      </div>
+
+      {/* ==================== YPT-STYLE STREAK & FOCUS OVERVIEW DASHBOARD ROW ==================== */}
+      <div className="mx-6 mt-5 p-4.5 bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150/50 dark:border-slate-900 rounded-3xl flex flex-wrap gap-4 items-center justify-between text-left antialiased shadow-sm hover-lift transition-all duration-300">
+        
+        {/* Total studied minutes of today */}
+        <div className="flex items-center gap-3 min-w-[130px]">
+          <div className="p-3 rounded-2xl bg-[#f26419]/10 text-[#f26419] flex items-center justify-center border border-orange-500/10 shadow-sm">
+            <Flame className="w-4.5 h-4.5 animate-bounce" />
+          </div>
+          <div>
+            <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-450 dark:text-slate-500 font-extrabold block">Today's Focus</span>
+            <span className="text-sm font-black text-slate-800 dark:text-neutral-100 font-mono flex items-baseline gap-0.5">
+              {totalFocusMinutesToday} <span className="text-[10px] font-sans font-bold text-slate-400">mins</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Continuous study daily streak counter */}
+        <div className="flex items-center gap-3 min-w-[124px]">
+          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/10 shadow-sm">
+            <Award className="w-4.5 h-4.5 text-amber-500" />
+          </div>
+          <div>
+            <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-450 dark:text-slate-500 font-extrabold block">Active Habit</span>
+            <span className="text-sm font-black text-slate-800 dark:text-neutral-100 font-mono flex items-baseline gap-0.5">
+              {calculatedStreak} <span className="text-[10px] font-sans font-bold text-slate-400">days streak</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Live level XP Boost tier */}
+        <div className="flex items-center gap-3 min-w-[124px]">
+          <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center border border-indigo-500/10 shadow-sm">
+            <Sparkles className="w-4.5 h-4.5 text-indigo-400" />
+          </div>
+          <div>
+            <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-450 dark:text-slate-500 font-extrabold block">XP Multiplier</span>
+            <span className="text-xs font-black text-[#6366f1] dark:text-indigo-450 uppercase tracking-tight">
+              {calculateStudentLevel(userXp).level < 5 ? "1.0x Base Scale" : "1.5x Level Buff 🎉"}
+            </span>
+          </div>
+        </div>
+
+        {/* Focus task summary checklist tracker */}
+        <div className="flex items-center gap-3 min-w-[130px]">
+          <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/10 shadow-sm">
+            <Target className="w-4.5 h-4.5 text-emerald-400" />
+          </div>
+          <div>
+            <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-450 dark:text-slate-500 font-extrabold block">Session Quests</span>
+            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">
+              {sessionTodos.filter(t => t.isDone).length} of {sessionTodos.length} done
+            </span>
+          </div>
         </div>
       </div>
 
@@ -701,36 +1070,222 @@ export default function TimelineView({
             }
           `}} />
 
-          {/* Stopwatch vs Pomodoro Segmented Controls */}
-          <div className="flex justify-center mb-1">
-            <div className="bg-slate-100/80 dark:bg-slate-950 p-1 rounded-2xl flex items-center gap-1 border border-slate-200/40 dark:border-slate-800">
+          {/* Stopwatch vs Pomodoro vs Custom Countdown Segmented Controls */}
+          <div className="flex justify-center mb-2">
+            <div className="bg-slate-100/60 dark:bg-slate-950 p-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200/40 dark:border-slate-850 flex-wrap justify-center shadow-inner">
               <button
+                type="button"
                 onClick={() => {
                   setTimerType("stopwatch");
                   setIsStudying(false); // Pause studying safely on flip
                 }}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
                   timerType === "stopwatch"
-                    ? "bg-white dark:bg-[#15161b] text-[#f26419] shadow-sm font-extrabold"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-white dark:bg-[#181920] text-[#f26419] shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                 }`}
               >
-                <Clock className="w-3.5 h-3.5" /> Stopwatch Mode
+                <Clock className="w-3.5 h-3.5 text-[#f26419]" /> Stopwatch
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setTimerType("pomodoro");
                   setIsStudying(false); // Pause safely on flip
                 }}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
                   timerType === "pomodoro"
-                    ? "bg-white dark:bg-[#15161b] text-[#f26419] shadow-sm font-extrabold"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    ? "bg-white dark:bg-[#181920] text-rose-500 shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-rose-500 fill-rose-500/10" /> Pomodoro Mode
+                <Sparkles className="w-3.5 h-3.5 text-rose-500 fill-rose-500/10" /> Pomodoro
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimerType("custom");
+                  setIsStudying(false); // Pause safely on flip
+                }}
+                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
+                  timerType === "custom"
+                    ? "bg-white dark:bg-[#181920] text-emerald-500 shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                <Target className="w-3.5 h-3.5 text-emerald-500" /> Custom Target
               </button>
             </div>
+          </div>
+
+          {/* ==================== 🚀 QUICK STUDY LAUNCHPAD ==================== */}
+          <div className="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150/40 dark:border-slate-900/60 p-4 rounded-2xl text-left font-sans transition-all duration-300">
+            <div 
+              className="flex items-center justify-between cursor-pointer select-none" 
+              onClick={() => {
+                const nextVal = !isLaunchpadOpen;
+                setIsLaunchpadOpen(nextVal);
+                localStorage.setItem("ypt_launchpad_open", String(nextVal));
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 px-2 rounded-lg bg-[#f26419]/10 text-[#f26419] text-[9px] font-black uppercase tracking-wider font-mono">
+                  💡 Launchpad Guide
+                </span>
+                <span className="text-xs font-black text-slate-800 dark:text-neutral-100">
+                  4 Simple Steps to Success
+                </span>
+                <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 hidden sm:inline">
+                  (Onboarding Checklist)
+                </span>
+              </div>
+              <button className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer">
+                {isLaunchpadOpen ? "Hide Guide ✕" : "Show Guide 🗃️"}
+              </button>
+            </div>
+
+            {isLaunchpadOpen && (
+              <div className="mt-3 pt-1 space-y-3">
+                {/* Micro Progress Bar */}
+                {(() => {
+                  const step1 = subjects.length > 0;
+                  const step2 = totalFocusMinutesToday > 0 || studyLogs.length > 0;
+                  let step3 = false;
+                  try {
+                    const exData = localStorage.getItem("study_target_exams");
+                    if (exData && JSON.parse(exData).length > 0) step3 = true;
+                  } catch (e) {}
+                  const step4 = userXp > 0;
+                  
+                  const completedCount = [step1, step2, step3, step4].filter(Boolean).length;
+                  const progressPct = (completedCount / 4) * 100;
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-550 dark:text-slate-400">
+                        <span>Onboarding Progress: {completedCount}/4 Completed</span>
+                        <span className="text-[#f26419]">{Math.round(progressPct)}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-200/50 dark:bg-slate-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[#f26419] to-amber-500 rounded-full transition-all duration-500" 
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+
+                      {/* Launchpad Grid List Box */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+                        
+                        {/* Box 1: Subjects */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          step1 
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
+                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
+                        }`}>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
+                              step1 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
+                            }`}>
+                              ✓
+                            </div>
+                            <span className="text-xs font-black">1. Course Subjects</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Configure custom subjects and goals.</p>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setShowSubjectsModal(true);
+                              setIsEditingSubjectsList(true);
+                            }}
+                            className="mt-1.5 text-[9px] font-black text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            Manage Subjects →
+                          </button>
+                        </div>
+
+                        {/* Box 2: Start Focus Timer */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          step2 
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
+                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
+                        }`}>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
+                              step2 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
+                            }`}>
+                              ✓
+                            </div>
+                            <span className="text-xs font-black">2. Focus Timer</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Start custom countdowns or stopwatch.</p>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const timerEl = document.getElementById("ypt-active-focus-pane");
+                              if (timerEl) {
+                                timerEl.scrollIntoView({ behavior: "smooth" });
+                              }
+                            }}
+                            className="mt-1.5 text-[9px] font-black text-[#f26419] hover:opacity-90 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            Show Timer Block ↓
+                          </button>
+                        </div>
+
+                        {/* Box 3: Exam Planning */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          step3 
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
+                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
+                        }`}>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
+                              step3 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
+                            }`}>
+                              ✓
+                            </div>
+                            <span className="text-xs font-black">3. Target Suite</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Map board exams & target GPAs.</p>
+                          <button 
+                            type="button" 
+                            onClick={() => onChangeTab?.("target-suite")}
+                            className="mt-1.5 text-[9px] font-black text-emerald-500 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-350 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            Explore Targets →
+                          </button>
+                        </div>
+
+                        {/* Box 4: Redeem */}
+                        <div className={`p-2.5 rounded-xl border transition-all ${
+                          step4 
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
+                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
+                        }`}>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
+                              step4 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
+                            }`}>
+                              ✓
+                            </div>
+                            <span className="text-xs font-black">4. Rewards Store</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Redeem earned focus XP for breaks.</p>
+                          <button 
+                            type="button" 
+                            onClick={() => onChangeTab?.("rewards")}
+                            className="mt-1.5 text-[9px] font-black text-amber-500 hover:text-amber-600 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            Claim Rewards →
+                          </button>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center flex-1">
@@ -837,6 +1392,19 @@ export default function TimelineView({
                       strokeDashoffset={0}
                       strokeLinecap="round"
                     />
+                  ) : timerType === "custom" ? (
+                    <circle 
+                      cx="128" 
+                      cy="128" 
+                      r="112" 
+                      stroke="url(#timerSunsetGrad)"
+                      className="progress-glow transition-all duration-300"
+                      strokeWidth="8" 
+                      fill="none" 
+                      strokeDasharray={`${(703.7 * Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100))) / 100} 703.7`}
+                      strokeDashoffset={0}
+                      strokeLinecap="round"
+                    />
                   ) : (
                     <circle 
                       cx="128" 
@@ -861,17 +1429,21 @@ export default function TimelineView({
                         {activeSubject.name}
                       </span>
                       <div className="flex items-center gap-1 text-[9px] font-mono font-black mt-0.5" style={{ color: themeHexAccent }}>
-                        <span>Goal: {activeSubject.goalMinutes}m</span>
+                        <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
                         <span className="opacity-40">•</span>
                         <span>
-                          {timerType === "stopwatch" ? `${getProgressRingPercent()}%` : (
-                            () => {
+                          {timerType === "custom" ? (
+                            `${Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100))}%`
+                          ) : timerType === "stopwatch" ? (
+                            `${getProgressRingPercent()}%`
+                          ) : (
+                            (() => {
                               const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
                                                pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
                                                pomoLongBreakDuration * 60;
                               return `${Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100)}%`;
-                            }
-                          )()}
+                            })()
+                          )}
                         </span>
                       </div>
                     </div>
@@ -880,25 +1452,30 @@ export default function TimelineView({
                   )}
 
                   <span className="text-4xl md:text-5xl font-mono font-black tracking-tighter text-slate-800 dark:text-neutral-50 my-1 antialiased tabular-nums leading-none">
-                    {timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft)}
+                    {timerType === "custom" 
+                      ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
+                      : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
+                    }
                   </span>
 
                   <div className="mt-2.5 flex flex-col items-center gap-1.5">
                     <div 
                       className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-extrabold ${
                         isStudying 
-                          ? pomoState === "focus" || timerType === "stopwatch"
+                          ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
                             ? "animate-pulse" 
                             : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
                           : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
                         }`}
-                      style={isStudying && (pomoState === "focus" || timerType === "stopwatch") ? {
+                      style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
                         backgroundColor: themeHexAccent + "1a",
                         borderColor: themeHexAccent + "4d",
                         color: themeHexAccent
                       } : {}}
                     >
-                      {timerType === "stopwatch" ? (
+                      {timerType === "custom" ? (
+                        isStudying ? "Countdown Active" : "Target Paused"
+                      ) : timerType === "stopwatch" ? (
                         isStudying ? "Focus Flowing" : "Stopwatch Paused"
                       ) : (
                         pomoState === "focus" ? (
@@ -985,21 +1562,21 @@ export default function TimelineView({
 
               {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
               <div className="flex items-center gap-3 mt-6">
-                {timerType === "stopwatch" ? (
+                {(timerType === "stopwatch" || timerType === "custom") ? (
                   activeSeconds > 0 && (
                     <>
                       <button
                         onClick={handleStopAndSave}
                         className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
                       >
-                        <Check className="w-4 h-4 stroke-[2.5]" /> Save Session
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Finish & Reflect
                       </button>
                       <button
                         onClick={handleDiscardProgress}
                         className={`text-slate-500 font-bold text-xs p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-1.5 ${
                           showDiscardConfirm 
                             ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse" 
-                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900"
+                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-950 dark:border-slate-805 dark:text-slate-400 dark:hover:bg-slate-900"
                         }`}
                       >
                         {showDiscardConfirm ? "Sure? Clear session" : <RotateCcw className="w-4 h-4" />}
@@ -1102,6 +1679,203 @@ export default function TimelineView({
                   </button>
                 </div>
               </div>
+
+              {/* ==================== NEW CUSTOM TIMER CONFIGURATION WIDGETS ==================== */}
+              {timerType === "custom" && !isStudying && (
+                <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-4 animate-fade-in text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider flex items-center gap-1">
+                      <Target className="w-3.5 h-3.5 text-emerald-500" /> Custom Target Configurator
+                    </span>
+                    <span className="text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Target reward: +100 XP bonus
+                    </span>
+                  </div>
+
+                  {/* Preset Minute Tabs */}
+                  <div className="space-y-1.5">
+                    <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                      Standard Durations
+                    </label>
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {[15, 30, 45, 60, 90, 120].map((mins) => (
+                        <button
+                          key={mins}
+                          onClick={() => {
+                            setCustomTargetMinutes(mins);
+                            setCustomTargetMinutesInput(String(mins));
+                          }}
+                          className={`py-2 rounded-xl text-center text-xs font-black font-mono border transition-all cursor-pointer ${
+                            customTargetMinutes === mins
+                              ? "bg-emerald-600 border-transparent text-white shadow-xs scale-[1.02]"
+                              : "bg-white dark:bg-[#121215]/50 hover:bg-slate-50 dark:hover:bg-slate-900 border-slate-150 dark:border-slate-800 text-slate-600 dark:text-slate-350"
+                          }`}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Manual Target Minutes Input */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-center">
+                    <div className="space-y-1">
+                      <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                        Custom Minute Length (1 - 300)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          max="300"
+                          value={customTargetMinutesInput}
+                          onChange={(e) => {
+                            setCustomTargetMinutesInput(e.target.value);
+                            const parsed = parseInt(e.target.value, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              setCustomTargetMinutes(parsed);
+                            }
+                          }}
+                          className="w-full pl-3 pr-9 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold font-mono text-slate-800 dark:text-neutral-50 focus:border-[#f26419] focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-2.5 text-[8.5px] font-mono text-slate-400 font-extrabold pb-0.5 uppercase">mins</span>
+                      </div>
+                    </div>
+
+                    {/* Target Focus Quest Input */}
+                    <div className="space-y-1">
+                      <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                        Focus Milestone Memo text
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Solve test mock #2"
+                        value={sessionGoalText}
+                        onChange={(e) => setSessionGoalText(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-850 dark:text-neutral-200 placeholder-slate-400 dark:placeholder-slate-550 focus:border-[#f26419] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Active projection box */}
+                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl flex items-center justify-between text-xs font-mono">
+                    <div className="text-left">
+                      <p className="text-[7.5px] font-black uppercase text-slate-400 leading-none mb-1">Quest Estimate</p>
+                      <p className="text-[10px] font-bold text-slate-650 dark:text-slate-350">
+                        Study for <span className="text-emerald-500 font-black">{customTargetMinutes} mins</span>
+                      </p>
+                    </div>
+                    <div className="text-right flex items-center gap-1.5 font-bold">
+                      <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md text-[8.5px] font-black">
+                        +{customTargetMinutes * (calculateStudentLevel(userXp).level < 5 ? 5 : 10)} Base XP
+                      </div>
+                      <div className="bg-[#f26419]/10 text-[#f26419] px-2 py-0.5 rounded-md text-[8.5px] font-black">
+                        +100 Milestone Bonus
+                      </div>
+                    </div>
+                  </div>
+
+                  {timerAlertMessage && (
+                    <div className="bg-rose-50 dark:bg-rose-950/40 text-rose-750 dark:text-rose-400 text-[10.5px] font-semibold py-2 px-3.5 rounded-xl border border-rose-200 dark:border-rose-900/30 text-left leading-normal flex items-start gap-1.5 animate-flash">
+                      <span className="text-rose-500 font-bold">⚠️</span>
+                      <span>{timerAlertMessage}</span>
+                    </div>
+                  )}
+
+                  {/* Quick Start Focus Quest button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimerAlertMessage(null);
+                      let subId = activeSubjectId;
+                      if (!subId && subjects.length > 0) {
+                        subId = subjects[0].id;
+                        setActiveSubjectId(subjects[0].id);
+                      }
+                      
+                      if (!subId) {
+                        setTimerAlertMessage("Please create a study topic category first using the (+ New Class) button below!");
+                        setShowSubjectsModal(true);
+                        setIsEditingSubjectsList(true);
+                        return;
+                      }
+                      setActiveSeconds(0);
+                      setIsStudying(true);
+                    }}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white font-extrabold text-[10.5px] uppercase tracking-widest cursor-pointer shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5 hover:opacity-95"
+                  >
+                    <Lock className="w-3.5 h-3.5 stroke-[2.5]" /> Begin Custom Focus Quest
+                  </button>
+                </div>
+              )}
+
+              {timerType === "custom" && isStudying && (
+                <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 animate-fade-in text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider flex items-center gap-1">
+                      📝 Live Focus Tasks ({sessionTodos.filter(t => t.isDone).length}/{sessionTodos.length})
+                    </span>
+                    <span className="text-[9px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      +{Math.round(activeSeconds / 60 * (calculateStudentLevel(userXp).level < 5 ? 5 : 10))} XP Earned
+                    </span>
+                  </div>
+
+                  {/* Active Mission Text */}
+                  {sessionGoalText && (
+                    <div className="bg-[#f26419]/5 border border-[#f26419]/15 px-3 py-2 rounded-xl text-[10.5px] font-sans font-bold flex items-center gap-1.5 text-[#f26419]">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 animate-pulse" /> Focus Goal: "{sessionGoalText}"
+                    </div>
+                  )}
+
+                  {/* Scrollable Todo checklist */}
+                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar pr-1">
+                    {sessionTodos.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 italic">No checklist tasks created for this session yet.</p>
+                    ) : (
+                      sessionTodos.map((todo) => (
+                        <div key={todo.id} className="flex items-center justify-between bg-white dark:bg-[#121212]/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850/60 font-sans">
+                          <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={todo.isDone}
+                              onChange={() => handleToggleTodo(todo.id)}
+                              className="w-4 h-4 rounded text-[#f26419] border-slate-350 focus:ring-0 cursor-pointer accent-[#f26419]"
+                            />
+                            <span className={`text-xs truncate pr-2 font-bold ${todo.isDone ? 'line-through text-slate-400' : 'text-slate-755 dark:text-slate-200'}`}>
+                              {todo.text}
+                            </span>
+                          </label>
+                          <button
+                            onClick={() => handleDeleteTodo(todo.id)}
+                            className="text-slate-400 hover:text-rose-500 p-1 rounded-md cursor-pointer transition-colors"
+                            title="Delete task"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Add input form */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add micro-task..."
+                      value={newTodoText}
+                      onChange={(e) => setNewTodoText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddTodo()}
+                      className="flex-1 px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-[#f26419]"
+                    />
+                    <button
+                      onClick={handleAddTodo}
+                      className="px-4 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-black cursor-pointer transition-colors border border-transparent"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Daily Goal Adjuster Module */}
               <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 mt-1 text-left">
@@ -1244,7 +2018,7 @@ export default function TimelineView({
                       onClick={() => setAmbientSound(s.id as any)}
                       className={`p-2 rounded-xl text-center text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer truncate ${
                         ambientSound === s.id 
-                          ? "bg-slate-900 border-[#f26419]/40 text-[#f26419] dark:bg-slate-950 shadow-xs" 
+                          ? "bg-[#f26419] text-white border-[#f26419] dark:bg-slate-950 dark:text-[#f26419] dark:border-[#f26419]/40 shadow-xs font-black" 
                           : "bg-white dark:bg-slate-900/50 text-slate-550 dark:text-slate-400 border-slate-100 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-900"
                       }`}
                       title={s.label}
@@ -1399,9 +2173,119 @@ export default function TimelineView({
               {allDayEvents.map((evt, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#171717] px-3 py-1 rounded-full border border-slate-200 dark:border-slate-800/40">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block"></span>
-                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{evt}</span>
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-350">{evt}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* ==================== YPT 24-HOUR RADIAL TIMELINE WHEEL ==================== */}
+          <div className="px-6 py-5 border-b border-slate-250 dark:border-slate-900/40 bg-slate-50/10 dark:bg-slate-950/20 text-left">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#f26419]" /> YPT 24-Hour Focus Dial
+                </h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-500 font-bold mt-0.5">Continuous hourly study grid of today's focused sessions</p>
+              </div>
+              <span className="text-[9px] font-mono font-black bg-gradient-to-r from-[#f26419] to-amber-500 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm animate-pulse">
+                YPT Active 🚀
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              
+              {/* Radial Clock Visualization */}
+              <div className="md:col-span-5 flex justify-center py-2">
+                <div className="relative w-44 h-44 flex items-center justify-center">
+                  
+                  {/* Master SVG for 24h sector dial */}
+                  <svg className="w-full h-full transform -rotate-90 pointer-events-auto" viewBox="0 0 208 208">
+                    {/* Ring background backing */}
+                    <circle cx="104" cy="104" r="82" fill="none" className="stroke-slate-100 dark:stroke-slate-900/30" strokeWidth="20" />
+                    
+                    {/* Dynamic 24 Hour Arc Sectors */}
+                    {hourlyStudiedSectors.map((sector) => {
+                      const startAngle = sector.hour * 15 + 0.8;
+                      const endAngle = (sector.hour + 1) * 15 - 0.8;
+                      const hasStudied = sector.totalMinutes > 0;
+                      const strokeHex = hasStudied && sector.color 
+                        ? getSubjectColorHex(sector.color) 
+                        : "rgba(148, 163, 184, 0.08)";
+                      const pathStr = describeArc(104, 104, 82, startAngle, endAngle);
+                      
+                      return (
+                        <path
+                          key={sector.hour}
+                          d={pathStr}
+                          fill="none"
+                          stroke={strokeHex}
+                          strokeWidth={hasStudied ? "20" : "14"}
+                          className={`transition-all duration-300 ${hasStudied ? 'hover:stroke-width-24 drop-shadow-xs cursor-pointer' : ''}`}
+                          title={`Hour ${sector.hour}:00: ${hasStudied ? `${sector.totalMinutes}m studied` : 'No study study'}`}
+                        />
+                      );
+                    })}
+
+                    {/* Outer ticks / labels positions */}
+                    {Array.from({ length: 4 }).map((_, idx) => {
+                      const labelHour = idx * 6; // 0, 6, 12, 18
+                      const angle = labelHour * 15;
+                      const posInner = polarToCartesian(104, 104, 98, angle);
+                      return (
+                        <text
+                          key={labelHour}
+                          x={posInner.x}
+                          y={posInner.y + 3}
+                          transform={`rotate(90 ${posInner.x} ${posInner.y})`}
+                          className="text-[8px] font-mono fill-slate-450 dark:fill-slate-600 font-extrabold text-center select-none"
+                          textAnchor="middle"
+                        >
+                          {labelHour === 0 ? "24h" : `${labelHour}h`}
+                        </text>
+                      );
+                    })}
+                  </svg>
+
+                  {/* Centered stats breakdown */}
+                  <div className="absolute flex flex-col items-center text-center">
+                    <span className="text-[8px] font-mono uppercase tracking-wider text-slate-450 dark:text-slate-500 font-extrabold leading-none">Today</span>
+                    <span className="text-xl font-mono font-black text-slate-800 dark:text-slate-100 mt-1 leading-none">{totalFocusMinutesToday}</span>
+                    <span className="text-[8.5px] font-sans text-slate-400 dark:text-slate-500 font-black lowercase mt-0.5">mins</span>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Color guide and summary list */}
+              <div className="md:col-span-7 space-y-3 shrink-0">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 font-extrabold block">Subject Focus Metrics</span>
+                
+                <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto no-scrollbar">
+                  {subjects.map(sub => {
+                    const totalMinsToday = studyLogs
+                      .filter(l => l.subjectId === sub.id && l.date === new Date().toISOString().split("T")[0])
+                      .reduce((acc, l) => acc + l.durationMinutes, 0);
+
+                    const hex = getSubjectColorHex(sub.color || "bg-indigo-500");
+                    const percentOfGoal = Math.min(100, Math.round((totalMinsToday / (sub.goalMinutes || 120)) * 100));
+
+                    return (
+                      <div key={sub.id} className="bg-white dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-150/40 dark:border-slate-850 flex flex-col justify-between shrink-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2 rounded-full h-2 shrink-0" style={{ backgroundColor: hex }} />
+                          <span className="text-[10px] font-extrabold text-slate-700 dark:text-slate-350 truncate">{sub.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[9px] font-mono font-bold mt-1.5 text-slate-500">
+                          <span>{totalMinsToday}m studied</span>
+                          <span className="text-[8.5px] text-[#f26419]/90 font-black">{percentOfGoal}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -1787,6 +2671,169 @@ export default function TimelineView({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ==================== AURA POST-SESSION REFLECTION MODAL ==================== */}
+      {showReflectionModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-[60] animate-fade-in text-white leading-normal">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
+            
+            {/* Header section with theme gradient */}
+            <div className={`p-6 bg-gradient-to-r ${isTargetCompleted ? 'from-emerald-950 via-slate-900 to-teal-950' : 'from-indigo-950 via-slate-900 to-purple-950'} border-b border-slate-800 flex items-center justify-between`}>
+              <div className="flex items-center gap-3 text-left">
+                <div className={`p-2.5 rounded-xl border ${isTargetCompleted ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 animate-bounce' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'}`}>
+                  {isTargetCompleted ? <Sparkles className="w-5 h-5 text-emerald-400" /> : <Award className="w-5 h-5 text-indigo-400" />}
+                </div>
+                <div>
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${isTargetCompleted ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'}`}>
+                    {isTargetCompleted ? "Quest Clear 🏆" : "Effort Logged ☕"}
+                  </span>
+                  <h3 className="text-base font-black text-white mt-1 uppercase tracking-wide">
+                    {isTargetCompleted ? "Target Goal Achieved!" : "Session Study Reflection"}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReflectionModal(false)}
+                className="p-2 hover:bg-slate-800 rounded-xl transition-all cursor-pointer border border-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Container Content */}
+            <div className="p-6 overflow-y-auto space-y-5 no-scrollbar flex-1 bg-slate-950/20 text-left">
+              
+              {/* Congratulations Message */}
+              <div className="text-center space-y-2 py-2">
+                <div className="text-4xl">🚀</div>
+                <h4 className="text-lg font-black text-amber-400 antialiased tracking-tight">
+                  {isTargetCompleted ? "Outstanding Mastery!" : "Stitch by Stitch, Progress Grows!"}
+                </h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  {isTargetCompleted 
+                    ? `You successfully fully locked study target minutes and achieved your focused session goal milestone metrics!` 
+                    : `Every focused work moment counts towards building legendary knowledge and continuous study habits.`}
+                </p>
+              </div>
+
+              {/* Study Stats Grid Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-950/55 p-3.5 rounded-2xl border border-slate-850 text-left">
+                  <span className="text-[8px] font-mono uppercase tracking-wider text-slate-500">Duration Studied</span>
+                  <h5 className="text-xl font-black text-white mt-1 font-mono">
+                    {sessionSavedMinutes} <span className="text-xs font-sans text-slate-400 font-bold">mins</span>
+                  </h5>
+                </div>
+                <div className="bg-slate-955/55 p-3.5 rounded-2xl border border-slate-850 text-left">
+                  <span className="text-[8px] font-mono uppercase tracking-wider text-slate-500">Study Topic</span>
+                  <h5 className="text-xs font-black text-emerald-400 truncate mt-1">
+                    {activeSubject?.name || "Focus Subject"}
+                  </h5>
+                </div>
+              </div>
+
+              {/* Reward Gains projections */}
+              <div className="bg-emerald-500/5 border border-emerald-550/15 p-4 rounded-2xl space-y-1">
+                <span className="text-[8px] font-mono uppercase tracking-wider text-slate-500">Gamified Score Logs</span>
+                <div className="flex items-center justify-between text-xs font-mono font-bold">
+                  <span className="text-slate-300">Base Minutes XP:</span>
+                  <span className="text-emerald-400">+{sessionSavedMinutes * (calculateStudentLevel(userXp).level < 5 ? 5 : 10)} XP</span>
+                </div>
+                {isTargetCompleted && (
+                  <div className="flex items-center justify-between text-xs font-mono font-bold pt-1.5 border-t border-slate-800/60 font-medium">
+                    <span className="text-amber-400 flex items-center gap-1">🏆 Target Target Bonus:</span>
+                    <span className="text-amber-400 font-black">+100 XP</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Tasks completed in session display (If any) */}
+              {sessionTodos.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[8px] font-mono uppercase tracking-wider text-slate-500">Tasks Completed in Session</span>
+                  <div className="space-y-1 max-h-[100px] overflow-y-auto no-scrollbar">
+                    {sessionTodos.map((todo) => (
+                      <div key={todo.id} className="flex items-center gap-2 text-xs py-1 text-slate-350 font-medium">
+                        <span className={`h-2 w-2 rounded-full ${todo.isDone ? 'bg-emerald-500' : 'bg-slate-700'}`} />
+                        <span className={todo.isDone ? 'line-through text-slate-500 font-bold' : ''}>{todo.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Star Rating Focus State Selector */}
+              <div className="space-y-2">
+                <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-400 font-extrabold flex">
+                  Rate your active concentration Flow State
+                </span>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReflectionRating(star)}
+                      className="text-2xl transform hover:scale-115 active:scale-95 transition-all duration-100 cursor-pointer"
+                    >
+                      {star <= reflectionRating ? "👑" : "★"}
+                    </button>
+                  ))}
+                  <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-slate-900 border border-slate-805 text-amber-400 font-black ml-1 uppercase tracking-wider">
+                    {reflectionRating === 1 ? "Distracted 🌱" :
+                     reflectionRating === 2 ? "Alright 🍀" :
+                     reflectionRating === 3 ? "Focused ✨" :
+                     reflectionRating === 4 ? "Excellent 🔥" :
+                     "Absolute Flow State! 🌌"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Write Notes reflection text field */}
+              <div className="space-y-1.5">
+                <span className="text-[8.5px] font-mono uppercase tracking-wider text-slate-400 font-extrabold flex items-center justify-between">
+                  <span>Session Key Insights & Reflections</span>
+                  <span className="text-slate-500 text-[8px] lowercase font-black">optional</span>
+                </span>
+                <textarea
+                  placeholder="What breakthroughs did you make? What was easy or needs review?"
+                  value={reflectionNotes}
+                  onChange={(e) => setReflectionNotes(e.target.value)}
+                  className="w-full h-18 p-3 text-xs bg-slate-950/80 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-550 focus:outline-none focus:border-[#f26419] font-medium resize-none shadow-inner"
+                />
+              </div>
+
+            </div>
+
+            {/* Bottom Actions footer */}
+            <div className="p-4.5 bg-slate-955/60 border-t border-slate-850 flex flex-col gap-3">
+              {reflectionErrorText && (
+                <div className="bg-rose-500/10 text-rose-400 text-xs py-2 px-3 rounded-xl border border-rose-500/15 font-medium leading-normal flex items-start gap-1.5 w-full">
+                  <span className="text-rose-500 font-bold shrink-0">⚠️</span>
+                  <span className="text-left font-bold">{reflectionErrorText}</span>
+                </div>
+              )}
+              <div className="flex gap-3 text-xs w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowReflectionModal(false)}
+                  className="flex-1 py-3 text-center border border-slate-800 hover:bg-slate-850/80 text-slate-400 hover:text-white rounded-2xl font-bold cursor-pointer transition-all uppercase tracking-wider text-[10px]"
+                >
+                  Log Without Note
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitReflection}
+                  className="flex-[2] py-3 text-center bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:opacity-95 text-white rounded-2xl font-extrabold cursor-pointer transition-all shadow-md active:scale-98 uppercase tracking-widest text-[10px]"
+                >
+                  Save Note & Sync XP Reward 💎
+                </button>
               </div>
             </div>
 

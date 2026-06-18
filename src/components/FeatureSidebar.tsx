@@ -3,7 +3,7 @@ import {
   BarChart2, Trophy, Clock, ShieldCheck, Dumbbell, BookOpen, Music, 
   Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, 
   Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
-  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock, User
+  Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock, User, Target
 } from "lucide-react";
 import { ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
 
@@ -320,11 +320,11 @@ export default function FeatureSidebar({
               </button>
               
               <button 
-                onClick={() => handleActionClick("rooms")}
+                onClick={() => handleActionClick("target-suite")}
                 className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
               >
-                <Trophy className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-semibold">Rankings</span>
+                <Target className="w-4 h-4 text-[#f26419]" />
+                <span className="text-xs font-semibold">Target Suite</span>
               </button>
 
               <button 

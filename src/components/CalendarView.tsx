@@ -27,6 +27,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   const [manualSubjectId, setManualSubjectId] = useState(subjects[0]?.id || "");
   const [manualMinutes, setManualMinutes] = useState(45);
   const [logSuccessText, setLogSuccessText] = useState<string | null>(null);
+  const [logErrorText, setLogErrorText] = useState<string | null>(null);
 
   // Calculate consecutive active study days from actual log history
   const consecutiveStreak = React.useMemo(() => {
@@ -190,6 +191,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   const handleOpenDayModal = (dateStr: string) => {
     setSelectedLogsDate(dateStr);
     setLogSuccessText(null);
+    setLogErrorText(null);
     // Auto-select first subject if currently selected is not in active list or empty
     const exists = subjects.some(s => s.id === manualSubjectId);
     if ((!exists || !manualSubjectId) && subjects.length > 0) {
@@ -200,9 +202,10 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   const submitManualStudyLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLogsDate || !onAddStudyMinutes) return;
+    setLogErrorText(null);
     const targetSubId = manualSubjectId || subjects[0]?.id;
     if (!targetSubId) {
-      alert("Please create at least one Subject in the custom Planner or Study workspace tab first.");
+      setLogErrorText("Please create at least one Subject in the custom Planner or Study workspace tab first.");
       return;
     }
 
@@ -212,7 +215,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
       .reduce((sum, l) => sum + l.durationMinutes, 0);
 
     if (existingMinsForDate + manualMinutes > 360) {
-      alert(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${manualMinutes} minutes would exceed the 6-hour daily maximum.`);
+      setLogErrorText(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${manualMinutes} minutes would exceed the 6-hour daily maximum.`);
       return;
     }
 
@@ -227,7 +230,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
         setLogSuccessText(null);
       }, 5000);
     } catch (err) {
-      console.error(err);
+      setLogErrorText(err instanceof Error ? err.message : "Failed to log backdated minutes.");
     } finally {
       setSubmittingLog(false);
     }
@@ -454,6 +457,14 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
 
             {/* Inner scrollable area */}
             <div className="p-6 overflow-y-auto no-scrollbar space-y-6">
+
+              {/* Error Notification */}
+              {logErrorText && (
+                <div className="bg-rose-50 dark:bg-rose-950/40 text-rose-750 dark:text-rose-400 text-xs py-3 px-4 rounded-xl border border-rose-200 dark:border-rose-900/40 flex items-start gap-2">
+                  <span className="text-rose-500 font-bold shrink-0 mt-0.5">⚠️</span>
+                  <p className="font-medium text-left leading-relaxed">{logErrorText}</p>
+                </div>
+              )}
 
               {/* Success Notification */}
               {logSuccessText && (

@@ -58,6 +58,10 @@ function calculateChecksum(payload: string): string {
 export function encryptData(plainText: string): string {
   if (!plainText) return "";
   
+  // Convert plainText to UTF-8 bytes to safely preserve emojis/wide-characters!
+  const encoder = new TextEncoder();
+  const plainBytes = encoder.encode(plainText);
+  
   // Generate a dynamic 8-character salt to ensure distinct cipher texts for the same inputs
   const randChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let ivSalt = "";
@@ -65,12 +69,12 @@ export function encryptData(plainText: string): string {
     ivSalt += randChars.charAt(Math.floor(Math.random() * randChars.length));
   }
   
-  const keySchedule = deriveKeySchedule(ivSalt, plainText.length);
+  const keySchedule = deriveKeySchedule(ivSalt, plainBytes.length);
   const cipherBytes: number[] = [];
   
   let feedback = 101; // Initial feedback byte
-  for (let i = 0; i < plainText.length; i++) {
-    const byte = plainText.charCodeAt(i);
+  for (let i = 0; i < plainBytes.length; i++) {
+    const byte = plainBytes[i];
     // Cipher feedback + keystream XOR
     const encryptedByte = (byte ^ keySchedule[i] ^ feedback) & 0xFF;
     cipherBytes.push(encryptedByte);
@@ -119,29 +123,44 @@ export function decryptData(cipherText: string): string {
   }
   
   const keySchedule = deriveKeySchedule(ivSalt, bytes.length);
-  const decryptedChars: string[] = [];
+  const decryptedBytes: number[] = [];
   
   let feedback = 101;
   for (let i = 0; i < bytes.length; i++) {
     const encryptedByte = bytes[i];
     const decryptedByte = (encryptedByte ^ keySchedule[i] ^ feedback) & 0xFF;
-    decryptedChars.push(String.fromCharCode(decryptedByte));
+    decryptedBytes.push(decryptedByte);
     feedback = encryptedByte;
   }
   
-  return decryptedChars.join("");
+  const decoder = new TextDecoder();
+  return decoder.decode(new Uint8Array(decryptedBytes));
 }
 
+let activeUserId: string | null = null;
+
 /**
- * Drop-in cryptographically secured LocalStorage proxy layer.
+ * Drop-in cryptographically secured LocalStorage proxy layer with dynamic active-user namespaces.
  */
 export const secureStorage = {
   /**
-   * Retrieves an encrypted key value and decodes it.
+   * Tracks active firebase auth user ID across sessions to isolate local storage records.
+   */
+  setUserId(userId: string | null): void {
+    activeUserId = userId;
+  },
+
+  getUserId(): string | null {
+    return activeUserId;
+  },
+
+  /**
+   * Retrieves an encrypted key value and decodes it using active user namespace.
    */
   getItem(key: string): string | null {
     try {
-      const raw = localStorage.getItem(key);
+      const namespacedKey = activeUserId ? `${key}_usr_${activeUserId}` : `${key}_guest`;
+      const raw = localStorage.getItem(namespacedKey);
       if (!raw) return null;
       
       // Attempt decryption
@@ -154,23 +173,25 @@ export const secureStorage = {
   },
 
   /**
-   * Encrypts and persists a value to client localStorage.
+   * Encrypts and persists a value to client localStorage using active user namespace.
    */
   setItem(key: string, value: string): void {
     try {
       if (value === undefined || value === null) return;
+      const namespacedKey = activeUserId ? `${key}_usr_${activeUserId}` : `${key}_guest`;
       const encrypted = encryptData(value);
-      localStorage.setItem(key, encrypted);
+      localStorage.setItem(namespacedKey, encrypted);
     } catch (e) {
       console.error(`Error setting key: ${key} in secureStorage`, e);
     }
   },
 
   /**
-   * Removes key pair directly.
+   * Removes key pair directly using active user namespace.
    */
   removeItem(key: string): void {
-    localStorage.removeItem(key);
+    const namespacedKey = activeUserId ? `${key}_usr_${activeUserId}` : `${key}_guest`;
+    localStorage.removeItem(namespacedKey);
   },
 
   /**

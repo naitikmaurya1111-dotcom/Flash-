@@ -278,7 +278,7 @@ export default function RewardSystem({
       {/* 1. Header Level Progress Card */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 rounded-3xl border border-indigo-900/30 text-white shadow-2xl relative overflow-hidden">
         {/* Particle Backdrop Accents */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-505 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center relative z-10">
@@ -429,7 +429,7 @@ export default function RewardSystem({
             return (
               <div 
                 key={q.id} 
-                className={`flex flex-col justify-between p-4 rounded-2xl border transition-all ${
+                className={`flex flex-col justify-between p-4 rounded-2xl border transition-all hover-lift ${
                   q.isCompleted
                     ? "bg-emerald-500/5 dark:bg-emerald-950/10 border-emerald-500/20 opacity-70"
                     : canClaim
@@ -521,7 +521,7 @@ export default function RewardSystem({
             </p>
             <button
               onClick={handleOpenAdd}
-              className="mt-5 bg-indigo-650 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs px-5 py-2.5 text-white rounded-2xl cursor-pointer active:scale-95 transition-transform"
+              className="mt-5 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs px-5 py-2.5 text-white rounded-2xl cursor-pointer active:scale-95 transition-transform"
             >
               Add First Amazon Product
             </button>
@@ -537,7 +537,7 @@ export default function RewardSystem({
               return (
                 <div 
                   key={r.id} 
-                  className={`bg-white/95 dark:bg-[#121212]/95 border rounded-3xl p-5 flex flex-col justify-between shadow-lg relative transition-all group overflow-hidden ${
+                  className={`bg-white/95 dark:bg-[#121212]/95 border rounded-3xl p-5 flex flex-col justify-between shadow-lg relative transition-all hover-lift group overflow-hidden ${
                     r.isClaimed
                       ? "border-slate-200/60 dark:border-slate-900/60 opacity-60"
                       : hasEnough 
@@ -1057,7 +1057,7 @@ export default function RewardSystem({
                 </div>
                 <div className="w-full h-2.5 bg-slate-950 border border-slate-800/80 rounded-full overflow-hidden p-[1px]">
                   <div 
-                    className="h-full bg-gradient-to-r from-amber-550 via-amber-500 to-indigo-500 rounded-full transition-all duration-750" 
+                    className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-500 rounded-full transition-all duration-750" 
                     style={{ width: `${calculateStudentLevel(userXp).percent}%` }}
                   />
                 </div>

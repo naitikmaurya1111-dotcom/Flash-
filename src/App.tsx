@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft } from "lucide-react";
+import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft, Target, Expand, Shrink, ExternalLink } from "lucide-react";
 import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
@@ -10,14 +10,15 @@ import {
   setDoc, 
   deleteDoc, 
   getDocs, 
-  getDocFromServer 
+  getDocFromServer,
+  onSnapshot
 } from "firebase/firestore";
 import { db, auth, initAuth, googleSignIn, logout, getAccessToken, emailPasswordSignUp, emailPasswordSignIn, resetUserPassword, verifyUserEmail } from "./lib/googleApi";
 import { User } from "firebase/auth";
 import { secureStorage } from "./lib/crypto";
 
 // Import modules
-import ClassmateGrid from "./components/ClassmateGrid";
+import TargetRoadmap from "./components/TargetRoadmap";
 import PlannerHub from "./components/PlannerHub";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import AICoachCard from "./components/AICoachCard";
@@ -129,7 +130,7 @@ export default function App() {
     return false;
   })();
 
-  const [activeTab, setActiveTab] = useState<"focus" | "rooms" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
+  const [activeTab, setActiveTab] = useState<"focus" | "target-suite" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // YPT configuration overlays
@@ -235,6 +236,67 @@ export default function App() {
         };
     }
   }, [themePreset, activeTheme]);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenModal, setShowFullscreenModal] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        !!(
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement
+        )
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      const docEl = document.documentElement as any;
+      const requestFS = docEl.requestFullscreen || 
+                        docEl.webkitRequestFullscreen || 
+                        docEl.mozRequestFullScreen || 
+                        docEl.msRequestFullscreen;
+
+      if (requestFS) {
+        requestFS.call(docEl)
+          .then(() => {
+            setIsFullscreen(true);
+          })
+          .catch((err: any) => {
+            console.warn("Fullscreen request blocked/failed:", err);
+            setShowFullscreenModal(true);
+          });
+      } else {
+        setShowFullscreenModal(true);
+      }
+    } else {
+      const doc = document as any;
+      const exitFS = doc.exitFullscreen || 
+                     doc.webkitExitFullscreen || 
+                     doc.mozCancelFullScreen || 
+                     doc.msExitFullscreen;
+      if (exitFS) {
+        exitFS.call(doc);
+        setIsFullscreen(false);
+      }
+    }
+  };
 
   const [isWideHud, setIsWideHud] = useState(() => {
     const local = localStorage.getItem("ypt_wide_hud");
@@ -346,8 +408,8 @@ export default function App() {
   });
 
   // Root Study Timer / Pomodoro configurations
-  const [timerType, setTimerType] = useState<"stopwatch" | "pomodoro">(() => {
-    return (localStorage.getItem("study_timer_type") as "stopwatch" | "pomodoro") || "stopwatch";
+  const [timerType, setTimerType] = useState<"stopwatch" | "pomodoro" | "custom">(() => {
+    return (localStorage.getItem("study_timer_type") as "stopwatch" | "pomodoro" | "custom") || "stopwatch";
   });
   const [pomoState, setPomoState] = useState<"focus" | "shortBreak" | "longBreak">(() => {
     return (localStorage.getItem("study_pomo_state") as "focus" | "shortBreak" | "longBreak") || "focus";
@@ -405,6 +467,7 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("AI coach advice parsing error", e);
+        secureStorage.setItem("study_ai_advice", "null");
       }
     }
     return null;
@@ -412,20 +475,22 @@ export default function App() {
 
   // 1. Core Reactive States loaded with local storage and mock seeds
   const [subjects, setSubjects] = useState<Subject[]>(() => {
+    const local = secureStorage.getItem("study_subjects");
+    let currentSubs: Subject[] = INITIAL_SUBJECTS;
+    if (local) {
+      try {
+        currentSubs = JSON.parse(local);
+      } catch (e) {
+        console.warn("Subjects parsing error", e);
+        secureStorage.setItem("study_subjects", JSON.stringify(INITIAL_SUBJECTS));
+      }
+    }
     if (isNewDayOnStart) {
-      const resetSubs = INITIAL_SUBJECTS.map((s) => ({ ...s, totalMinutes: 0 }));
+      const resetSubs = currentSubs.map((s) => ({ ...s, totalMinutes: 0 }));
       secureStorage.setItem("study_subjects", JSON.stringify(resetSubs));
       return resetSubs;
     }
-    const local = secureStorage.getItem("study_subjects");
-    if (local) {
-      try {
-        return JSON.parse(local);
-      } catch (e) {
-        console.warn("Subjects parsing error", e);
-      }
-    }
-    return INITIAL_SUBJECTS;
+    return currentSubs;
   });
 
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -435,7 +500,9 @@ export default function App() {
       if (local) {
         try {
           allTasks = JSON.parse(local);
-        } catch (e) {}
+        } catch (e) {
+          secureStorage.setItem("study_tasks", "[]");
+        }
       }
       const uncompletedTasks = allTasks.filter(t => !t.isCompleted);
       secureStorage.setItem("study_tasks", JSON.stringify(uncompletedTasks));
@@ -447,6 +514,7 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("Tasks parsing error", e);
+        secureStorage.setItem("study_tasks", "[]");
       }
     }
     return [];
@@ -459,6 +527,7 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("Study logs parsing error", e);
+        secureStorage.setItem("study_logs", "[]");
       }
     }
     return [];
@@ -507,6 +576,7 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("Quests parsing error", e);
+        secureStorage.setItem("study_quests", JSON.stringify(INITIAL_QUESTS));
       }
     }
     return INITIAL_QUESTS;
@@ -524,6 +594,7 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("Rewards parsing error", e);
+        secureStorage.setItem("study_rewards", JSON.stringify(defaults));
       }
     }
     return defaults;
@@ -536,10 +607,13 @@ export default function App() {
         return JSON.parse(local);
       } catch (e) {
         console.warn("XP logs parsing error", e);
+        secureStorage.setItem("study_xp_logs", JSON.stringify([]));
       }
     }
     return [];
   });
+
+  const lastLevelRef = useRef<number | null>(null);
 
   // Keep latest timer state values stored in a Ref to prevent dependency re-runs on fast-changing numbers
   const timerStateRef = useRef({
@@ -587,7 +661,7 @@ export default function App() {
           }
 
           if (minsToSave >= 1 && state.activeSubjectId) {
-            handleAddStudyMinutes(state.activeSubjectId, minsToSave, lastDay);
+            handleAddStudyMinutes(state.activeSubjectId, minsToSave, lastDay).catch(() => {});
           }
         }
 
@@ -669,6 +743,46 @@ export default function App() {
   }, [pomoFocusDuration]);
   // ------------------------------------------------
 
+  // -------------- ORGANIC STUDENT LEVEL UP MONITOR --------------
+  useEffect(() => {
+    const currentLvl = calculateStudentLevel(userXp).level;
+    if (lastLevelRef.current === null) {
+      lastLevelRef.current = currentLvl;
+      return;
+    }
+
+    if (currentLvl > lastLevelRef.current) {
+      const oldLvl = lastLevelRef.current;
+      lastLevelRef.current = currentLvl;
+
+      // LevelUp notification settings check
+      if (notificationSettings.notifyOnLevelUp) {
+        const title = `🏆 Level Up: Level ${currentLvl}!`;
+        const text = `Outstanding focus! You have been promoted from Level ${oldLvl} to Level ${currentLvl}. High performance sparks and premium themes are now unlocked! Keep up this beautiful effort! ✨`;
+
+        // Bar / Toast modal
+        setFiredNotification(`${title} — ${text}`);
+
+        // Push Alert
+        showSystemNotification(title, text);
+
+        // Sound effect
+        if (notificationSettings.enableSoundEffects) {
+          try {
+            // Mixkit level up / coin reward sound block
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-2019.wav");
+            audio.volume = 0.45;
+            audio.play().catch(() => {});
+          } catch (e) {}
+        }
+      }
+    } else if (currentLvl < lastLevelRef.current) {
+      // Allow manual level reduction configs inside profile update
+      lastLevelRef.current = currentLvl;
+    }
+  }, [userXp, notificationSettings]);
+  // ----------------------------------------------------------------
+
   // 0. Connection Test (Pillar Requirements)
   useEffect(() => {
     async function testConnection() {
@@ -694,8 +808,24 @@ export default function App() {
 
   // Listen to Google Sign-In persistence and load/sync with Firestore
   useEffect(() => {
+    let activeUnsubs: (() => void) | null = null;
+
+    const cleanupListeners = () => {
+      if (activeUnsubs) {
+        try {
+          activeUnsubs();
+        } catch (e) {
+          console.warn("Error cleaning up real-time onSnapshot listeners:", e);
+        }
+        activeUnsubs = null;
+      }
+    };
+
     const unsubscribe = initAuth(
       async (user) => {
+        // Stop any old snapshot listeners first
+        cleanupListeners();
+
         setCurrentUser(user);
         // Load cloud synced collections with a fast timeout-race to prevent freezing
         try {
@@ -837,29 +967,82 @@ export default function App() {
             return q;
           });
 
-          // Onboarding cloud sync (if brand new cloud account - write current offline state in background)
-          if (loadedSubs.length === 0) {
-            subjects.forEach((sub) => {
+          // Onboarding cloud sync (if brand new cloud account - write current offline state OR defaults in background)
+          if (!userSnap.exists() && loadedSubs.length === 0) {
+            // Load user B's own namespaced storage
+            const localSubs = secureStorage.getItem("study_subjects");
+            const localTasks = secureStorage.getItem("study_tasks");
+            const localLogs = secureStorage.getItem("study_logs");
+            const localXp = secureStorage.getItem("study_user_xp");
+            const localRewards = secureStorage.getItem("study_rewards");
+            const localQuests = secureStorage.getItem("study_quests");
+            const localXpLogs = secureStorage.getItem("study_xp_logs");
+            const localReminders = secureStorage.getItem("study_reminders");
+
+            let parsedSubs: Subject[] = INITIAL_SUBJECTS;
+            if (localSubs) {
+              try { parsedSubs = JSON.parse(localSubs); } catch (e) {}
+            }
+            let parsedTasks: Task[] = [];
+            if (localTasks) {
+              try { parsedTasks = JSON.parse(localTasks); } catch (e) {}
+            }
+            let parsedLogs: StudyLog[] = [];
+            if (localLogs) {
+              try { parsedLogs = JSON.parse(localLogs); } catch (e) {}
+            }
+            let parsedRewards: GiftReward[] = [];
+            if (localRewards) {
+              try { parsedRewards = JSON.parse(localRewards); } catch (e) {}
+            }
+            let parsedQuests: QuestChallenge[] = INITIAL_QUESTS;
+            if (localQuests) {
+              try { parsedQuests = JSON.parse(localQuests); } catch (e) {}
+            }
+            let parsedXpLogs: XpGainLog[] = [];
+            if (localXpLogs) {
+              try { parsedXpLogs = JSON.parse(localXpLogs); } catch (e) {}
+            }
+            let parsedReminders: Reminder[] = [];
+            if (localReminders) {
+              try { parsedReminders = JSON.parse(localReminders); } catch (e) {}
+            }
+            const finalXp = localXp ? parseInt(localXp, 10) : 0;
+
+            // Set states
+            setSubjects(parsedSubs);
+            setTasks(parsedTasks);
+            setStudyLogs(parsedLogs);
+            setRewards(parsedRewards);
+            setQuests(parsedQuests);
+            setXpLogs(parsedXpLogs);
+            setUserXp(finalXp);
+            if (parsedReminders.length > 0) setReminders(parsedReminders);
+
+            // Sync these specific parsed pieces to cloud
+            parsedSubs.forEach((sub) => {
               setDoc(doc(db, "users", user.uid, "subjects", sub.id), sub).catch(() => {});
             });
-            tasks.forEach((tsk) => {
+            parsedTasks.forEach((tsk) => {
               setDoc(doc(db, "users", user.uid, "tasks", tsk.id), tsk).catch(() => {});
             });
-            studyLogs.slice(0, 50).forEach((lg) => {
+            parsedLogs.slice(0, 50).forEach((lg) => {
               setDoc(doc(db, "users", user.uid, "studyLogs", lg.id), lg).catch(() => {});
             });
-            rewards.forEach((r) => {
+            parsedRewards.forEach((r) => {
               setDoc(doc(db, "users", user.uid, "rewards", r.id), r).catch(() => {});
             });
-            quests.forEach((q) => {
+            parsedQuests.forEach((q) => {
               setDoc(doc(db, "users", user.uid, "quests", q.id), q).catch(() => {});
             });
-            xpLogs.slice(0, 30).forEach((xlg) => {
+            parsedXpLogs.slice(0, 30).forEach((xlg) => {
               setDoc(doc(db, "users", user.uid, "xpLogs", xlg.id), xlg).catch(() => {});
             });
-            reminders.forEach((rem) => {
-              setDoc(doc(db, "users", user.uid, "reminders", rem.id), rem).catch(() => {});
-            });
+            if (parsedReminders.length > 0) {
+              parsedReminders.forEach((rem) => {
+                setDoc(doc(db, "users", user.uid, "reminders", rem.id), rem).catch(() => {});
+              });
+            }
           } else {
             // Apply loaded cloud profile (with reset/daily self-healing totals applied)
             setSubjects(finalSubs);
@@ -884,11 +1067,164 @@ export default function App() {
               });
               finalQuests.forEach(q => {
                 if (q.category === "daily") {
-                  setDoc(doc(db, "users", user.uid, "quests", q.id), q).catch(() => {});
+                   setDoc(doc(db, "users", user.uid, "quests", q.id), q).catch(() => {});
                 }
               });
             }
           }
+
+          // --- ACTIVATE DYNAMIC REAL-TIME ON-SNAPSHOT LISTENERS ---
+          // This keeps 3-4 open application tabs in perfect seamless synchronization!
+          const unsubUser = onSnapshot(userDocRef, (snap) => {
+            if (snap.exists()) {
+              const userData = snap.data();
+              if (userData.dailyTargetMinutes !== undefined) {
+                setDailyTargetMinutes(userData.dailyTargetMinutes);
+                secureStorage.setItem("study_daily_target", String(userData.dailyTargetMinutes));
+              }
+              if (userData.xp !== undefined) {
+                setUserXp(userData.xp);
+                secureStorage.setItem("study_user_xp", String(userData.xp));
+              }
+              if (userData.studentName !== undefined) {
+                setStudentName(userData.studentName);
+                secureStorage.setItem("study_student_name", userData.studentName);
+              }
+              if (userData.studentClass !== undefined) {
+                setStudentClass(userData.studentClass);
+                secureStorage.setItem("study_student_class", userData.studentClass);
+              }
+              if (userData.studentPrepTarget !== undefined) {
+                setStudentPrepTarget(userData.studentPrepTarget);
+                secureStorage.setItem("study_student_prep", userData.studentPrepTarget);
+              }
+              if (userData.themePreset !== undefined) {
+                setThemePreset(userData.themePreset);
+              }
+              if (userData.themeMode !== undefined) {
+                setThemeMode(userData.themeMode);
+              }
+              if (userData.timerType !== undefined) {
+                setTimerType(userData.timerType);
+              }
+              if (userData.pomoFocusDuration !== undefined) {
+                setPomoFocusDuration(userData.pomoFocusDuration);
+              }
+              if (userData.pomoShortBreakDuration !== undefined) {
+                setPomoShortBreakDuration(userData.pomoShortBreakDuration);
+              }
+              if (userData.pomoLongBreakDuration !== undefined) {
+                setPomoLongBreakDuration(userData.pomoLongBreakDuration);
+              }
+            }
+          }, err => console.warn("User profile live syncer: encountered error", err));
+
+          const unsubSubs = onSnapshot(subCol, (snap) => {
+            const loadedSubs: Subject[] = [];
+            snap.forEach(d => {
+              loadedSubs.push(d.data() as Subject);
+            });
+            if (loadedSubs.length > 0) {
+              setStudyLogs(currentLogs => {
+                const todayStr = getLocalDateString();
+                const finalSubs = loadedSubs.map(sub => {
+                  const todayMins = currentLogs
+                    .filter(log => log.subjectId === sub.id && log.date === todayStr)
+                    .reduce((sum, log) => sum + log.durationMinutes, 0);
+                  return { ...sub, totalMinutes: Math.round(todayMins) };
+                });
+                setSubjects(finalSubs);
+                secureStorage.setItem("study_subjects", JSON.stringify(finalSubs));
+                return currentLogs;
+              });
+            }
+          }, err => console.warn("Subjects live syncer: encountered error", err));
+
+          const unsubTasks = onSnapshot(taskCol, (snap) => {
+            const loadedTasks: Task[] = [];
+            snap.forEach(d => {
+              loadedTasks.push(d.data() as Task);
+            });
+            setTasks(loadedTasks);
+            secureStorage.setItem("study_tasks", JSON.stringify(loadedTasks));
+          }, err => console.warn("Tasks live syncer: encountered error", err));
+
+          const unsubLogs = onSnapshot(logCol, (snap) => {
+            const loadedLogs: StudyLog[] = [];
+            snap.forEach(d => {
+              loadedLogs.push(d.data() as StudyLog);
+            });
+            setStudyLogs(loadedLogs);
+            secureStorage.setItem("study_logs", JSON.stringify(loadedLogs));
+
+            setSubjects(currentSubs => {
+              const todayStr = getLocalDateString();
+              const finalSubs = currentSubs.map(sub => {
+                const todayMins = loadedLogs
+                  .filter(log => log.subjectId === sub.id && log.date === todayStr)
+                  .reduce((sum, log) => sum + log.durationMinutes, 0);
+                return { ...sub, totalMinutes: Math.round(todayMins) };
+              });
+              secureStorage.setItem("study_subjects", JSON.stringify(finalSubs));
+              return finalSubs;
+            });
+          }, err => console.warn("Logs live syncer: encountered error", err));
+
+          const unsubRewards = onSnapshot(rewardsCol, (snap) => {
+            const loadedRewards: GiftReward[] = [];
+            snap.forEach(d => {
+              loadedRewards.push(d.data() as GiftReward);
+            });
+            if (loadedRewards.length > 0) {
+              setRewards(loadedRewards);
+              secureStorage.setItem("study_rewards", JSON.stringify(loadedRewards));
+            }
+          }, err => console.warn("Rewards live syncer: encountered error", err));
+
+          const unsubQuests = onSnapshot(questsCol, (snap) => {
+            const loadedQuests: QuestChallenge[] = [];
+            snap.forEach(d => {
+              loadedQuests.push(d.data() as QuestChallenge);
+            });
+            if (loadedQuests.length > 0) {
+              setQuests(loadedQuests);
+              secureStorage.setItem("study_quests", JSON.stringify(loadedQuests));
+            }
+          }, err => console.warn("Quests live syncer: encountered error", err));
+
+          const unsubXpLogs = onSnapshot(xpLogsCol, (snap) => {
+            const loadedXpLogs: XpGainLog[] = [];
+            snap.forEach(d => {
+              loadedXpLogs.push(d.data() as XpGainLog);
+            });
+            if (loadedXpLogs.length > 0) {
+              setXpLogs(loadedXpLogs);
+              secureStorage.setItem("study_xp_logs", JSON.stringify(loadedXpLogs));
+            }
+          }, err => console.warn("XP Logs live syncer: encountered error", err));
+
+          const unsubReminders = onSnapshot(remindersCol, (snap) => {
+            const loadedReminders: Reminder[] = [];
+            snap.forEach(d => {
+              loadedReminders.push(d.data() as Reminder);
+            });
+            if (loadedReminders.length > 0) {
+              setReminders(loadedReminders);
+              secureStorage.setItem("study_reminders", JSON.stringify(loadedReminders));
+            }
+          }, err => console.warn("Reminders live syncer: encountered error", err));
+
+          activeUnsubs = () => {
+            unsubUser();
+            unsubSubs();
+            unsubTasks();
+            unsubLogs();
+            unsubRewards();
+            unsubQuests();
+            unsubXpLogs();
+            unsubReminders();
+          };
+
         } catch (err) {
           console.warn("Firestore sync failed or timed out on init, loading offline cache data instead.", err);
           
@@ -971,6 +1307,7 @@ export default function App() {
         }
       },
       () => {
+        cleanupListeners();
         setCurrentUser(null);
         // Clear screen data to restore clean guest values / protect user sign-outs
         const localSubs = secureStorage.getItem("study_subjects");
@@ -1037,7 +1374,59 @@ export default function App() {
         setXpLogs(parsedXpLogs);
       }
     );
-    return () => unsubscribe();
+    return () => {
+      cleanupListeners();
+      unsubscribe();
+    };
+  }, []);
+
+  // Listen to cross-tab storage changes to prevent multi-tab bypass/double-claim issues in real-time
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      const key = e.key;
+      
+      if (key.startsWith("study_quests")) {
+        const fresh = secureStorage.getItem("study_quests");
+        if (fresh) {
+          try { setQuests(JSON.parse(fresh)); } catch (err) {}
+        }
+      } else if (key.startsWith("study_user_xp")) {
+        const fresh = secureStorage.getItem("study_user_xp");
+        if (fresh) {
+          const val = parseInt(fresh, 10);
+          if (!isNaN(val)) setUserXp(val);
+        }
+      } else if (key.startsWith("study_xp_logs")) {
+        const fresh = secureStorage.getItem("study_xp_logs");
+        if (fresh) {
+          try { setXpLogs(JSON.parse(fresh)); } catch (err) {}
+        }
+      } else if (key.startsWith("study_rewards")) {
+        const fresh = secureStorage.getItem("study_rewards");
+        if (fresh) {
+          try { setRewards(JSON.parse(fresh)); } catch (err) {}
+        }
+      } else if (key.startsWith("study_subjects")) {
+        const fresh = secureStorage.getItem("study_subjects");
+        if (fresh) {
+          try { setSubjects(JSON.parse(fresh)); } catch (err) {}
+        }
+      } else if (key.startsWith("study_tasks")) {
+        const fresh = secureStorage.getItem("study_tasks");
+        if (fresh) {
+          try { setTasks(JSON.parse(fresh)); } catch (err) {}
+        }
+      } else if (key.startsWith("study_logs")) {
+        const fresh = secureStorage.getItem("study_logs");
+        if (fresh) {
+          try { setStudyLogs(JSON.parse(fresh)); } catch (err) {}
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   // Calculate Streak based on study logs dynamically
@@ -1214,10 +1603,28 @@ export default function App() {
 
   // Show native systems notifications leveraging the registration service worker fallback for mobile trays
   const showSystemNotification = (title: string, body: string) => {
+    // Append log to centralized localStorage notification history list
+    try {
+      if (typeof window !== "undefined") {
+        const rawHist = localStorage.getItem("study_notification_history");
+        const arr = rawHist ? JSON.parse(rawHist) : [];
+        const newLog = {
+          id: `history-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          title: title,
+          body: body,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          type: title.toLowerCase().includes("pomodoro") ? "pomo" : "rem"
+        };
+        localStorage.setItem("study_notification_history", JSON.stringify([newLog, ...arr].slice(0, 50)));
+      }
+    } catch (logErr) {
+      console.warn("Logging notification history failure:", logErr);
+    }
+
     if (!notificationSettings.enableDesktopBanners) return;
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       try {
-        if ("serviceWorker" in navigator) {
+        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then((reg) => {
             reg.showNotification(title, {
               body: body,
@@ -1233,7 +1640,12 @@ export default function App() {
           new Notification(title, { body, icon: "/favicon.ico" });
         }
       } catch (err) {
-        console.warn("System notification presentation failed:", err);
+        console.warn("System notification presentation failed, trying direct fallback:", err);
+        try {
+          new Notification(title, { body, icon: "/favicon.ico" });
+        } catch (innerErr) {
+          console.error("All notification pathways failed:", innerErr);
+        }
       }
     }
   };
@@ -1349,7 +1761,7 @@ export default function App() {
     if (isStudyingUser) {
       if (studyStartTime === null) {
         const now = Date.now();
-        const baseline = timerType === "stopwatch" ? activeSecondsUser : pomoSecondsLeft;
+        const baseline = (timerType === "stopwatch" || timerType === "custom") ? activeSecondsUser : pomoSecondsLeft;
         setStudyStartTime(now);
         setStudySecondsBaseline(baseline);
         localStorage.setItem("study_start_time_ms", now.toString());
@@ -1358,7 +1770,7 @@ export default function App() {
     } else {
       if (studyStartTime !== null) {
         const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch") {
+        if (timerType === "stopwatch" || timerType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsed);
         } else if (timerType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
@@ -1376,7 +1788,7 @@ export default function App() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && isStudyingUser && studyStartTime !== null) {
         const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch") {
+        if (timerType === "stopwatch" || timerType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsed);
         } else if (timerType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
@@ -1396,7 +1808,7 @@ export default function App() {
     if (isStudyingUser && studyStartTime !== null) {
       const tick = () => {
         const elapsedSecs = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch") {
+        if (timerType === "stopwatch" || timerType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsedSecs);
         } else if (timerType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsedSecs));
@@ -1420,7 +1832,9 @@ export default function App() {
       
       if (pomoState === "focus") {
         const minsToSave = pomoFocusDuration;
-        handleAddStudyMinutes(activeSubjectId, minsToSave);
+        handleAddStudyMinutes(activeSubjectId, minsToSave).catch(e => {
+          setFiredNotification(`Academic Limit Warning: ${e.message}`);
+        });
         
         const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
         setFiredNotification("You did it! Study session completed!");
@@ -1453,18 +1867,20 @@ export default function App() {
   }, [pomoSecondsLeft, isStudyingUser, timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, activeSubjectId]);
 
   const handleUpdateSubjectGoal = async (subjectId: string, newGoalMinutes: number) => {
-    setSubjects(prev =>
-      prev.map(s => (s.id === subjectId ? { ...s, goalMinutes: newGoalMinutes } : s))
-    );
-    
-    if (currentUser) {
-      const subRef = doc(db, "users", currentUser.uid, "subjects", subjectId);
-      const targetSubject = subjects.find(s => s.id === subjectId);
-      if (targetSubject) {
-        setDoc(subRef, { ...targetSubject, goalMinutes: newGoalMinutes }, { merge: true })
-          .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}/subjects/${subjectId}`));
+    setSubjects(prev => {
+      const next = prev.map(s => (s.id === subjectId ? { ...s, goalMinutes: newGoalMinutes } : s));
+      secureStorage.setItem("study_subjects", JSON.stringify(next));
+      
+      if (currentUser) {
+        const targetSubject = next.find(s => s.id === subjectId);
+        if (targetSubject) {
+          const subRef = doc(db, "users", currentUser.uid, "subjects", subjectId);
+          setDoc(subRef, targetSubject, { merge: true })
+            .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}/subjects/${subjectId}`));
+        }
       }
-    }
+      return next;
+    });
   };
 
 
@@ -1622,8 +2038,13 @@ export default function App() {
         if (res) {
           setCurrentUser(res.user);
         }
-      } catch (err) {
-        console.error("Popup authentication failed:", err);
+      } catch (err: any) {
+        const errStr = String(err?.message || err);
+        if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
+          console.warn("Popup authentication was closed or cancelled:", err);
+        } else {
+          console.error("Popup authentication failed:", err);
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -1650,8 +2071,6 @@ export default function App() {
   // ==================== GAMIFIED REWARDS SYSTEMS MOTIVATIONS ====================
   const handleAddXp = async (reason: string, amount: number) => {
     if (amount === 0) return;
-    const nextXp = Math.max(0, userXp + amount);
-    setUserXp(nextXp);
 
     const newLog: XpGainLog = {
       id: `xp-log-${Date.now()}`,
@@ -1660,37 +2079,44 @@ export default function App() {
       timestamp: new Date().toISOString()
     };
 
+    setUserXp(prevXp => {
+      const nextXp = Math.max(0, prevXp + amount);
+
+      // Local instant persistence
+      secureStorage.setItem("study_user_xp", String(nextXp));
+
+      // Also auto-unlock/lock items in state based on new XP
+      setRewards(prevRewards => {
+        const nextRewards = prevRewards.map(r => {
+          const shouldBeUnlocked = nextXp >= r.costXp;
+          if (r.isUnlocked !== shouldBeUnlocked) {
+            return { ...r, isUnlocked: shouldBeUnlocked };
+          }
+          return r;
+        });
+        secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+        return nextRewards;
+      });
+
+      // Sync to Cloud asynchronously in background
+      if (currentUser) {
+        Promise.all([
+          setDoc(doc(db, "users", currentUser.uid), { xp: nextXp }, { merge: true }),
+          setDoc(doc(db, "users", currentUser.uid, "xpLogs", newLog.id), newLog)
+        ]).catch((err) => {
+          console.warn("Failed saving XP to cloud background (running offline mode):", err);
+          handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+        });
+      }
+
+      return nextXp;
+    });
+
     setXpLogs(prev => {
       const nextLogs = [newLog, ...prev];
       secureStorage.setItem("study_xp_logs", JSON.stringify(nextLogs));
       return nextLogs;
     });
-
-    // Also auto-unlock/lock items in state based on new XP
-    setRewards(prev => {
-      const nextRewards = prev.map(r => {
-        const shouldBeUnlocked = nextXp >= r.costXp;
-        if (r.isUnlocked !== shouldBeUnlocked) {
-          return { ...r, isUnlocked: shouldBeUnlocked };
-        }
-        return r;
-      });
-      secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
-      return nextRewards;
-    });
-
-    // Local instant persistence
-    secureStorage.setItem("study_user_xp", String(nextXp));
-
-    // Sync to Cloud asynchronously in background
-    if (currentUser) {
-      Promise.all([
-        setDoc(doc(db, "users", currentUser.uid), { xp: nextXp }, { merge: true }),
-        setDoc(doc(db, "users", currentUser.uid, "xpLogs", newLog.id), newLog)
-      ]).catch((err) => {
-        console.warn("Failed saving XP to cloud background (running offline mode):", err);
-      });
-    }
   };
 
   const handleAddReward = async (newRew: GiftReward) => {
@@ -1731,42 +2157,76 @@ export default function App() {
 
   const handleClaimReward = async (rewardId: string) => {
     const target = rewards.find(r => r.id === rewardId);
-    if (!target || userXp < target.costXp || target.isClaimed) return;
+    if (!target || target.isClaimed) return;
 
-    // Deduct user XP
-    const nextXp = Math.max(0, userXp - target.costXp);
-    setUserXp(nextXp);
+    // Double-check raw secureStorage to prevent concurrent multi-tab bypassing!
+    try {
+      const local = secureStorage.getItem("study_rewards");
+      if (local) {
+        const parsed = JSON.parse(local) as GiftReward[];
+        const latestR = parsed.find(r => r.id === rewardId);
+        if (latestR && latestR.isClaimed) {
+          setRewards(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
 
-    const nextRewards = rewards.map(r => r.id === rewardId ? { ...r, isClaimed: true } : r);
-    setRewards(nextRewards);
-
-    // Log the transaction
     const transactionLog: XpGainLog = {
       id: `xp-log-${Date.now()}`,
       reason: `Claimed reward: ${target.title} 🛍️`,
       amount: -target.costXp,
       timestamp: new Date().toISOString()
     };
-    const nextXpLogs = [transactionLog, ...xpLogs];
-    setXpLogs(nextXpLogs);
 
-    // Save to secure storage right away
-    secureStorage.setItem("study_user_xp", String(nextXp));
-    secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
-    secureStorage.setItem("study_xp_logs", JSON.stringify(nextXpLogs));
+    setUserXp(prevXp => {
+      if (prevXp < target.costXp) {
+        console.warn("⚠️ User does not have enough XP to claim this reward.");
+        return prevXp;
+      }
+      const nextXp = Math.max(0, prevXp - target.costXp);
 
-    if (currentUser) {
-      Promise.all([
-        setDoc(doc(db, "users", currentUser.uid), { xp: nextXp }, { merge: true }),
-        setDoc(doc(db, "users", currentUser.uid, "rewards", rewardId), { ...target, isClaimed: true }, { merge: true }),
-        setDoc(doc(db, "users", currentUser.uid, "xpLogs", transactionLog.id), transactionLog)
-      ]).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${currentUser.uid}/rewards/${rewardId}`));
-    }
+      // Save to secure storage right away
+      secureStorage.setItem("study_user_xp", String(nextXp));
+
+      const nextRewards = rewards.map(r => r.id === rewardId ? { ...r, isClaimed: true } : r);
+      setRewards(nextRewards);
+      secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
+
+      setXpLogs(prev => {
+        const nextXpLogs = [transactionLog, ...prev];
+        secureStorage.setItem("study_xp_logs", JSON.stringify(nextXpLogs));
+        return nextXpLogs;
+      });
+
+      if (currentUser) {
+        Promise.all([
+          setDoc(doc(db, "users", currentUser.uid), { xp: nextXp }, { merge: true }),
+          setDoc(doc(db, "users", currentUser.uid, "rewards", rewardId), { ...target, isClaimed: true }, { merge: true }),
+          setDoc(doc(db, "users", currentUser.uid, "xpLogs", transactionLog.id), transactionLog)
+        ]).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${currentUser.uid}/rewards/${rewardId}`));
+      }
+
+      return nextXp;
+    });
   };
 
   const handleCompleteQuest = async (questId: string) => {
     const targetQ = quests.find(q => q.id === questId);
     if (!targetQ || targetQ.isCompleted) return;
+
+    // Double-check raw secureStorage to prevent concurrent multi-tab bypassing!
+    try {
+      const local = secureStorage.getItem("study_quests");
+      if (local) {
+        const parsed = JSON.parse(local) as QuestChallenge[];
+        const latestQ = parsed.find(q => q.id === questId);
+        if (latestQ && latestQ.isCompleted) {
+          setQuests(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
 
     setQuests(prev => {
       const nextQuests = prev.map(q => q.id === questId ? { ...q, isCompleted: true } : q);
@@ -1794,8 +2254,7 @@ export default function App() {
       .reduce((sum, l) => sum + l.durationMinutes, 0);
 
     if (existingMinsForDate + minutes > 360) {
-      alert(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${minutes} minutes would exceed the 6-hour daily maximum.`);
-      return;
+      throw new Error(`Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged.`);
     }
 
     // Create session entry
@@ -1836,6 +2295,18 @@ export default function App() {
         handleAddXp(`🎉 Daily Goal Met: ${targetSubject.name}!`, bonusXp);
         setFiredNotification(`🎯 Subject Goal Completed! You completed your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. Outstanding persistent effort! (+${bonusXp} XP Bonus)`);
       }, 800);
+    }
+
+    // Check if the overall daily focus goal (set by me) is newly met!
+    const previouslyOverallMet = existingMinsForDate >= dailyTargetMinutes;
+    const newlyOverallMet = (existingMinsForDate + minutes) >= dailyTargetMinutes;
+    if (!previouslyOverallMet && newlyOverallMet) {
+      const bonusXp = 300;
+      setTimeout(() => {
+        handleAddXp(`🏆 Daily Focus Goal Met (${dailyTargetMinutes}m)!`, bonusXp);
+        setFiredNotification(`🙌 Daily focus goal of ${dailyTargetMinutes} minutes met! Excellent academic persistence. (+${bonusXp} XP Reward!)`);
+        showSystemNotification("Daily Focus Goal Met!", `Congratulations! You have completed your overall daily study goal of ${dailyTargetMinutes} minutes today!`);
+      }, 1500);
     }
 
     // Sync to Cloud asynchronously in the background
@@ -2155,8 +2626,12 @@ export default function App() {
       });
 
       if (currentUser) {
-        setDoc(doc(db, "users", currentUser.uid, "xpLogs", logId), newLog).catch(() => {});
-        setDoc(doc(db, "users", currentUser.uid), { xp: targetXp }, { merge: true }).catch(() => {});
+        setDoc(doc(db, "users", currentUser.uid, "xpLogs", logId), newLog).catch(err => {
+          handleFirestoreError(err, OperationType.CREATE, `users/${currentUser.uid}/xpLogs/${logId}`);
+        });
+        setDoc(doc(db, "users", currentUser.uid), { xp: targetXp }, { merge: true }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+        });
       }
     }
 
@@ -2169,6 +2644,7 @@ export default function App() {
         displayName: updates.name
       }, { merge: true }).catch((err) => {
         console.warn("Background cloud sync for profile updates deferred (offline/database-not-provisioned). Stored locally!", err);
+        handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
       });
     }
   };
@@ -2228,19 +2704,28 @@ export default function App() {
               <div className="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-slate-400">
                 <span>{isStudyingUser ? "⏱️ Active Study Stream" : "⚠️ Study Stream Paused"}</span>
                 <span className="text-indigo-400 font-mono">
-                  {timerType === "stopwatch" ? "Stopwatch Mode" : `Pomodoro (${pomoState})`}
+                  {timerType === "custom" ? "Custom Target Countdown" : timerType === "stopwatch" ? "Stopwatch Mode" : `Pomodoro (${pomoState})`}
                 </span>
               </div>
               
               <div className="flex items-center justify-between">
                 <div className="text-left font-mono font-black text-xl text-white">
-                  {timerType === "stopwatch" ? (
+                  {timerType === "custom" ? (
+                    (() => {
+                      const customTargetMins = parseInt(localStorage.getItem("study_custom_target_minutes") || "45", 10);
+                      const remSecs = Math.max(0, (customTargetMins * 60) - activeSecondsUser);
+                      const h = Math.floor(remSecs / 3600);
+                      const m = Math.floor((remSecs % 3600) / 60);
+                      const s = remSecs % 60;
+                      return `${h > 0 ? String(h).padStart(2, "0") + ':' : ''}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+                    })()
+                  ) : timerType === "stopwatch" ? (
                     `${String(Math.floor(activeSecondsUser / 3600)).padStart(2, "0")}:${String(Math.floor((activeSecondsUser % 3600) / 60)).padStart(2, "0")}:${String(activeSecondsUser % 60).padStart(2, "0")}`
                   ) : (
                     `${String(Math.floor(pomoSecondsLeft / 60)).padStart(2, "0")}:${String(pomoSecondsLeft % 60).padStart(2, "0")}`
                   )}
                 </div>
-
+ 
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setIsStudyingUser(!isStudyingUser)}
@@ -2255,7 +2740,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       setIsStudyingUser(false);
-                      if (timerType === "stopwatch") {
+                      if (timerType === "stopwatch" || timerType === "custom") {
                         setActiveSecondsUser(0);
                       } else {
                         setPomoSecondsLeft(pomoFocusDuration * 60);
@@ -2269,17 +2754,24 @@ export default function App() {
                   </button>
                 </div>
               </div>
-
-              {/* Dynamic visual miniature progress bar for Pomodoro */}
-              {timerType === "pomodoro" && (
+ 
+              {/* Dynamic visual miniature progress bar for custom or Pomodoro */}
+              {(timerType === "pomodoro" || timerType === "custom") && (
                 <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-indigo-500 transition-all duration-300"
+                    className={`h-full transition-all duration-300 ${timerType === "custom" ? "bg-emerald-500" : "bg-indigo-500"}`}
                     style={{ 
                       width: `${
-                        (pomoSecondsLeft / (
-                          (pomoState === "focus" ? pomoFocusDuration : pomoState === "shortBreak" ? pomoShortBreakDuration : pomoLongBreakDuration) * 60
-                        )) * 100
+                        timerType === "custom" ? (
+                          (() => {
+                            const customTargetMins = parseInt(localStorage.getItem("study_custom_target_minutes") || "45", 10);
+                            return Math.min(100, Math.round((activeSecondsUser / (customTargetMins * 60)) * 100));
+                          })()
+                        ) : (
+                          (pomoSecondsLeft / (
+                            (pomoState === "focus" ? pomoFocusDuration : pomoState === "shortBreak" ? pomoShortBreakDuration : pomoLongBreakDuration) * 60
+                          )) * 100
+                        )
                       }%` 
                     }}
                   />
@@ -2406,6 +2898,24 @@ export default function App() {
               )}
             </button>
 
+            {/* Chrome Fullscreen Toggle Button */}
+            <button
+              id="chrome-fullscreen-trigger-btn"
+              onClick={handleToggleFullscreen}
+              className={`p-2 rounded-full cursor-pointer border transition-all shadow-xs backdrop-blur-md flex items-center justify-center ${
+                isFullscreen 
+                  ? "bg-[#f26419] text-white border-[#f26419]/55 animate-pulse" 
+                  : "bg-white/45 hover:bg-white/70 text-slate-600 border-slate-200 dark:bg-[#171717] dark:hover:bg-[#202020] dark:border-slate-900 dark:text-slate-400 dark:hover:text-amber-400"
+              }`}
+              title={isFullscreen ? "Exit Chrome Fullscreen" : "Enter Chrome Fullscreen Mode"}
+            >
+              {isFullscreen ? (
+                <Shrink className="w-4 h-4 text-white" />
+              ) : (
+                <Expand className="w-4 h-4" />
+              )}
+            </button>
+
             {/* Mode Switcher Segmented Control */}
             <div className="flex items-center gap-0.5 bg-white/45 dark:bg-[#171717]/80 p-1 rounded-full border border-slate-200 dark:border-slate-900 shadow-xs backdrop-blur-md">
               <button
@@ -2527,7 +3037,7 @@ export default function App() {
               {/* Dynamic Alerts & Sounds Quick Permission Granting Dashboard Banner */}
               {(notificationPermission !== "granted" || !audioAutoplayApproved) && !dismissedPermBanner && (
                 <div className="bg-gradient-to-r from-indigo-950/95 via-slate-900/98 to-indigo-950/95 border border-indigo-500/30 p-4 rounded-3xl shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all animate-fade-in relative overflow-hidden z-25 mb-2">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-505/10 rounded-full blur-2xl -z-10 pointer-events-none"></div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -z-10 pointer-events-none"></div>
                   
                   <div className="flex items-start text-left gap-3.5">
                     <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 shrink-0 self-start animate-pulse">
@@ -2572,6 +3082,8 @@ export default function App() {
               studyLogs={studyLogs}
               setSubjects={setSubjects}
               onAddStudyMinutes={handleAddStudyMinutes}
+              onAddSubject={handleAddSubject}
+              onRemoveSubject={handleRemoveSubject}
               activeSubjectId={activeSubjectId}
               setActiveSubjectId={setActiveSubjectId}
               isStudying={isStudyingUser}
@@ -2597,6 +3109,7 @@ export default function App() {
               themePreset={themePreset}
               userXp={userXp}
               onAddXp={handleAddXp}
+              onChangeTab={setActiveTab}
             />
           )}
 
@@ -2640,15 +3153,12 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "rooms" && (
-            <ClassmateGrid 
-              currentUser={currentUser}
-              joinedRoomId={joinedRoomId}
-              setJoinedRoomId={setJoinedRoomId}
-              isStudying={isStudyingUser}
-              activeSeconds={activeSecondsUser}
-              activeSubjectName={subjects.find(s => s.id === activeSubjectId)?.name || 'Resting'}
-              totalStudiedTodayMins={totalStudiedTodayMins}
+          {activeTab === "target-suite" && (
+            <TargetRoadmap 
+              subjects={subjects}
+              userXp={userXp}
+              onAddXp={handleAddXp}
+              themePreset={themePreset}
             />
           )}
 
@@ -2709,58 +3219,88 @@ export default function App() {
             {isWideHud && (
               <div className="hidden lg:flex lg:col-span-4 flex-col gap-5 sticky top-22 w-full pb-4">
                 
-                {/* 1. Co-studying Desks Widget */}
-                <div className="liquid-glass p-5 rounded-3xl border border-slate-205/50 dark:border-slate-900/60 text-left space-y-4 shadow-md backdrop-blur-xl bg-white/40 dark:bg-[#121212]/30">
+                {/* 1. Exam Targets & GPA Radar Widget */}
+                <div id="target_roadmap_sidebar_widget" className="liquid-glass p-5 rounded-3xl border border-slate-205/50 dark:border-slate-900/60 text-left space-y-4 shadow-md backdrop-blur-xl bg-white/40 dark:bg-[#121212]/30">
                   <div className="flex items-center justify-between">
                     <span className="text-[10.5px] uppercase font-mono text-[#f26419] font-black tracking-widest flex items-center gap-1.5 bg-transparent">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      Co-Study Desks
+                      <Target className="w-4 h-4 text-[#f26419]" />
+                      Academic Radar
                     </span>
                     <span className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/40 px-2.5 py-0.5 rounded-full font-bold">
-                      Desks 1-5
+                      Goal Roadmaps
                     </span>
                   </div>
-                  
-                  {/* Mate lists inside the side desk indicators */}
-                  <div className="space-y-3">
-                    {[
-                      { name: "Jun-Woo Kim", mins: 245, isStudying: true, activeSubjectName: "Computer Science", seed: "bg-teal-500" },
-                      { name: "Chloe Dupont", mins: 110, isStudying: true, activeSubjectName: "Spanish Language", seed: "bg-pink-500" },
-                      { name: "Aisha Rahman", mins: 310, isStudying: true, activeSubjectName: "Math & STEM", seed: "bg-amber-500" },
-                      { name: "Liam Miller", mins: 180, isStudying: false, activeSubjectName: "Resting", seed: "bg-indigo-500" },
-                      { name: "Sofia de Luca", mins: 85, isStudying: true, activeSubjectName: "Organic Chemistry", seed: "bg-rose-500" }
-                    ].map((mate, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-white/40 dark:bg-black/15 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-900/55 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] hover:border-[#f26419]/30 transition-all">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {/* Colored avatar sphere */}
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10.5px] text-white font-black uppercase font-mono ${mate.seed}`}>
-                            {mate.name[0]}
-                          </div>
-                          <div className="text-left min-w-0">
-                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate leading-none">
-                              {mate.name}
-                            </h4>
-                            <p className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 mt-1 truncate max-w-[140px]">
-                              {mate.isStudying ? `🖋️ ${mate.activeSubjectName}` : "💤 Resting"}
-                            </p>
-                          </div>
-                        </div>
 
-                        {/* Timing indicator */}
-                        <div className="text-right flex flex-col items-end shrink-0">
-                          <span className={`text-[9.5px] font-mono font-black ${mate.isStudying ? "text-[#f26419] animate-pulse" : "text-slate-400"}`}>
-                            {mate.isStudying ? "Ticking •" : "Paused"}
-                          </span>
-                          <span className="text-[9px] text-slate-450 dark:text-slate-500 font-mono mt-0.5">
-                            {mate.mins} mins
-                          </span>
-                        </div>
+                  {(() => {
+                    let sideExams = [];
+                    try {
+                      const data = localStorage.getItem("study_target_exams");
+                      if (data) sideExams = JSON.parse(data);
+                    } catch(e) {}
+                    
+                    if (sideExams.length === 0) {
+                      sideExams = [
+                        { id: "exam_1", title: "AP Calculus BC Midterm", examDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], targetGrade: "A*", preparationLevel: 65 },
+                        { id: "exam_2", title: "AP Physics C Final Exam", examDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], targetGrade: "A", preparationLevel: 40 }
+                      ];
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {sideExams.slice(0, 3).map((ex, idx) => {
+                          const examDateObj = new Date(ex.examDate + "T23:59:59");
+                          const today = new Date();
+                          today.setHours(0,0,0,0);
+                          examDateObj.setHours(0,0,0,0);
+                          const daysLeft = Math.max(0, Math.ceil((examDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+                          
+                          return (
+                            <div 
+                              key={ex.id || idx} 
+                              onClick={() => setActiveTab("target-suite")}
+                              className="flex flex-col gap-2 bg-white/40 dark:bg-black/15 p-3 rounded-2xl border border-slate-150/60 dark:border-slate-900/55 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] hover:border-[#f26419]/40 hover:bg-slate-50/20 dark:hover:bg-slate-900/20 transition-all cursor-pointer group text-left"
+                            >
+                              <div className="flex items-start justify-between gap-1.5 min-w-0">
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate group-hover:text-[#f26419] transition-colors font-sans">
+                                    {ex.title}
+                                  </h4>
+                                  <p className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Target grade: <span className="font-bold text-[#f26419]">{ex.targetGrade}</span>
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] font-mono bg-orange-500/10 text-[#f26419] font-black px-1.5 py-0.5 rounded-lg">
+                                    {daysLeft}d left
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex justify-between text-[8px] font-mono text-slate-450">
+                                  <span>Preparation level</span>
+                                  <span>{ex.preparationLevel}%</span>
+                                </div>
+                                <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-[#f26419] to-orange-400 rounded-full transition-all" 
+                                    style={{ width: `${ex.preparationLevel}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        <button 
+                          onClick={() => setActiveTab("target-suite")}
+                          className="w-full text-center py-2 bg-[#f26419]/10 hover:bg-[#f26419]/15 border border-[#f26419]/15 text-[#f26419] rounded-xl text-[10.5px] font-black tracking-wide transition-all cursor-pointer uppercase font-mono"
+                        >
+                          Open Target Suite
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 2. Topic Goals Distribution micro widget */}
@@ -2854,7 +3394,7 @@ export default function App() {
             { id: "planner", label: "To-Do", icon: ClipboardCheck },
             { id: "rewards", label: "Wishlist", icon: Award },
             { id: "calendar", label: "Calendar", icon: Calendar },
-            { id: "rooms", label: "Groups", icon: Users }
+            { id: "target-suite", label: "Targets", icon: Target }
           ].map((tab) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
@@ -2882,7 +3422,7 @@ export default function App() {
         {/* Hover/Float companion separate circle indicator action button (Image 4 & 5) */}
         <button 
           onClick={() => {
-            if (activeTab === "focus" || activeTab === "planner" || activeTab === "calendar" || activeTab === "rooms" || activeTab === "reminders" || activeTab === "rewards") {
+            if (activeTab === "focus" || activeTab === "planner" || activeTab === "calendar" || activeTab === "target-suite" || activeTab === "reminders" || activeTab === "rewards") {
               setIsSidebarOpen(!isSidebarOpen);
             }
           }}
@@ -2893,9 +3433,9 @@ export default function App() {
           {activeTab === "planner" && <Sparkles className="w-5 h-5 text-pink-500" />}
           {activeTab === "rewards" && <Award className="w-5 h-5 text-amber-500 animate-bounce" />}
           {activeTab === "calendar" && <TrendingUp className="w-5 h-5 text-emerald-500" />}
-          {activeTab === "rooms" && <Users className="w-5 h-5 text-[#f26419]" />}
+          {activeTab === "target-suite" && <Target className="w-5 h-5 text-[#f26419]" />}
           {activeTab === "reminders" && <Bell className="w-5 h-5 text-violet-500 animate-pulse" />}
-          {!["focus", "planner", "rewards", "calendar", "rooms", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
+          {!["focus", "planner", "rewards", "calendar", "target-suite", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
         </button>
 
       </div>
@@ -2977,7 +3517,7 @@ export default function App() {
                   </h3>
                   <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 leading-relaxed">
                     {authMode === "signup" 
-                      ? "First-time here? Create your free study profile in Flash5tudy to sync YPT rooms, active focus stats, and your AI study logs!" 
+                      ? "First-time here? Create your free study profile in Flash5tudy to sync exam targets, focus stats, and your AI study logs!" 
                       : "Welcome back! Access your customized study tracking dashboard with your credentials."}
                   </p>
                 </>
@@ -3112,7 +3652,12 @@ export default function App() {
                         }, 1000);
                       }
                     } catch (err: any) {
-                      console.error("Google authentication error:", err);
+                      const errStr = String(err?.message || err);
+                      if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
+                        console.warn("Google authentication warning (popup closed or cancelled):", err);
+                      } else {
+                        console.error("Google authentication error:", err);
+                      }
                       let errMsg = err?.message || String(err);
                       if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
                         errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
@@ -3380,7 +3925,12 @@ export default function App() {
                         }, 1000);
                       }
                     } catch (err: any) {
-                      console.error("Google authentication error:", err);
+                      const errStr = String(err?.message || err);
+                      if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
+                        console.warn("Google authentication warning (popup closed or cancelled):", err);
+                      } else {
+                        console.error("Google authentication error:", err);
+                      }
                       let errMsg = err?.message || String(err);
                       if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
                         errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
@@ -3428,6 +3978,90 @@ export default function App() {
                   👉 Go to <strong>Firebase Console &gt; Authentication &gt; Settings</strong> (last tab) &gt; <strong>Authorized domains</strong>, and click "Add domain" to paste it!
                 </div>
               </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Chrome Fullscreen Advisor Modal */}
+      {showFullscreenModal && (
+        <div className="fixed inset-0 bg-slate-900/80 dark:bg-black/85 backdrop-blur-md flex items-center justify-center z-[100] p-4 text-left">
+          <div className="bg-white dark:bg-[#121213] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md overflow-hidden flex flex-col p-6 shadow-2xl relative text-slate-850 dark:text-neutral-100">
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => setShowFullscreenModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-650 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Icon */}
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 flex items-center justify-center mb-4">
+              <Expand className="w-6 h-6 text-amber-500 animate-pulse" />
+            </div>
+
+            {/* Topic Headings */}
+            <h3 className="text-lg font-black text-center text-slate-900 dark:text-white leading-tight font-sans">
+              Chrome Fullscreen Guide
+            </h3>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
+              To use <strong>Flash5tudy</strong> in pristine, borderless Fullscreen on Chrome:
+            </p>
+
+            {/* Onboarding info points */}
+            <div className="my-5 space-y-3">
+              <div className="flex gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">
+                <span className="text-xs font-mono font-black text-[#f26419] bg-[#f26419]/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">1</span>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
+                  Standard Fullscreen might be blocked because you are running the app inside Google AI Studio's preview iframe window.
+                </p>
+              </div>
+
+              <div className="flex gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">
+                <span className="text-xs font-mono font-black text-blue-500 bg-blue-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">2</span>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
+                  Open the app directly in a <strong>new tab</strong> to bypass iframe restrictions. Chrome will then support 100% borderless Fullscreen flawlessly.
+                </p>
+              </div>
+
+              <div className="flex gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">
+                <span className="text-xs font-mono font-black text-emerald-500 bg-emerald-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">3</span>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
+                  Pressing <strong>F11</strong> on Windows/Chromebook, or <strong>Control + Command + F</strong> on Mac, is also a direct standard shortcut!
+                </p>
+              </div>
+            </div>
+
+            {/* Direct buttons */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <a 
+                href={window.location.href}
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex-1 bg-[#f26419] hover:bg-[#d6510d] text-white font-extrabold py-2.5 px-4 rounded-xl text-xs flex justify-center items-center gap-1.5 cursor-pointer shadow-lg active:scale-98 transition-all"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open in New Tab</span>
+              </a>
+              <button
+                onClick={() => {
+                  setShowFullscreenModal(false);
+                  const docEl = document.documentElement as any;
+                  const requestFS = docEl.requestFullscreen || 
+                                    docEl.webkitRequestFullscreen || 
+                                    docEl.mozRequestFullScreen || 
+                                    docEl.msRequestFullscreen;
+                  if (requestFS) {
+                    requestFS.call(docEl);
+                  }
+                }}
+                className="flex-1 bg-slate-100 dark:bg-[#1a1a1c] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 font-bold py-2.5 px-4 rounded-xl text-xs text-center cursor-pointer transition-all active:scale-98"
+              >
+                Try Fullscreen Anyway
+              </button>
             </div>
 
           </div>

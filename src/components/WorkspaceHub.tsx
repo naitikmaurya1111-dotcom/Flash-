@@ -273,7 +273,10 @@ export default function WorkspaceHub({
       });
       setKeepNotes(loaded);
     } catch (err) {
-      console.error("Failed loading synced keep notes", err);
+      console.warn("Failed loading synced keep notes (falling back to offline local storage):", err);
+      // Local fallback
+      const local = localStorage.getItem("workspace_keep_notes");
+      if (local) setKeepNotes(JSON.parse(local));
     }
   };
 
@@ -697,19 +700,19 @@ ${localAdvice.scheduleTip}
   const currentTasks = needsAuth ? sandboxTasks : gTasks;
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-900 rounded-3xl p-6 shadow-xs space-y-6">
+    <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-900 rounded-3xl p-6 shadow-md space-y-6 hover-lift transition-all duration-350">
       
       {/* Top Banner with Google Auth triggers */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900 rounded-2xl p-4.5 border border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/50 text-blue-600 rounded-2xl">
-            <Sparkles className="w-5 h-5 fill-current text-blue-500 animate-pulse" />
+      <div className="flex flex-col md:flex-row items-center justify-between gap-5 bg-white dark:bg-slate-900/90 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs hover-lift transition-all duration-300">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl border border-blue-105/10 dark:border-blue-500/10">
+            <Sparkles className="w-5.5 h-5.5 fill-current text-blue-500 animate-pulse" />
           </div>
           <div className="text-left">
-            <h3 className="font-display font-semibold text-base text-slate-800 dark:text-slate-100">
+            <h3 className="font-display font-semibold text-base text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-1.5">
               Workspace Integration Hub
             </h3>
-            <p className="text-xs text-slate-500 max-w-md">
+            <p className="text-xs text-slate-500 max-w-md mt-0.5 leading-relaxed">
               Securely link Google Drive, Calendar, Docs, and Tasks. Authorize your account below to sync study blocks.
             </p>
           </div>
@@ -719,7 +722,7 @@ ${localAdvice.scheduleTip}
           <button 
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="gsi-material-button text-sm w-full md:w-auto flex items-center justify-center cursor-pointer scale-98 hover:scale-100 active:scale-95 transition-all"
+            className="gsi-material-button text-sm w-full md:w-auto flex items-center justify-center cursor-pointer scale-98 hover:scale-100 active:scale-95 transition-all shadow-sm hover:shadow-md"
             id="workspace-google-signin-btn"
           >
             <div className="gsi-material-button-state"></div>
@@ -733,20 +736,20 @@ ${localAdvice.scheduleTip}
                   <path fill="none" d="M0 0h48v48H0z"></path>
                 </svg>
               </div>
-              <span className="gsi-material-button-contents text-slate-800 dark:text-slate-800 font-medium">Sign in with Google</span>
+              <span className="gsi-material-button-contents text-slate-800 dark:text-slate-800 font-medium tracking-tight">Sign in with Google</span>
             </div>
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200/40">
-              <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold font-mono">
+            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800/80 px-4 py-2 rounded-2xl border border-slate-250/20 dark:border-slate-800/80 shadow-inner">
+              <div className="w-5.5 h-5.5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] text-white font-black font-mono">
                 {currentUser?.displayName?.[0] || "U"}
               </div>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-350">{currentUser?.email}</span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{currentUser?.email}</span>
             </div>
             <button 
               onClick={handleGoogleLogout}
-              className="text-xs p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer"
+              className="text-xs p-2.5 text-slate-400 hover:text-red-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer border border-transparent hover:border-red-500/20"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
@@ -757,23 +760,23 @@ ${localAdvice.scheduleTip}
 
       {/* Notifications indicator */}
       {notif && (
-        <div className={`p-4 rounded-xl border text-xs shadow-xs transition-all duration-300 ${
+        <div className={`p-4 rounded-2xl border text-xs shadow-sm transition-all duration-300 animate-fade-in ${
           notif.type === "success" 
-            ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-250/30 text-emerald-850 dark:text-emerald-400" 
-            : "bg-rose-50 dark:bg-rose-950/20 border-rose-250/30 text-rose-850 dark:text-rose-400"
+            ? "bg-emerald-50/80 dark:bg-emerald-950/20 border-emerald-350/20 text-emerald-850 dark:text-emerald-400 font-black" 
+            : "bg-rose-50/80 dark:bg-rose-950/20 border-rose-355/20 text-rose-850 dark:text-rose-405 font-black"
         }`}>
           {notif.message}
         </div>
       )}
 
       {/* Workspace Inner Navigation Tabs */}
-      <div className="flex gap-2 border-b border-slate-200/60 dark:border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+      <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-850 pb-2 overflow-x-auto no-scrollbar font-display">
         {[
-          { id: "calendar", label: "Google Calendar", icon: Calendar },
-          { id: "drive", label: "Drive Storage", icon: HardDrive },
-          { id: "tasks", label: "Google Tasks", icon: CheckSquare },
-          { id: "keep", label: "Study Pinboard", icon: BookHeart },
-          { id: "docs", label: "Docs Exporter", icon: FileText }
+          { id: "calendar", label: "Google Calendar", icon: Calendar, color: "text-blue-500 dark:text-blue-400" },
+          { id: "drive", label: "Drive Storage", icon: HardDrive, color: "text-amber-500 dark:text-amber-400" },
+          { id: "tasks", label: "Google Tasks", icon: CheckSquare, color: "text-indigo-500 dark:text-indigo-400" },
+          { id: "keep", label: "Study Pinboard", icon: BookHeart, color: "text-rose-500 dark:text-rose-400" },
+          { id: "docs", label: "Docs Exporter", icon: FileText, color: "text-emerald-500 dark:text-emerald-400" }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeWorkspaceTab === tab.id;
@@ -781,13 +784,13 @@ ${localAdvice.scheduleTip}
             <button
               key={tab.id}
               onClick={() => setActiveWorkspaceTab(tab.id as any)}
-              className={`py-2 px-4 rounded-xl flex items-center gap-2 text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+              className={`py-2 px-4 rounded-xl flex items-center gap-2.5 text-xs font-semibold transition-all shrink-0 cursor-pointer hover-lift ${
                 isActive 
-                  ? "bg-blue-600 text-white font-bold" 
-                  : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/50 dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800/40 dark:text-slate-400"
+                  ? "bg-gradient-to-r from-blue-650 to-blue-500 text-white font-black shadow-md border border-blue-650" 
+                  : "bg-white hover:bg-slate-50 text-slate-650 border border-slate-200/40 dark:bg-slate-900/50 dark:border-slate-800/80 dark:hover:bg-slate-800/40 dark:text-slate-400"
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className={`w-4 h-4 ${isActive ? "text-white" : tab.color}`} />
               {tab.label}
             </button>
           );
@@ -1606,7 +1609,7 @@ ${localAdvice.scheduleTip}
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
                   {keepNotes.map(n => (
-                    <div key={n.id} className="p-4 bg-yellow-50/50 dark:bg-slate-950/40 border border-yellow-250/20 dark:border-slate-850/60 rounded-2xl space-y-2 h-fit relative group">
+                    <div key={n.id} className="p-4 bg-yellow-50/50 dark:bg-slate-950/40 border border-yellow-250/20 dark:border-slate-850/60 rounded-2xl space-y-2 h-fit relative group hover-lift transition-all duration-300">
                       <div className="flex justify-between items-start">
                         <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 capitalize">{n.title}</span>
                         <button 

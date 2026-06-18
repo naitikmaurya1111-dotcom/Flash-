@@ -127,7 +127,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800 space-y-6">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 space-y-6 hover-lift transition-all duration-350 shadow-md">
       
       {/* Upper branding section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 dark:border-slate-800 pb-5">

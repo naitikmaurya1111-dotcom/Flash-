@@ -1,274 +1,77 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /{doc=**} { allow read, write: if false; }
+    match /test/{id} { allow read: if true; }
 
-    // 1. Global safety net (default deny)
-    match /{document=**} {
-      allow read, write: if false;
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isEmailVerified() { return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com' || request.auth.token.firebase.sign_in_provider == 'password'); }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    function isValidUser(d, uid) {
+      return (d.userId == null || d.userId == uid) && (d.email == null || d.email is string) && (d.dailyTargetMinutes == null || d.dailyTargetMinutes >= 0);
     }
 
-    // Support connection validation test without requiring auth
-    match /test/{testId} {
-      allow read: if true;
-    }
-
-    // Phase 3: Global Helpers
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isEmailVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Helper functions for entity validations
-    function isValidUser(data, userId) {
-      return data.userId == userId
-        && data.email is string
-        && data.email.size() <= 150
-        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 100))
-        && (data.studentName == null || (data.studentName is string && data.studentName.size() <= 100))
-        && (data.studentClass == null || (data.studentClass is string && data.studentClass.size() <= 100))
-        && (data.studentPrepTarget == null || (data.studentPrepTarget is string && data.studentPrepTarget.size() <= 100))
-        && (data.dailyTargetMinutes == null || (data.dailyTargetMinutes is number && data.dailyTargetMinutes >= 0))
-        && (data.xp == null || (data.xp is number && data.xp >= 0))
-        && (data.lastActiveDate == null || (data.lastActiveDate is string && data.lastActiveDate.size() <= 50))
-        && (data.themePreset == null || (data.themePreset is string && data.themePreset.size() <= 50))
-        && (data.themeMode == null || (data.themeMode is string && data.themeMode.size() <= 50))
-        && (data.timerType == null || (data.timerType is string && data.timerType.size() <= 50))
-        && (data.pomoFocusDuration == null || (data.pomoFocusDuration is number && data.pomoFocusDuration >= 0))
-        && (data.pomoShortBreakDuration == null || (data.pomoShortBreakDuration is number && data.pomoShortBreakDuration >= 0))
-        && (data.pomoLongBreakDuration == null || (data.pomoLongBreakDuration is number && data.pomoLongBreakDuration >= 0));
-    }
-
-    function isValidSubject(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.name is string
-        && data.name.size() <= 100
-        && data.color is string
-        && data.color.size() <= 100
-        && data.icon is string
-        && data.icon.size() <= 100
-        && data.totalMinutes is number
-        && data.totalMinutes >= 0
-        && data.goalMinutes is number
-        && data.goalMinutes >= 0;
-    }
-
-    function isValidTask(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.title is string
-        && data.title.size() <= 500
-        && data.isCompleted is bool
-        && data.subjectId is string
-        && data.subjectId.size() <= 128;
-    }
-
-    function isValidStudyLog(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.date is string
-        && data.date.size() <= 20
-        && data.subjectId is string
-        && data.subjectId.size() <= 128
-        && data.subjectName is string
-        && data.subjectName.size() <= 100
-        && data.durationMinutes is number
-        && data.durationMinutes >= 0
-        && data.timestamp is string;
-    }
-
-    function isValidGiftReward(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.title is string
-        && data.title.size() <= 200
-        && data.costXp is number
-        && data.costXp >= 0
-        && data.purchaseUrl is string
-        && data.category is string
-        && data.isUnlocked is bool
-        && data.isClaimed is bool
-        && (data.notes == null || (data.notes is string && data.notes.size() <= 1000))
-        && data.createdAt is string;
-    }
-
-    function isValidQuestChallenge(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.title is string
-        && data.title.size() <= 200
-        && data.condition is string
-        && data.xpReward is number
-        && data.xpReward >= 0
-        && data.isCompleted is bool
-        && data.category is string;
-    }
-
-    function isValidXpGainLog(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.reason is string
-        && data.reason.size() <= 300
-        && data.amount is number
-        && data.amount >= 0
-        && data.timestamp is string;
-    }
-
-    function isValidReminder(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.title is string
-        && data.title.size() <= 200
-        && data.time is string
-        && data.time.size() <= 10
-        && data.type is string
-        && (data.type == 'daily' || data.type == 'one-shot' || data.type == 'timer')
-        && (data.durationMinutes == null || data.durationMinutes is number)
-        && (data.triggeredAt == null || data.triggeredAt is string)
-        && data.isActive is bool
-        && data.isCompleted is bool
-        && (data.subjectId == null || (data.subjectId is string && data.subjectId.size() <= 128));
-    }
-
-    function isValidStudyRoom(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.name is string
-        && data.name.size() <= 100
-        && data.category is string
-        && data.category.size() <= 100
-        && data.description is string
-        && data.description.size() <= 500
-        && (data.creatorId == null || (data.creatorId is string && data.creatorId.size() <= 128))
-        && (data.icon == null || (data.icon is string && data.icon.size() <= 100))
-        && (data.currentUsersCount == null || (data.currentUsersCount is number && data.currentUsersCount >= 0));
-    }
-
-    function isValidRoomMember(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.name is string
-        && data.name.size() <= 100
-        && data.avatarSeed is string
-        && data.avatarSeed.size() <= 100
-        && data.isStudying is bool
-        && data.activeSubjectName is string
-        && data.activeSubjectName.size() <= 100
-        && data.studyDurationTodayMinutes is number
-        && data.studyDurationTodayMinutes >= 0
-        && data.activeSeconds is number
-        && data.activeSeconds >= 0
-        && (data.updatedAt == null || data.updatedAt is string);
-    }
-
-    function isValidRoomChat(data) {
-      return data.id is string
-        && data.id.size() <= 128
-        && data.userId is string
-        && data.userId.size() <= 128
-        && data.userName is string
-        && data.userName.size() <= 100
-        && data.text is string
-        && data.text.size() <= 500
-        && (data.userAvatarSeed == null || (data.userAvatarSeed is string && data.userAvatarSeed.size() <= 100))
-        && (data.timestamp == null || data.timestamp is string);
-    }
-
-    // 2. Collection matches for Users and Subcollections
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isEmailVerified() && isValidUser(request.resource.data, userId);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data, userId)
-                    && request.resource.data.userId == resource.data.userId; // Immutable User ID
-      allow delete: if isOwner(userId);
+      allow get, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data, userId);
 
-      // Subcollection matches
-      match /subjects/{subjectId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(subjectId) && isValidSubject(request.resource.data);
-        allow update: if isOwner(userId) && isValidSubject(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Subject ID
-        allow delete: if isOwner(userId);
+      match /subjects/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId) && request.resource.data.name is string;
       }
-
-      match /tasks/{taskId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(taskId) && isValidTask(request.resource.data);
-        allow update: if isOwner(userId) && isValidTask(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Task ID
-        allow delete: if isOwner(userId);
+      match /tasks/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
-
-      match /studyLogs/{logId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidStudyLog(request.resource.data);
-        allow update: if isOwner(userId) && isValidStudyLog(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Log ID
-        allow delete: if isOwner(userId);
+      match /studyLogs/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
-
-      match /rewards/{rewardId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(rewardId) && isValidGiftReward(request.resource.data);
-        allow update: if isOwner(userId) && isValidGiftReward(request.resource.data)
-                      && request.resource.data.id == resource.data.id // Immutable Reward ID
-                      && (!resource.data.isClaimed || request.resource.data.isClaimed == true); // Terminal State lock: once claimed, remains claimed
-        allow delete: if isOwner(userId);
+      match /rewards/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
-
-      match /quests/{questId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(questId) && isValidQuestChallenge(request.resource.data);
-        allow update: if isOwner(userId) && isValidQuestChallenge(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Quest ID
-        allow delete: if isOwner(userId);
+      match /quests/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
-
-      match /xpLogs/{logId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(logId) && isValidXpGainLog(request.resource.data);
-        allow update: if isOwner(userId) && isValidXpGainLog(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Log ID
-        allow delete: if isOwner(userId);
+      match /xpLogs/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
-
-      match /reminders/{reminderId} {
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(reminderId) && isValidReminder(request.resource.data);
-        allow update: if isOwner(userId) && isValidReminder(request.resource.data)
-                      && request.resource.data.id == resource.data.id; // Immutable Reminder ID
-        allow delete: if isOwner(userId);
+      match /reminders/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
+      }
+      match /keepNotes/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
       }
     }
 
-    // 3. Collection matches for Study Rooms, Members and chats (YPT Multi-user features)
     match /studyRooms/{roomId} {
-      allow list, get: if true; // Public study lobbies can be browsed by all clients
-      allow create: if isSignedIn() && isEmailVerified() && isValidId(roomId) && isValidStudyRoom(request.resource.data);
-      allow update: if isSignedIn() && isValidStudyRoom(request.resource.data);
+      allow list, get: if true;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(roomId);
+      allow update: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
 
       match /members/{memberId} {
         allow list, get: if isSignedIn();
-        allow create: if isSignedIn() && request.auth.uid == memberId && isValidId(memberId) && isValidRoomMember(request.resource.data);
-        allow update: if isSignedIn() && request.auth.uid == memberId && isValidRoomMember(request.resource.data);
-        allow delete: if isSignedIn() && request.auth.uid == memberId;
+        allow create, update, delete: if isSignedIn() && request.auth.uid == memberId;
       }
-
       match /chats/{chatId} {
         allow list, get: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidId(chatId) && isValidRoomChat(request.resource.data);
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidId(chatId);
         allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
       }
     }

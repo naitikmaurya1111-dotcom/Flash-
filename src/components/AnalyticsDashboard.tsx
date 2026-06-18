@@ -70,24 +70,42 @@ export default function AnalyticsDashboard({
     return data;
   }, [studyLogs, totalMinutesToday, todayLocalStr]);
 
-  // Distribution chart of studied subject topics
+  // Distribution chart of studied subject topics (All-Time Historical breakdown)
   const subjectDistributionData = useMemo(() => {
+    // Map of subjectId -> sum of durationMinutes from historical logs
+    const logSumMap: Record<string, number> = {};
+    
+    studyLogs.forEach(log => {
+      logSumMap[log.subjectId] = (logSumMap[log.subjectId] || 0) + log.durationMinutes;
+    });
+
     return subjects
-      .filter(s => s.totalMinutes > 0)
-      .map(s => ({
-        name: s.name,
-        value: s.totalMinutes,
-        color: s.color.includes("blue") 
-          ? "#3b82f6" 
-          : s.color.includes("emerald") 
-          ? "#10b981" 
-          : s.color.includes("amber") 
-          ? "#f59e0b" 
-          : s.color.includes("purple") 
-          ? "#8b5cf6" 
-          : "#f43f5e"
-      }));
-  }, [subjects]);
+      .map(s => {
+        const loggedMins = logSumMap[s.id] || 0;
+        // Merge today's active offline timer minutes
+        const totalAllTimeSubjectMinutes = Math.max(loggedMins, s.totalMinutes);
+        return {
+          name: s.name,
+          value: totalAllTimeSubjectMinutes,
+          color: s.color.includes("blue") 
+            ? "#3b82f6" 
+            : s.color.includes("emerald") 
+            ? "#10b981" 
+            : s.color.includes("amber") 
+            ? "#f59e0b" 
+            : s.color.includes("purple") 
+            ? "#8b5cf6" 
+            : s.color.includes("orange")
+            ? "#ea580c"
+            : s.color.includes("pink")
+            ? "#db2777"
+            : s.color.includes("rose")
+            ? "#e11d48"
+            : "#f43f5e"
+        };
+      })
+      .filter(item => item.value > 0);
+  }, [subjects, studyLogs]);
 
   // Calendar Heatmap data creation (Past 30 Days)
   const heatmapData = useMemo(() => {
@@ -127,7 +145,7 @@ export default function AnalyticsDashboard({
       {/* 2. Visual Metrics Cards GRID */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Today Focus Hours */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between hover-lift shadow-sm transition-all duration-300">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs uppercase font-mono tracking-wider">Today Studied</span>
             <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -143,7 +161,7 @@ export default function AnalyticsDashboard({
         </div>
 
         {/* Current Streak days */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between hover-lift shadow-sm transition-all duration-300">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs uppercase font-mono tracking-wider">Habit Streak</span>
             <Award className="w-4 h-4 text-amber-500 fill-amber-500/10" />
@@ -159,7 +177,7 @@ export default function AnalyticsDashboard({
         </div>
 
         {/* Dynamic target gauges */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between hover-lift shadow-sm transition-all duration-300">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs uppercase font-mono tracking-wider">Daily Goal Target</span>
             <Target className="w-4 h-4 text-indigo-500" />
@@ -175,7 +193,7 @@ export default function AnalyticsDashboard({
         </div>
 
         {/* Total Sessions logged */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl flex flex-col justify-between hover-lift shadow-sm transition-all duration-300">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs uppercase font-mono tracking-wider">Cumulative Total</span>
             <Calendar className="w-4 h-4 text-rose-500" />
@@ -195,7 +213,7 @@ export default function AnalyticsDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Weekly Trend Bar Chart */}
-        <div className="bg-white dark:bg-slate-900 hover:shadow-xs rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 space-y-4 hover-lift transition-all duration-320">
           <h3 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-100">
             Weekly Study Trend (past 7 days)
           </h3>
@@ -252,7 +270,7 @@ export default function AnalyticsDashboard({
         </div>
 
         {/* Subject Allocation Allocation */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-905 bg-white dark:bg-slate-905 dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover-lift shadow-sm transition-all duration-320">
           <h3 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-100 mb-2">
             Today Topic Distribution
           </h3>
@@ -315,7 +333,7 @@ export default function AnalyticsDashboard({
       </div>
 
       {/* 4. Streaks heat-map (Grid of 30 blocks simulating consistent study) */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800 space-y-4">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 space-y-4 hover-lift shadow-sm transition-all duration-320">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-emerald-500 animate-pulse" />
