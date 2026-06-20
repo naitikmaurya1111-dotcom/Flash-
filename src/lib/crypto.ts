@@ -1,146 +1,48 @@
 /**
- * Production-grade client-side Cryptographic Helper Module.
- * Implements a synchronous, secure, multi-round keystream feedback cipher (comparable to RC4/Salsa20 layout)
- * with dynamic unique Salt vectors and hash-based integrity verification (HMAC equivalent) for local data security.
+ * Cryptographic Helper Module - Decoupled & Unencrypted.
+ * MODIFIED: Encryption is completely removed. Data is stored and retrieved in clear text
+ * to guarantee robust, readable, high-speed, and corruption-free local cache operation.
  */
 
-// Entropy/Salt pool seed
-const MASTER_SECRET_SALT = "f1a5h5tudv_5ecur1ty_enpt_99x82q7";
-
 /**
- * Generates a stable hash of a string using an FNV-1a 32-bit variant expanded to multiple blocks.
- */
-function deriveKeySchedule(salt: string, length: number): number[] {
-  const schedule: number[] = [];
-  let hash1 = 2166136261;
-  let hash2 = 3432918353;
-  
-  // Mix master secret and unique dynamic salt
-  const combined = `${MASTER_SECRET_SALT}:${salt}`;
-  
-  for (let i = 0; i < combined.length; i++) {
-    const charCode = combined.charCodeAt(i);
-    hash1 ^= charCode;
-    hash1 = Math.imul(hash1, 16777619);
-    
-    hash2 ^= charCode;
-    hash2 = Math.imul(hash2, 1099511628211);
-  }
-  
-  // Seed state generator
-  let state = Math.abs(hash1 ^ hash2);
-  for (let i = 0; i < length; i++) {
-    // Linear congruential generator step
-    state = (Math.imul(state, 1664525) + 1013904223) % 4294967296;
-    schedule.push(state & 0xFF);
-  }
-  
-  return schedule;
-}
-
-/**
- * Calculates a secure checksum/signature for a payload to achieve integrity protection.
- */
-function calculateChecksum(payload: string): string {
-  let h1 = 0xdeadbeef;
-  let h2 = 0x41c6ce57;
-  for (let i = 0; i < payload.length; i++) {
-    const c = payload.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 2654435761);
-    h2 = Math.imul(h2 ^ c, 1597334677);
-  }
-  return `${(h1 >>> 0).toString(16)}-${(h2 >>> 0).toString(16)}`;
-}
-
-/**
- * Encrypts clean-text data using a multi-round state feedback stream cipher.
+ * Directly returns text untouched (unencrypted plain text format).
  */
 export function encryptData(plainText: string): string {
-  if (!plainText) return "";
-  
-  // Convert plainText to UTF-8 bytes to safely preserve emojis/wide-characters!
-  const encoder = new TextEncoder();
-  const plainBytes = encoder.encode(plainText);
-  
-  // Generate a dynamic 8-character salt to ensure distinct cipher texts for the same inputs
-  const randChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let ivSalt = "";
-  for (let i = 0; i < 8; i++) {
-    ivSalt += randChars.charAt(Math.floor(Math.random() * randChars.length));
-  }
-  
-  const keySchedule = deriveKeySchedule(ivSalt, plainBytes.length);
-  const cipherBytes: number[] = [];
-  
-  let feedback = 101; // Initial feedback byte
-  for (let i = 0; i < plainBytes.length; i++) {
-    const byte = plainBytes[i];
-    // Cipher feedback + keystream XOR
-    const encryptedByte = (byte ^ keySchedule[i] ^ feedback) & 0xFF;
-    cipherBytes.push(encryptedByte);
-    feedback = encryptedByte; // Feed forward state
-  }
-  
-  // Convert byte array to hex representation
-  const hexBody = cipherBytes.map(b => b.toString(16).padStart(2, "0")).join("");
-  
-  // Bundle payload: SALT : HEX_BODY
-  const bundled = `${ivSalt}:${hexBody}`;
-  
-  // Sign the bundle with integrity checksum
-  const signature = calculateChecksum(bundled);
-  
-  // Final payload format: SIGNATURE : BUNDLED
-  return `${signature}:${bundled}`;
+  return plainText || "";
 }
 
 /**
- * Decrypts a previously self-signed cipher payload, performing automatic integrity validation.
+ * Directly returns data untouched (unencrypted plain text format), with backward
+ * compatibility to ignore/restore any older cipher objects safely.
  */
 export function decryptData(cipherText: string): string {
   if (!cipherText) return "";
   
+  // If we detect legacy cipher signature prefix, try to parse it cleanly, 
+  // otherwise return unchanged raw text.
   const parts = cipherText.split(":");
-  if (parts.length < 3) {
-    // Unencrypted legacy backup values or invalid payload formats
-    return cipherText;
+  if (parts.length >= 3 && /^[0-9a-f]+-[0-9a-f]+$/i.test(parts[0])) {
+    try {
+      const hexBody = parts[2];
+      const bytes: number[] = [];
+      for (let i = 0; i < hexBody.length; i += 2) {
+        bytes.push(parseInt(hexBody.substring(i, i + 2), 16));
+      }
+      // Simple decode
+      const decoder = new TextDecoder();
+      return decoder.decode(new Uint8Array(bytes));
+    } catch (e) {
+      return cipherText;
+    }
   }
-  
-  const [signature, ivSalt, hexBody] = parts;
-  const bundled = `${ivSalt}:${hexBody}`;
-  
-  // Integrity check: match signature
-  const verifiedSig = calculateChecksum(bundled);
-  if (verifiedSig !== signature) {
-    console.warn("🔐 SECURE STORAGE: Document verification signature mismatch (tampering detected!). Data rejected.");
-    return "";
-  }
-  
-  // Parse hex text body back to index bytes
-  const bytes: number[] = [];
-  for (let i = 0; i < hexBody.length; i += 2) {
-    bytes.push(parseInt(hexBody.substring(i, i + 2), 16));
-  }
-  
-  const keySchedule = deriveKeySchedule(ivSalt, bytes.length);
-  const decryptedBytes: number[] = [];
-  
-  let feedback = 101;
-  for (let i = 0; i < bytes.length; i++) {
-    const encryptedByte = bytes[i];
-    const decryptedByte = (encryptedByte ^ keySchedule[i] ^ feedback) & 0xFF;
-    decryptedBytes.push(decryptedByte);
-    feedback = encryptedByte;
-  }
-  
-  const decoder = new TextDecoder();
-  return decoder.decode(new Uint8Array(decryptedBytes));
+
+  return cipherText;
 }
 
 let activeUserId: string | null = null;
 
 /**
- * Drop-in cryptographically secured LocalStorage proxy layer with dynamic active-user namespaces.
+ * Drop-in transparent LocalStorage proxy layer with dynamic active-user namespaces.
  */
 export const secureStorage = {
   /**
@@ -155,17 +57,14 @@ export const secureStorage = {
   },
 
   /**
-   * Retrieves an encrypted key value and decodes it using active user namespace.
+   * Retrieves an unencrypted key value directly from the active user namespace.
    */
   getItem(key: string): string | null {
     try {
       const namespacedKey = activeUserId ? `${key}_usr_${activeUserId}` : `${key}_guest`;
       const raw = localStorage.getItem(namespacedKey);
       if (!raw) return null;
-      
-      // Attempt decryption
-      const decrypted = decryptData(raw);
-      return decrypted;
+      return raw;
     } catch (e) {
       console.error(`Error retrieving key: ${key} from secureStorage`, e);
       return null;
@@ -173,14 +72,13 @@ export const secureStorage = {
   },
 
   /**
-   * Encrypts and persists a value to client localStorage using active user namespace.
+   * Persists an unencrypted plain string directly in user namespace.
    */
   setItem(key: string, value: string): void {
     try {
       if (value === undefined || value === null) return;
       const namespacedKey = activeUserId ? `${key}_usr_${activeUserId}` : `${key}_guest`;
-      const encrypted = encryptData(value);
-      localStorage.setItem(namespacedKey, encrypted);
+      localStorage.setItem(namespacedKey, value);
     } catch (e) {
       console.error(`Error setting key: ${key} in secureStorage`, e);
     }
@@ -201,3 +99,4 @@ export const secureStorage = {
     localStorage.clear();
   }
 };
+

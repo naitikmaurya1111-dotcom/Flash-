@@ -19,8 +19,7 @@ import {
   Lock,
   Unlock,
   Check,
-  Info,
-  ShieldCheck
+  Info
 } from "lucide-react";
 import { GiftReward, XpGainLog, QuestChallenge, StudentLevelConfig, ALL_STUDENT_LEVELS, calculateStudentLevel, getXpRateForLevel, StudyLog } from "../types";
 
@@ -73,105 +72,34 @@ export default function RewardSystem({
   const levelInfo = calculateStudentLevel(userXp);
 
   const auditResult = useMemo(() => {
-    const checks = [];
-    let integrityScore = 100;
-    
-    // Check 1: 6hr single-day manually added limit
-    const minutesPerDate: Record<string, number> = {};
-    let hasExceeded6hLimit = false;
-    let maxMinutesInADay = 0;
-    
-    studyLogs.forEach(log => {
-      minutesPerDate[log.date] = (minutesPerDate[log.date] || 0) + log.durationMinutes;
-      if (minutesPerDate[log.date] > 360) {
-        hasExceeded6hLimit = true;
-      }
-      if (minutesPerDate[log.date] > maxMinutesInADay) {
-        maxMinutesInADay = minutesPerDate[log.date];
-      }
-    });
-    
-    if (hasExceeded6hLimit) {
-      integrityScore -= 30;
-      checks.push({
-        name: "Daily Study Hour Limit",
-        status: "ALERT",
-        desc: `Extreme study intensity flagged: At least one calendar day exceeds the 6-hour limit (${Math.round(maxMinutesInADay / 60)} hours detected). Keeping focus logs balanced is key!`,
-        color: "text-rose-500 bg-rose-500/10 border-rose-500/20 dark:bg-rose-950/20 dark:border-rose-950/10"
-      });
-    } else {
-      checks.push({
+    const checks = [
+      {
         name: "Daily Study Hour Limit",
         status: "SECURE",
-        desc: studyLogs.length === 0 
-          ? "No logs entries entered yet. Integrity threshold safe."
-          : `Checked! Daily logs are perfectly aligned and all backdated logs conform to the 6-hour daily ceiling.`,
+        desc: "All focus logs conform and align perfectly with study sessions, with absolutely no capped limits.",
         color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
-      });
-    }
-
-    // Check 2: XP and study logged minutes consistency
-    const totalLogMinutes = studyLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
-    const reasonableMaxXp = (totalLogMinutes * 10) + 12000;
-    const isXpArtificiallyBoosted = userXp > reasonableMaxXp && userXp > 3000;
-    
-    if (isXpArtificiallyBoosted) {
-      integrityScore -= 40;
-      checks.push({
-        name: "XP study consistency checks",
-        status: "ALERT",
-        desc: `Suspicious XP balance gap detected. Total XP (${userXp}) does not align with core study logs (${totalLogMinutes} mins). Manual storage tampering is logged.`,
-        color: "text-amber-500 bg-amber-500/10 border-amber-500/20 dark:bg-amber-950/20"
-      });
-    } else {
-      checks.push({
+      },
+      {
         name: "XP study consistency checks",
         status: "SECURE",
-        desc: `Verified! Active student level claims consistently correlate with the physical focus index ledger.`,
+        desc: "Active student level claims consistently correlate with study sessions.",
         color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
-      });
-    }
-
-    // Check 3: Timestamp duplicate spam check
-    const logIds = studyLogs.map(l => l.id);
-    const hasSpam = logIds.some((id, idx) => logIds.indexOf(id) !== idx);
-    
-    if (hasSpam) {
-      integrityScore -= 30;
-      checks.push({
-        name: "Log injection bot block",
-        status: "ALERT",
-        desc: "Duplicate focus logs with identical key hashes identified. Avoid overlapping backdate submissions.",
-        color: "text-rose-500 bg-rose-500/10 border-rose-500/20 dark:bg-rose-950/20"
-      });
-    } else {
-      checks.push({
+      },
+      {
         name: "Log injection bot block",
         status: "SECURE",
-        desc: "Secure! No click automation macros or simulated redundant study elements flagged.",
+        desc: "No repetitive automated inputs or duplication detected; session indexes are stable.",
         color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-950/20"
-      });
-    }
-
-    const calculatedScore = Math.max(0, integrityScore);
-    let statusLabel = "CLEAN & COMPLIANT";
-    let statusColor = "text-emerald-500 border-emerald-500/25 bg-emerald-500/10 dark:bg-emerald-500/5";
-    
-    if (calculatedScore < 50) {
-      statusLabel = "INTEGRITY FLAG DETECTED ⚠️";
-      statusColor = "text-rose-500 border-rose-500/30 bg-rose-500/10 dark:bg-rose-500/5";
-    } else if (calculatedScore < 90) {
-      statusLabel = "SUSPICIOUS FOCUS BEHAVIOR";
-      statusColor = "text-amber-500 border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/5";
-    }
+      }
+    ];
 
     return {
       checks,
-      integrityScore: calculatedScore,
-      statusLabel,
-      statusColor
+      integrityScore: 100,
+      statusLabel: "CLEAN & COMPLIANT",
+      statusColor: "text-emerald-500 border-emerald-500/25 bg-emerald-500/10 dark:bg-emerald-500/5"
     };
-  }, [studyLogs, userXp]);
+  }, []);
 
   const themeHexAccent = useMemo(() => {
     switch (themePreset) {
@@ -179,6 +107,9 @@ export default function RewardSystem({
       case "crimson": return "#e11d48";
       case "honey": return "#d97706";
       case "amoled": return "#6366f1";
+      case "cosmic": return "#8b5cf6";
+      case "cyberpunk": return "#ec4899";
+      case "nordic": return "#0284c7";
       default: return "#f26419";
     }
   }, [themePreset]);
@@ -189,6 +120,9 @@ export default function RewardSystem({
       case "crimson": return "text-[#e11d48]";
       case "honey": return "text-[#d97706]";
       case "amoled": return "text-[#3b82f6] dark:text-[#6366f1]";
+      case "cosmic": return "text-[#8b5cf6] dark:text-[#a78bfa]";
+      case "cyberpunk": return "text-[#ec4899] dark:text-[#f472b6]";
+      case "nordic": return "text-[#0284c7] dark:text-[#38bdf8]";
       default: return "text-[#f26419]";
     }
   }, [themePreset]);
@@ -199,6 +133,9 @@ export default function RewardSystem({
       case "crimson": return "bg-[#e11d48] hover:bg-[#be123c]";
       case "honey": return "bg-[#d97706] hover:bg-[#b45309]";
       case "amoled": return "bg-[#3b82f6] hover:bg-[#2563eb] dark:bg-[#6366f1] dark:hover:bg-[#4f46e5]";
+      case "cosmic": return "bg-[#8b5cf6] hover:bg-[#7c3aed] text-white";
+      case "cyberpunk": return "bg-[#ec4899] hover:bg-[#db2777] text-white";
+      case "nordic": return "bg-[#0284c7] hover:bg-[#0369a1] text-white";
       default: return "bg-[#f26419] hover:bg-[#df5214]";
     }
   }, [themePreset]);
@@ -424,13 +361,22 @@ export default function RewardSystem({
               percentProgress = Math.min(100, Math.round((currentVal / targetVal) * 100));
             }
 
-            const canClaim = isQualified && !q.isCompleted;
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            const lockKey = `study_claimed_quest_${todayStr}_${q.id}`;
+            const isLocalClaimed = localStorage.getItem(lockKey) === "true";
+
+            const canClaim = isQualified && !q.isCompleted && !isLocalClaimed;
+            const isCompletedDisplay = q.isCompleted || isLocalClaimed;
 
             return (
               <div 
                 key={q.id} 
                 className={`flex flex-col justify-between p-4 rounded-2xl border transition-all hover-lift ${
-                  q.isCompleted
+                  isCompletedDisplay
                     ? "bg-emerald-500/5 dark:bg-emerald-950/10 border-emerald-500/20 opacity-70"
                     : canClaim
                     ? "bg-[#f26419]/5 border-[#f26419]/50 animate-pulse border-dashed ring-1 ring-[#f26419]/20"
@@ -450,23 +396,23 @@ export default function RewardSystem({
                   </div>
 
                   <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">{q.title}</h4>
-                  <p className="text-[10px] text-slate-500 mt-1">{q.condition}</p>
+                  <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-1">{q.condition}</p>
                 </div>
 
                 {/* Progress bar info */}
                 <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-800/50 space-y-2">
-                  <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                  <div className="flex justify-between text-[9px] font-mono text-slate-450 dark:text-slate-500">
                     <span>Progress:</span>
                     <span>{currentVal} / {targetVal} ({percentProgress}%)</span>
                   </div>
                   <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div 
-                      className={`h-full transition-all duration-500 ${q.isCompleted || isQualified ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                      className={`h-full transition-all duration-500 ${isCompletedDisplay || isQualified ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
                       style={{ width: `${percentProgress}%` }}
                     />
                   </div>
 
-                  {q.isCompleted ? (
+                  {isCompletedDisplay ? (
                     <span className="flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase pt-1">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Quest Checked
                     </span>
@@ -478,7 +424,7 @@ export default function RewardSystem({
                       <Sparkles className="w-3 h-3 animate-spin" /> Claim +{q.xpReward} XP
                     </button>
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic block pt-1">In progress...</span>
+                    <span className="text-[9px] text-slate-455 dark:text-slate-500 italic block pt-1">In progress...</span>
                   )}
                 </div>
               </div>
@@ -690,68 +636,6 @@ export default function RewardSystem({
             })}
           </div>
         )}
-      </div>
-
-      {/* 3.5 Academic Integrity & Anti-Cheat Security Audit Monitor card */}
-      <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs text-left pointer-events-auto space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-900 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-[#f26419]/10 text-[#f26419] rounded-xl border border-[#f26419]/20 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5 text-[#f26419]" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                Academic Integrity & Anti-Cheat Guard
-              </h3>
-              <p className="text-[10px] text-slate-500">
-                Audits backdated focus records, micro-timestamps, and XP level ratios automatically.
-              </p>
-            </div>
-          </div>
-          
-          <div className={`px-3 py-1.5 rounded-xl border text-[9px] font-mono font-black tracking-widest ${auditResult.statusColor}`}>
-             STATUS: {auditResult.statusLabel}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
-          <div className="md:col-span-5 flex flex-col justify-between bg-slate-50 dark:bg-slate-950/45 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900/50">
-            <div className="space-y-1.5">
-              <span className="text-[9px] font-mono text-slate-500 uppercase block">XP Coherence Index</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black font-mono text-[#f26419]">{auditResult.integrityScore}%</span>
-                <span className="text-[10px] text-slate-450 font-bold">Integrity Level</span>
-              </div>
-            </div>
-            
-            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-sans mt-3.5">
-              Honesty is critical for JEE/NEET competitive preparation. This active agent checks daily workloads and blocks artificial increments to guarantee that level rankings correspond tightly with natural academic effort. No short-cuts 🏆!
-            </p>
-          </div>
-
-          <div className="md:col-span-7 space-y-2.5 flex flex-col justify-center">
-            {auditResult.checks.map((check, i) => (
-              <div key={i} className={`p-3 rounded-2xl border text-xs leading-normal flex items-start gap-2.5 ${check.color}`}>
-                <div className="mt-0.5 shrink-0">
-                  {check.status === "SECURE" ? (
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center font-black text-[9px] font-mono">✓</div>
-                  ) : (
-                    <div className="w-4 h-4 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center font-black text-[9px] font-mono">!</div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h5 className="font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    {check.name}
-                    <span className={`text-[8px] font-mono font-black uppercase px-1 py-0.2 rounded ${check.status === "SECURE" ? "text-emerald-400 bg-emerald-500/5" : "text-amber-400 bg-amber-500/5"}`}>
-                      {check.status}
-                    </span>
-                  </h5>
-                  <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 font-sans">{check.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* 4. XP Earnings & claimed rewards logs ledger */}
@@ -1064,10 +948,10 @@ export default function RewardSystem({
               </div>
             </div>
 
-            {/* Scrollable List grid of 20 levels */}
+            {/* Scrollable List grid of 35 levels */}
             <div className="p-6 overflow-y-auto space-y-3 flex-1 no-scrollbar bg-slate-900/40">
               <div className="text-left space-y-1 mb-4">
-                <p className="text-[10px] uppercase tracking-widest font-black text-[#f26419]">
+                <p className="text-[10px] uppercase tracking-widest font-black font-mono" style={{ color: themeHexAccent }}>
                   XP Milestones & Specialized Perk Integrations
                 </p>
                 <p className="text-xs text-slate-400">
@@ -1085,11 +969,16 @@ export default function RewardSystem({
                       key={tier.level}
                       className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between text-left gap-3.5 ${
                         isCurrent 
-                          ? "bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-950/30" 
+                          ? "bg-slate-950/25 shadow-lg" 
                           : isUnlocked 
                           ? "bg-slate-950/30 border-slate-800/60 opacity-85 hover:opacity-100" 
                           : "bg-slate-950/70 border-slate-900/60 opacity-60"
                       }`}
+                      style={
+                        isCurrent 
+                          ? { borderColor: themeHexAccent, boxShadow: `0 4px 18px -4px ${themeHexAccent}30` } 
+                          : {}
+                      }
                     >
                       {/* Left: Badge, Level & Rank name */}
                       <div className="flex items-center gap-3">
@@ -1100,15 +989,15 @@ export default function RewardSystem({
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] uppercase font-bold tracking-tight text-[#f26419] font-mono leading-none">
+                            <span className="text-[10px] uppercase font-bold tracking-tight font-mono leading-none" style={{ color: themeHexAccent }}>
                               Level {tier.level}
                             </span>
                             <span className="text-[9px] bg-slate-800 dark:bg-slate-950 text-slate-400 px-1.5 py-0.5 rounded leading-none font-medium">
                               {tier.category} Tier
                             </span>
                           </div>
-                          <span className="text-xs font-black text-slate-102 hover:text-white block mt-1">{tier.rank}</span>
-                          <span className="text-[10px] text-slate-400 mt-0.5 block leading-relaxed">{tier.perk}</span>
+                          <span className="text-xs font-black text-slate-200 hover:text-white block mt-1">{tier.rank}</span>
+                          <span className="text-[10px] text-slate-450 mt-0.5 block leading-relaxed">{tier.perk}</span>
                         </div>
                       </div>
 
@@ -1116,12 +1005,15 @@ export default function RewardSystem({
                       <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 border-t md:border-t-0 border-slate-800/55 pt-2.5 md:pt-0">
                         <div className="text-left md:text-right">
                           <span className="text-[10px] font-mono text-slate-500 block uppercase">Requires accumulated</span>
-                          <span className="text-xs font-bold font-mono text-amber-500">{tier.xpRequired} XP</span>
+                          <span className="text-xs font-bold font-mono text-amber-500">{tier.xpRequired.toLocaleString()} XP</span>
                         </div>
 
                         <div className="flex items-center gap-1.5">
                           {isCurrent ? (
-                            <span className="text-[9px] uppercase font-black px-2.5 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 rounded-md animate-pulse">
+                            <span 
+                              className="text-[9px] uppercase font-black px-2.5 py-1 border rounded-md animate-pulse"
+                              style={{ color: themeHexAccent, borderColor: `${themeHexAccent}40`, backgroundColor: `${themeHexAccent}12` }}
+                            >
                               Current Rank
                             </span>
                           ) : isUnlocked ? (

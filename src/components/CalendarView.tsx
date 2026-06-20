@@ -209,16 +209,6 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
       return;
     }
 
-    // Enforce 6-hour (360 mins) max check before submission
-    const existingMinsForDate = studyLogs
-      .filter(l => l.date === selectedLogsDate)
-      .reduce((sum, l) => sum + l.durationMinutes, 0);
-
-    if (existingMinsForDate + manualMinutes > 360) {
-      setLogErrorText(`⚠️ Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged. Adding ${manualMinutes} minutes would exceed the 6-hour daily maximum.`);
-      return;
-    }
-
     setSubmittingLog(true);
     try {
       await onAddStudyMinutes(targetSubId, manualMinutes, selectedLogsDate);

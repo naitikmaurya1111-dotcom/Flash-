@@ -277,8 +277,7 @@ export default function FeatureSidebar({
           {/* Section: Student Profile Card */}
           <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#151515] dark:to-[#1a1a1a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#f26419]/5 rounded-full filter blur-xl transition-all duration-300 group-hover:bg-[#f26419]/10"></div>
-            
-            <div className="flex items-start gap-3 relative z-10">
+                        <div className="flex items-start gap-3 relative z-10">
               <div className="w-10 h-10 rounded-full bg-[#f26419] text-white font-black flex items-center justify-center text-base shadow-md shadow-orange-500/20">
                 {studentName?.[0]?.toUpperCase() || "S"}
               </div>
@@ -299,9 +298,32 @@ export default function FeatureSidebar({
               </div>
             </div>
 
+            {/* Visual Level Progress Bar */}
+            {(() => {
+              const levelInfo = calculateStudentLevel(userXp);
+              return (
+                <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-800/60 text-left relative z-10">
+                  <div className="flex justify-between items-center text-[9px] text-slate-500 dark:text-slate-400 font-mono mb-1">
+                    <span className="font-bold">XP Progress • {levelInfo.percent}%</span>
+                    <span>{levelInfo.xpInCurrentLevel} / {levelInfo.xpSegmentTotal} XP</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#f26419] to-amber-500 transition-all duration-500 ease-out" 
+                      style={{ width: `${levelInfo.percent}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[8.2px] text-slate-450 dark:text-zinc-500 font-medium mt-1">
+                    <span>Total: {userXp.toLocaleString()} XP</span>
+                    <span>Next level in {levelInfo.nextLevelXpRemaining.toLocaleString()} XP</span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <button 
               onClick={() => handleSubViewSelect("profile")}
-              className="w-full mt-3 bg-white hover:bg-slate-50 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-[10px] font-black py-1.5 rounded-xl cursor-pointer transition-all text-center block text-[#f26419] shadow-sm active:scale-98"
+              className="w-full mt-3.5 bg-white hover:bg-slate-50 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-[10px] font-black py-1.5 rounded-xl cursor-pointer transition-all text-center block text-[#f26419] shadow-sm active:scale-98"
             >
               Configure Student Profile
             </button>
@@ -834,60 +856,96 @@ export default function FeatureSidebar({
               </div>
             )}
 
-             {/* Sub-view: Theme Picker */}
+            {/* Sub-view: Theme Picker */}
             {activeSubView === "themes" && (
               <div className="space-y-4">
                 <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Color Themes Preset</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Match the visual interface to fit your current study vibe:</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Match the visual interface to fit your current study vibe:
+                </p>
                 
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
-                  {[
-                    { id: "dark-classic", name: "Default Theme (No Accent Preset)", bg: "bg-slate-350 dark:bg-slate-600", desc: "No custom color presets or overlays applied", reqLevel: 1 },
-                    { id: "forest", name: "Matcha Forest & Mint", bg: "bg-[#0b1c15]", desc: "Cozy focus greens", reqLevel: 3 },
-                    { id: "crimson", name: "Sunset Crimson & Cherry", bg: "bg-[#210206]", desc: "Deep study warmth", reqLevel: 6 },
-                    { id: "honey", name: "Amber Honey & Vanilla", bg: "bg-[#fca311]", desc: "Golden hour coziness", reqLevel: 10 },
-                    { id: "amoled", name: "Modern High Contrast / OLED", bg: "bg-black", desc: "Pitch black or vivid white", reqLevel: 15 }
-                  ].map((preset) => {
-                    const userLevel = Math.floor(userXp / 500) + 1;
-                    const isLocked = userLevel < preset.reqLevel;
-                    return (
-                      <button
-                        key={preset.id}
-                        disabled={isLocked}
-                        onClick={() => {
-                          if (!isLocked) {
-                            onThemeSelect(preset.id);
-                            onClose();
+                  {(() => {
+                    const currentPresetId = localStorage.getItem("ypt_theme_preset") || "dark-classic";
+                    const userLevel = calculateStudentLevel(userXp || 0).level;
+
+                    return [
+                      { id: "dark-classic", name: "Classic Steel & Amber", bg: "bg-gradient-to-tr from-[#f26419] to-[#ff9f43]", desc: "The signature steel & orange colorway", reqLevel: 1, textHex: "#f26419" },
+                      { id: "forest", name: "Matcha Forest & Mint", bg: "bg-gradient-to-tr from-[#10b981] to-[#6ee7b7]", desc: "Cozy forest green vibes & matcha styling", reqLevel: 3, textHex: "#10b981" },
+                      { id: "crimson", name: "Sunset Crimson & Cherry", bg: "bg-gradient-to-tr from-[#e11d48] to-[#fda4af]", desc: "Deep crimson and red cherry study warmth", reqLevel: 6, textHex: "#e11d48" },
+                      { id: "honey", name: "Amber Honey & Vanilla", bg: "bg-gradient-to-tr from-[#d97706] to-[#fcd34d]", desc: "Golden hour coziness & warm ambient rays", reqLevel: 10, textHex: "#d97706" },
+                      { id: "amoled", name: "Modern High Contrast / OLED", bg: "bg-gradient-to-tr from-slate-400 via-zinc-650 to-black", desc: "Super clean high contrast and OLED absolute blacks", reqLevel: 15, textHex: "#6366f1" },
+                      { id: "cosmic", name: "Cosmic Nebula & Obsidian", bg: "bg-gradient-to-tr from-[#8b5cf6] via-[#d946ef] to-[#6366f1]", desc: "Starry purple nebula nights & high level aura", reqLevel: 20, textHex: "#8b5cf6" },
+                      { id: "cyberpunk", name: "Tokyo Cyberpunk Neon & Grid", bg: "bg-gradient-to-tr from-[#ec4899] via-[#8b5cf6] to-[#06b6d4]", desc: "Vivid Tokyolights & magenta laser grids", reqLevel: 25, textHex: "#ec4899" },
+                      { id: "nordic", name: "Nordic Frost & Aurora Blue", bg: "bg-gradient-to-tr from-[#0284c7] via-[#22d3ee] to-[#34d399]", desc: "Frosted polar blue aura and subzero minimalism", reqLevel: 30, textHex: "#0284c7" }
+                    ].map((preset) => {
+                      const isLocked = userLevel < preset.reqLevel;
+                      const isActive = currentPresetId === preset.id;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          disabled={isLocked}
+                          onClick={() => {
+                            if (!isLocked) {
+                              onThemeSelect(preset.id);
+                              onClose();
+                            }
+                          }}
+                          className={`group flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left w-full ${
+                            isLocked 
+                              ? "opacity-55 bg-slate-100 dark:bg-[#1b1b1b] border-dashed border-slate-300 dark:border-zinc-800 cursor-not-allowed" 
+                              : isActive
+                                ? "bg-white dark:bg-[#18181c] shadow-md scale-[1.01]"
+                                : "bg-[#fbfbfc]/85 dark:bg-[#121215]/80 hover:bg-white dark:hover:bg-[#16161a] border-slate-200/65 dark:border-slate-800/80 cursor-pointer hover:scale-[1.01]"
+                          }`}
+                          style={
+                            !isLocked && isActive 
+                              ? { borderColor: preset.textHex, boxShadow: `0 4px 14px -4px ${preset.textHex}40` } 
+                              : {}
                           }
-                        }}
-                        className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left w-full ${
-                          isLocked 
-                            ? "opacity-55 bg-slate-100 dark:bg-[#1b1b1b] border-dashed border-slate-300 dark:border-zinc-800 cursor-not-allowed" 
-                            : "border-slate-200/65 dark:border-slate-800 hover:border-[#f26419]/50 dark:hover:border-slate-700 bg-[#fbfbfc]/85 dark:bg-[#161616]/80 cursor-pointer hover:scale-[1.01]"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`w-4 h-4 rounded-full border border-slate-300 dark:border-slate-700 shrink-0 ${preset.bg}`}></span>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-xs font-black block leading-none ${isLocked ? "text-slate-450 dark:text-zinc-500" : "text-slate-800 dark:text-slate-100"}`}>{preset.name}</span>
-                              {isLocked && (
-                                <span className="text-[8.5px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-mono font-black shrink-0">Lvl {preset.reqLevel}</span>
-                              )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span 
+                              className={`w-6 h-6 rounded-xl border border-white/20 shadow-xs shrink-0 ${preset.bg}`} 
+                              style={isActive ? { boxShadow: `0 0 10px ${preset.textHex}80` } : {}}
+                            />
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-xs font-black block leading-none ${isLocked ? "text-slate-450 dark:text-zinc-500" : "text-slate-800 dark:text-slate-100"}`}>
+                                  {preset.name}
+                                </span>
+                                {isLocked && (
+                                  <span className="text-[8.2px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-mono font-black shrink-0">Lvl {preset.reqLevel} Required</span>
+                                )}
+                              </div>
+                              <span className="text-[9.2px] text-slate-450 dark:text-slate-500 font-mono mt-1 block leading-none">{preset.desc}</span>
                             </div>
-                            <span className="text-[9.5px] text-slate-450 dark:text-slate-505 font-mono mt-1 block leading-none">{preset.desc}</span>
                           </div>
-                        </div>
-                        {isLocked ? (
-                          <span className="text-[8.5px] text-zinc-550 dark:text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1 shrink-0">
-                            <Lock className="w-2.5 h-2.5" /> Locked
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-[#f26419] font-black uppercase tracking-wider">Apply</span>
-                        )}
-                      </button>
-                    );
-                  })}
+                          
+                          {isLocked ? (
+                            <span className="text-[8.5px] text-zinc-550 dark:text-zinc-550 font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              <Lock className="w-2.5 h-2.5" /> Locked
+                            </span>
+                          ) : isActive ? (
+                            <span 
+                              className="text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded px-2"
+                              style={{ color: '#fff', backgroundColor: preset.textHex, boxShadow: `0 0 6px ${preset.textHex}` }}
+                            >
+                              Active
+                            </span>
+                          ) : (
+                            <span 
+                              className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 group-hover:block hidden transition-opacity"
+                              style={{ color: preset.textHex }}
+                            >
+                              Apply
+                            </span>
+                          )}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}

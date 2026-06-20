@@ -131,28 +131,43 @@ export interface StudentLevelConfig {
   category: "Bronze" | "Silver" | "Gold" | "Platinum" | "Grandmaster";
 }
 
-// 20 custom progression levels matching advanced progressive XP requirements to push toward hard work
+// 35 custom progression levels matching a perfect balanced "medium-easy" progression curve
 export const ALL_STUDENT_LEVELS: StudentLevelConfig[] = [
   { level: 1, xpRequired: 0, rank: "Novice Neophyte", badge: "🌱", color: "from-amber-600 to-amber-800 text-amber-500", perk: "Basic Chimes & Breathing anchors unlocked.", category: "Bronze" },
-  { level: 2, xpRequired: 400, rank: "Focus Novice", badge: "🥉", color: "from-amber-600 to-amber-800 text-amber-500", perk: "Rollover Simulator diagnostics unlocked.", category: "Bronze" },
-  { level: 3, xpRequired: 1000, rank: "Persistent Padawan", badge: "🥉", color: "from-amber-600 to-amber-700 text-amber-500", perk: "Unlocks Matcha Forest Theme (+10% Task XP Speed).", category: "Bronze" },
-  { level: 4, xpRequired: 1800, rank: "Cognitive Crawler", badge: "🥉", color: "from-amber-600 to-amber-800 text-amber-500", perk: "Unlocks relative clock timers configuration.", category: "Bronze" },
-  { level: 5, xpRequired: 3000, rank: "Deep Worker Initiate", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Active study alarm custom descriptions.", category: "Silver" },
-  { level: 6, xpRequired: 4500, rank: "Mindful Scholar", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Unlocks beautiful Sunset Crimson Theme.", category: "Silver" },
-  { level: 7, xpRequired: 6300, rank: "Habit Sculptor", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "+5% faster study XP during Focus Rounds.", category: "Silver" },
-  { level: 8, xpRequired: 8400, rank: "Attention Architect", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Unlocks customizable relative buzzer options.", category: "Silver" },
-  { level: 9, xpRequired: 10800, rank: "Zen Navigator", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Ambient drift blobs modern style layouts.", category: "Silver" },
-  { level: 10, xpRequired: 13500, rank: "Gold Polymath", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks Amber Honey Theme (+Daily Sync Recovery).", category: "Gold" },
-  { level: 11, xpRequired: 16600, rank: "Flow State Explorer", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "+10% study XP multiplier on all daily quests.", category: "Gold" },
-  { level: 12, xpRequired: 20100, rank: "Cognitive Athlete", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks Wishlist Custom Rewards category tags.", category: "Gold" },
-  { level: 13, xpRequired: 24000, rank: "Focus Vanguard", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks custom buzzer overlay tags.", category: "Gold" },
-  { level: 14, xpRequired: 28305, rank: "Sovereign of Silence", badge: "🥇", color: "from-yellow-500 to-amber-650 text-yellow-500", perk: "Focus Shield Aura glowing particle path animation.", category: "Gold" },
-  { level: 15, xpRequired: 33100, rank: "Flow Alchemist", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks OLED Black Theme (+Streak auto-healing duration).", category: "Platinum" },
-  { level: 16, xpRequired: 38450, rank: "Clarity Alchemist", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks visual borders layout customization.", category: "Platinum" },
-  { level: 17, xpRequired: 44200, rank: "Transcendent Thinker", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "+15% XP yields across checklist task completions.", category: "Platinum" },
-  { level: 18, xpRequired: 50500, rank: "Master of Focus", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks Ascent Arp chime sound engine multiplier.", category: "Platinum" },
-  { level: 19, xpRequired: 57300, rank: "Elysian Flow Sage", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Premium cosmic ambient drifting color filters.", category: "Platinum" },
-  { level: 20, xpRequired: 65000, rank: "Grandmaster Mindful", badge: "🏆", color: "from-amber-400 via-rose-500 to-indigo-600 text-amber-500 animate-pulse", perk: "Pinnacle Level status badge, custom glowing page profiles.", category: "Grandmaster" }
+  { level: 2, xpRequired: 300, rank: "Focus Novice", badge: "🥉", color: "from-amber-600 to-amber-800 text-amber-500", perk: "Rollover Simulator diagnostics unlocked.", category: "Bronze" },
+  { level: 3, xpRequired: 750, rank: "Persistent Padawan", badge: "🥉", color: "from-amber-600 to-amber-700 text-amber-500", perk: "Unlocks Matcha Forest Theme (+10% Task XP Speed).", category: "Bronze" },
+  { level: 4, xpRequired: 1350, rank: "Cognitive Crawler", badge: "🥉", color: "from-amber-600 to-amber-800 text-amber-500", perk: "Unlocks relative clock timers configuration.", category: "Bronze" },
+  { level: 5, xpRequired: 2100, rank: "Deep Worker Initiate", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Active study alarm custom descriptions.", category: "Silver" },
+  { level: 6, xpRequired: 3000, rank: "Mindful Scholar", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Unlocks beautiful Sunset Crimson Theme.", category: "Silver" },
+  { level: 7, xpRequired: 4050, rank: "Habit Sculptor", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "+5% faster study XP during Focus Rounds.", category: "Silver" },
+  { level: 8, xpRequired: 5250, rank: "Attention Architect", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Unlocks customizable relative buzzer options.", category: "Silver" },
+  { level: 9, xpRequired: 6600, rank: "Zen Navigator", badge: "🥈", color: "from-slate-400 to-slate-600 text-slate-300", perk: "Ambient drift blobs modern style layouts.", category: "Silver" },
+  { level: 10, xpRequired: 8100, rank: "Gold Polymath", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks Amber Honey Theme (+Daily Sync Recovery).", category: "Gold" },
+  { level: 11, xpRequired: 9750, rank: "Flow State Explorer", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "+10% study XP multiplier on all daily quests.", category: "Gold" },
+  { level: 12, xpRequired: 11550, rank: "Cognitive Athlete", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks Wishlist Custom Rewards category tags.", category: "Gold" },
+  { level: 13, xpRequired: 13500, rank: "Focus Vanguard", badge: "🥇", color: "from-yellow-500 to-amber-600 text-yellow-500", perk: "Unlocks custom buzzer overlay tags.", category: "Gold" },
+  { level: 14, xpRequired: 15600, rank: "Sovereign of Silence", badge: "🥇", color: "from-yellow-500 to-amber-650 text-yellow-500", perk: "Focus Shield Aura glowing particle path animation.", category: "Gold" },
+  { level: 15, xpRequired: 17850, rank: "Flow Alchemist", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks OLED Black Theme (+Streak auto-healing duration).", category: "Platinum" },
+  { level: 16, xpRequired: 20250, rank: "Clarity Alchemist", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks visual borders layout customization.", category: "Platinum" },
+  { level: 17, xpRequired: 22800, rank: "Transcendent Thinker", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "+15% XP yields across checklist task completions.", category: "Platinum" },
+  { level: 18, xpRequired: 25500, rank: "Master of Focus", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Unlocks Ascent Arp chime sound engine multiplier.", category: "Platinum" },
+  { level: 19, xpRequired: 28350, rank: "Elysian Flow Sage", badge: "💎", color: "from-cyan-400 to-blue-600 text-cyan-400", perk: "Premium cosmic ambient drifting color filters.", category: "Platinum" },
+  { level: 20, xpRequired: 31350, rank: "Grandmaster Mindful", badge: "🏆", color: "from-amber-400 via-rose-500 to-indigo-600 text-amber-500 animate-pulse", perk: "Pinnacle Level status badge, custom glowing page profiles.", category: "Grandmaster" },
+  { level: 21, xpRequired: 34500, rank: "Astral Scholar", badge: "🌌", color: "from-purple-500 via-pink-500 to-red-550 text-pink-500 animate-pulse", perk: "Unlocks Astral visual study overlays & custom clock sounds.", category: "Grandmaster" },
+  { level: 22, xpRequired: 37800, rank: "Hyperfocus Hybrid", badge: "🚀", color: "from-purple-500 via-pink-500 to-red-550 text-pink-500 animate-pulse", perk: "Deep Focus Ambient soundscapes and custom clock sound filters.", category: "Grandmaster" },
+  { level: 23, xpRequired: 41250, rank: "Chamber Connoisseur", badge: "🪐", color: "from-indigo-500 via-purple-500 to-pink-500 text-purple-400 animate-pulse", perk: "+10% task completions bonus multiplier & custom sound wave effects.", category: "Grandmaster" },
+  { level: 24, xpRequired: 44850, rank: "Quantum Scholar", badge: "🔬", color: "from-indigo-500 via-purple-500 to-pink-500 text-purple-400 animate-pulse", perk: "Prestige aura layout and special glassmorphism settings.", category: "Grandmaster" },
+  { level: 25, xpRequired: 48600, rank: "Tokyo Neo Runner", badge: "🌆", color: "from-pink-500 via-purple-500 to-cyan-500 text-cyan-400 animate-pulse", perk: "Unlocks Tokyo Cyberpunk Theme! Cozy neon lasers.", category: "Grandmaster" },
+  { level: 26, xpRequired: 52500, rank: "Starlight Sentinel", badge: "⚔️", color: "from-pink-500 via-purple-500 to-cyan-500 text-cyan-400 animate-pulse", perk: "Fires double decorative particle clouds upon round finish.", category: "Grandmaster" },
+  { level: 27, xpRequired: 56550, rank: "Nebula Navigator", badge: "🛸", color: "from-indigo-600 via-blue-500 to-emerald-500 text-emerald-400 animate-pulse", perk: "Cosmic stellar sound filters on pomodoro buzzers.", category: "Grandmaster" },
+  { level: 28, xpRequired: 60800, rank: "Zenith Master", badge: "💮", perk: "Unlocks beautiful cherry blossom active backdrop filters.", color: "from-indigo-600 via-blue-500 to-emerald-500 text-emerald-400 animate-pulse", category: "Grandmaster" },
+  { level: 29, xpRequired: 65200, rank: "Subzero Sage", badge: "❄️", perk: "Unlocks polar frost visual study frame elements.", color: "from-sky-500 via-teal-500 to-indigo-600 text-sky-400 animate-pulse", category: "Grandmaster" },
+  { level: 30, xpRequired: 69800, rank: "Aurora Archon", badge: "👑", perk: "Unlocks Nordic Frost & Aurora Blue Theme! Prestige status.", color: "from-sky-500 via-teal-500 to-indigo-600 text-sky-400 animate-pulse", category: "Grandmaster" },
+  { level: 31, xpRequired: 74600, rank: "Polar Architect", badge: "🏰", perk: "Subzero ambient sound synthesizer frequency boosts.", color: "from-sky-400 via-cyan-400 to-blue-500 text-cyan-300 animate-pulse", category: "Grandmaster" },
+  { level: 32, xpRequired: 79600, rank: "Cosmic Overlord", badge: "☄️", perk: "Prestige badge on chatrooms, dual concurrent timers tracking.", color: "from-violet-600 via-pink-500 to-cyan-400 text-pink-300 animate-pulse", category: "Grandmaster" },
+  { level: 33, xpRequired: 84800, rank: "Eclipse Vanguard", badge: "🌑", perk: "Ambient eclipse shadow screen dark-out during Pomodoro rounds.", color: "from-violet-600 via-pink-500 to-cyan-400 text-pink-300 animate-pulse", category: "Grandmaster" },
+  { level: 34, xpRequired: 90200, rank: "Eternal Flow Sovereign", badge: "💫", perk: "Special auto-saving slots & golden glow overlay status.", color: "from-amber-450 via-rose-550 to-violet-650 text-amber-400 animate-pulse", category: "Grandmaster" },
+  { level: 35, xpRequired: 95800, rank: "Pinnacle Grandmaster Academic", badge: "🏆", perk: "Pinnacle level badge design, fully customizable outer profile halos.", color: "from-amber-450 via-rose-550 to-violet-650 text-amber-400 animate-pulse", category: "Grandmaster" }
 ];
 
 // Levels and ranks engine - dynamic, progressive nonlinear calculation
@@ -183,11 +198,11 @@ export const calculateStudentLevel = (xp: number) => {
     percent = Math.min(100, Math.round((xpInCurrentLevel / xpSegmentTotal) * 100));
     nextLevelXpRemaining = nextLevel.xpRequired - safeXp;
   } else {
-    // Exceeded Level 20 max config limit, keep advancing on custom intervals
+    // Exceeded Level 35 max config limit, keep advancing on custom intervals
     const extraXp = safeXp - matchedLevel.xpRequired;
-    const interval = 10000; // 10000 XP per level in prestige ranks
+    const interval = 15000; // 15000 XP per level in prestige ranks above 35
     const extraLevels = Math.floor(extraXp / interval);
-    const finalLevel = 20 + extraLevels;
+    const finalLevel = 35 + extraLevels;
     
     xpInCurrentLevel = extraXp % interval;
     xpSegmentTotal = interval;

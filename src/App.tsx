@@ -97,27 +97,157 @@ function getLocalDateString(d: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-const getAvatarSeed = (email?: string | null) => {
-  if (!email) return "bg-emerald-500";
-  const colors = [
-    "bg-teal-500", 
-    "bg-rose-500", 
-    "bg-indigo-500", 
-    "bg-amber-500", 
-    "bg-pink-500", 
-    "bg-purple-500", 
-    "bg-blue-500", 
-    "bg-emerald-500"
-  ];
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = email.charCodeAt(i) + ((hash << 5) - hash);
+
+// Full spectrum adaptive theme presets mapping for the ultimate visual "Aura"
+export const THEME_PRESET_STYLES: Record<string, {
+  name: string;
+  primary: string;
+  gradientText: string;
+  accentBg: string;
+  accentText: string;
+  accentBorder: string;
+  badge: string;
+  glowClass: string;
+  glowText: string;
+  gradient: string;
+  sideBg: string;
+  panelGlass: string;
+  interactiveBg: string;
+  auraRing: string;
+}> = {
+  "forest": {
+    name: "Matcha Forest & Mint",
+    primary: "#10b981",
+    gradientText: "bg-gradient-to-r from-emerald-600 via-teal-500 to-green-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-350 dark:to-green-400",
+    accentBg: "bg-[#10b981]",
+    accentText: "text-[#10b981]",
+    accentBorder: "border-[#10b981]/25 dark:border-[#10b981]/40",
+    badge: "bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30",
+    glowClass: "shadow-lg shadow-emerald-500/10 dark:shadow-[#10b981]/15 hover:shadow-emerald-500/20",
+    glowText: "text-emerald-500 [text-shadow:0_0_8px_rgba(16,185,129,0.4)]",
+    gradient: "from-emerald-500 via-teal-400 to-green-600",
+    sideBg: "bg-[#05100c] dark:bg-[#040c09]",
+    panelGlass: "backdrop-blur-xl border-emerald-900/15 dark:border-emerald-950/45 bg-emerald-50/15 dark:bg-emerald-950/10",
+    interactiveBg: "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
+    auraRing: "ring-2 ring-emerald-500/30 ring-offset-2 ring-offset-emerald-950"
+  },
+  "crimson": {
+    name: "Sunset Crimson & Cherry",
+    primary: "#e11d48",
+    gradientText: "bg-gradient-to-r from-rose-600 via-red-500 to-pink-600 bg-clip-text text-transparent dark:from-rose-400 dark:via-red-400 dark:to-pink-400",
+    accentBg: "bg-[#e11d48]",
+    accentText: "text-[#e11d48]",
+    accentBorder: "border-[#e11d48]/25 dark:border-[#e11d48]/40",
+    badge: "bg-[#e11d48]/15 text-[#e11d48] border-[#e11d48]/30",
+    glowClass: "shadow-lg shadow-rose-500/10 dark:shadow-[#e11d48]/15 hover:shadow-rose-500/20",
+    glowText: "text-rose-500 [text-shadow:0_0_8px_rgba(225,29,72,0.4)]",
+    gradient: "from-rose-500 via-red-400 to-pink-600",
+    sideBg: "bg-[#120102] dark:bg-[#0c0101]",
+    panelGlass: "backdrop-blur-xl border-rose-900/15 dark:border-rose-950/45 bg-rose-50/15 dark:bg-rose-950/10",
+    interactiveBg: "hover:bg-rose-50/40 dark:hover:bg-rose-950/20",
+    auraRing: "ring-2 ring-rose-500/30 ring-offset-2 ring-offset-rose-950"
+  },
+  "honey": {
+    name: "Amber Honey & Vanilla",
+    primary: "#d97706",
+    gradientText: "bg-gradient-to-r from-amber-600 via-yellow-500 to-orange-600 bg-clip-text text-transparent dark:from-amber-400 dark:via-yellow-450 dark:to-orange-400",
+    accentBg: "bg-[#d97706]",
+    accentText: "text-[#d97706]",
+    accentBorder: "border-[#d97706]/25 dark:border-[#d97706]/40",
+    badge: "bg-[#d97706]/15 text-[#d97706] border-[#d97706]/30",
+    glowClass: "shadow-lg shadow-amber-500/10 dark:shadow-[#d97706]/15 hover:shadow-amber-500/20",
+    glowText: "text-amber-550 dark:text-amber-400 [text-shadow:0_0_8px_rgba(217,119,6,0.4)]",
+    gradient: "from-amber-500 via-yellow-405 to-orange-600",
+    sideBg: "bg-[#160e02] dark:bg-[#0f0a01]",
+    panelGlass: "backdrop-blur-xl border-amber-900/15 dark:border-amber-950/45 bg-amber-50/15 dark:bg-amber-950/10",
+    interactiveBg: "hover:bg-amber-50/40 dark:hover:bg-amber-950/20",
+    auraRing: "ring-2 ring-amber-500/30 ring-offset-2 ring-offset-amber-950"
+  },
+  "amoled": {
+    name: "Modern High Contrast / OLED",
+    primary: "#6366f1",
+    gradientText: "bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400",
+    accentBg: "bg-[#6366f1]",
+    accentText: "text-[#6366f1]",
+    accentBorder: "border-slate-200/90 dark:border-slate-800/90",
+    badge: "bg-[#6366f1]/15 text-[#6366f1] border-slate-350 dark:border-slate-805",
+    glowClass: "shadow-lg shadow-indigo-500/10 dark:shadow-[#6366f1]/15 hover:shadow-indigo-500/20",
+    glowText: "text-indigo-550 dark:text-indigo-400 [text-shadow:0_0_8px_rgba(99,102,241,0.4)]",
+    gradient: "from-blue-600 via-indigo-500 to-violet-650",
+    sideBg: "bg-black dark:bg-black",
+    panelGlass: "backdrop-blur-xl border-slate-200 dark:border-slate-900 bg-white dark:bg-[#020202]",
+    interactiveBg: "hover:bg-slate-50 dark:hover:bg-slate-950",
+    auraRing: "ring-2 ring-indigo-500/35 ring-offset-2 ring-offset-black"
+  },
+  "cosmic": {
+    name: "Cosmic Nebula & Obsidian",
+    primary: "#8b5cf6",
+    gradientText: "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-600 bg-clip-text text-transparent dark:from-violet-400 dark:via-fuchsia-400 dark:to-indigo-405",
+    accentBg: "bg-[#8b5cf6]",
+    accentText: "text-[#8b5cf6]",
+    accentBorder: "border-[#8b5cf6]/25 dark:border-[#8b5cf6]/40",
+    badge: "bg-[#8b5cf6]/15 text-[#8b5cf6] border-[#8b5cf6]/30",
+    glowClass: "shadow-lg shadow-violet-500/10 dark:shadow-[#8b5cf6]/20 hover:shadow-violet-500/25",
+    glowText: "text-violet-500 dark:text-violet-350 [text-shadow:0_0_10px_rgba(139,92,246,0.5)]",
+    gradient: "from-violet-505 via-fuchsia-500 to-indigo-605",
+    sideBg: "bg-[#070512] dark:bg-[#04030a]",
+    panelGlass: "backdrop-blur-xl border-[#8b5cf6]/20 dark:border-[#3b0764]/40 bg-[#f5f3f9]/30 dark:bg-[#070512]/40",
+    interactiveBg: "hover:bg-[#8b5cf6]/10 dark:hover:bg-[#3b0764]/20",
+    auraRing: "ring-2 ring-violet-500/40 ring-offset-2 ring-offset-[#070512]"
+  },
+  "cyberpunk": {
+    name: "Tokyo Cyberpunk Neon & Grid",
+    primary: "#ec4899",
+    gradientText: "bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent dark:from-pink-400 dark:via-purple-400 dark:to-cyan-400",
+    accentBg: "bg-[#ec4899]",
+    accentText: "text-[#ec4899]",
+    accentBorder: "border-[#ec4899]/30 dark:border-[#ec4899]/40",
+    badge: "bg-[#ec4899]/15 text-[#ec4899] border-[#ec4899]/30",
+    glowClass: "shadow-lg shadow-pink-550/15 dark:shadow-[#ec4899]/25 hover:shadow-pink-550/30",
+    glowText: "text-pink-500 dark:text-pink-350 [text-shadow:0_0_12px_rgba(236,72,153,0.6)]",
+    gradient: "from-pink-500 via-purple-500 to-cyan-500",
+    sideBg: "bg-[#09050d] dark:bg-[#050308]",
+    panelGlass: "backdrop-blur-xl border-pink-500/20 dark:border-[#4a044e]/40 bg-[#faf5fa]/30 dark:bg-[#09050d]/40",
+    interactiveBg: "hover:bg-pink-500/10 dark:hover:bg-[#4a044e]/20",
+    auraRing: "ring-2 ring-pink-500/45 ring-offset-2 ring-offset-[#09050d]"
+  },
+  "nordic": {
+    name: "Nordic Frost & Aurora Blue",
+    primary: "#0284c7",
+    gradientText: "bg-gradient-to-r from-[#0284c7] via-cyan-500 to-emerald-500 bg-clip-text text-transparent dark:from-[#38bdf8] dark:via-cyan-400 dark:to-emerald-400",
+    accentBg: "bg-[#0284c7]",
+    accentText: "text-[#0284c7]",
+    accentBorder: "border-[#0284c7]/25 dark:border-[#0284c7]/40",
+    badge: "bg-[#0284c7]/15 text-[#0284c7] border-[#0284c7]/30",
+    glowClass: "shadow-lg shadow-sky-500/10 dark:shadow-[#0284c7]/15 hover:shadow-sky-500/20",
+    glowText: "text-sky-500 dark:text-sky-350 [text-shadow:0_0_8px_rgba(2,132,199,0.4)]",
+    gradient: "from-[#0284c7] via-cyan-400 to-emerald-500",
+    sideBg: "bg-[#0b1016] dark:bg-[#070b0f]",
+    panelGlass: "backdrop-blur-xl border-[#0284c7]/20 dark:border-[#1e293b]/40 bg-[#f0f4f8]/30 dark:bg-[#0b1016]/40",
+    interactiveBg: "hover:bg-sky-50/40 dark:hover:bg-slate-900/40",
+    auraRing: "ring-2 ring-[#0284c7]/30 ring-offset-2 ring-offset-[#0b1016]"
+  },
+  "dark-classic": {
+    name: "Classic Steel & Amber",
+    primary: "#f26419",
+    gradientText: "bg-gradient-to-r from-[#f26419] via-[#f34825] to-[#ff9f43] bg-clip-text text-transparent dark:from-[#ff7a2e] dark:via-[#f34825] dark:to-[#ffb26b]",
+    accentBg: "bg-[#f26419]",
+    accentText: "text-[#f26419]",
+    accentBorder: "border-[#f26419]/25 dark:border-[#f26419]/40",
+    badge: "bg-[#f26419]/15 text-[#f26419] border-[#f26419]/30",
+    glowClass: "shadow-lg shadow-orange-550/10 dark:shadow-[#f26419]/15 hover:shadow-orange-550/20",
+    glowText: "text-[#f26419] [text-shadow:0_0_8px_rgba(242,100,25,0.4)]",
+    gradient: "from-[#f26419] via-[#f34825] to-[#ff9f43]",
+    sideBg: "bg-[#08080c] dark:bg-[#040406]",
+    panelGlass: "backdrop-blur-xl border-slate-200/50 dark:border-slate-800/80 bg-white/70 dark:bg-[#0c0d10]/95",
+    interactiveBg: "hover:bg-slate-100/55 dark:hover:bg-slate-900/40",
+    auraRing: "ring-2 ring-[#f26419]/30 ring-offset-2 ring-offset-[#08080c]"
   }
-  return colors[Math.abs(hash) % colors.length];
 };
 
 export default function App() {
   // Synchronous Day Rollover Check on Page Mount / Init
+
   const isNewDayOnStart = (() => {
     const today = getLocalDateString();
     const lastDay = localStorage.getItem("study_last_active_date");
@@ -222,6 +352,42 @@ export default function App() {
             ? "bg-gradient-to-tl from-zinc-100/40 to-slate-100/40 opacity-85"
             : "bg-gradient-to-tl from-neutral-900/30 to-zinc-950/30 opacity-100"
         };
+      case "cosmic":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-violet-205/35 to-indigo-205/35 opacity-80"
+            : "bg-gradient-to-tr from-violet-950/40 to-indigo-900/40 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-fuchsia-200/25 to-blue-200/35 opacity-70"
+            : "bg-gradient-to-br from-fuchsia-950/25 to-indigo-950/30 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-purple-200/45 to-indigo-200/40 opacity-80"
+            : "bg-gradient-to-tl from-[#7c3aed]/15 to-purple-950/25 opacity-100"
+        };
+      case "cyberpunk":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-pink-200/30 to-cyan-200/30 opacity-80"
+            : "bg-gradient-to-tr from-fuchsia-950/45 to-cyan-950/45 opacity-105",
+          blob2: isLight
+            ? "bg-gradient-to-br from-fuchsia-200/35 to-teal-200/35 opacity-80"
+            : "bg-gradient-to-br from-purple-950/45 to-emerald-950/30 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-cyan-100/45 to-pink-200/45 opacity-85"
+            : "bg-gradient-to-tl from-[#e879f9]/20 to-teal-950/25 opacity-100"
+        };
+      case "nordic":
+        return {
+          blob1: isLight
+            ? "bg-gradient-to-tr from-[#93c5fd]/35 to-[#a5f3fc]/30 opacity-80"
+            : "bg-gradient-to-tr from-[#1e3a8a]/25 to-[#155e75]/25 opacity-100",
+          blob2: isLight
+            ? "bg-gradient-to-br from-[#e0f2fe]/40 to-[#e0f7fa]/35 opacity-80"
+            : "bg-gradient-to-br from-[#0f172a]/45 to-[#0e4429]/20 opacity-100",
+          blob3: isLight
+            ? "bg-gradient-to-tl from-[#93c5fd]/25 to-[#99f6e4]/30 opacity-80"
+            : "bg-gradient-to-tl from-[#1e40af]/15 to-[#134e5e]/25 opacity-100"
+        };
       default: // dark-classic / steel secondary slate
         return {
           blob1: isLight
@@ -236,6 +402,10 @@ export default function App() {
         };
     }
   }, [themePreset, activeTheme]);
+
+  const currentThemeStyle = useMemo(() => {
+    return THEME_PRESET_STYLES[themePreset] || THEME_PRESET_STYLES["dark-classic"];
+  }, [themePreset]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
@@ -325,6 +495,7 @@ export default function App() {
     return defaultReminders;
   });
   const [firedNotification, setFiredNotification] = useState<string | null>(null);
+  const [levelUpModal, setLevelUpModal] = useState<{ oldLevel: number; newLevel: number } | null>(null);
 
   // States for unified alerts and sound approvals
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
@@ -398,11 +569,28 @@ export default function App() {
   });
 
   // Precise background-resilient timestamp tracking state
+  const activeTimerTypeRef = useRef<"stopwatch" | "pomodoro" | "custom" | null>(null);
+
   const [studyStartTime, setStudyStartTime] = useState<number | null>(() => {
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    if (isNewDayOnStart || !isStudyingVal) {
+      localStorage.removeItem("study_start_time_ms");
+      localStorage.removeItem("study_seconds_baseline");
+      localStorage.removeItem("study_active_timer_type");
+      return null;
+    }
     const val = localStorage.getItem("study_start_time_ms");
     return val ? parseInt(val, 10) : null;
   });
+
   const [studySecondsBaseline, setStudySecondsBaseline] = useState<number>(() => {
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    if (isNewDayOnStart || !isStudyingVal) {
+      localStorage.removeItem("study_start_time_ms");
+      localStorage.removeItem("study_seconds_baseline");
+      localStorage.removeItem("study_active_timer_type");
+      return 0;
+    }
     const val = localStorage.getItem("study_seconds_baseline");
     return val ? parseInt(val, 10) : 0;
   });
@@ -447,7 +635,10 @@ export default function App() {
     localStorage.setItem("study_pomo_seconds_left", pomoSecondsLeft.toString());
     localStorage.setItem("study_is_studying", isStudyingUser.toString());
     localStorage.setItem("study_active_seconds_user", activeSecondsUser.toString());
+  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, pomoSecondsLeft, isStudyingUser, activeSecondsUser]);
 
+  // Sync Master Config adjustments to cloud only once upon authentic adjustments
+  useEffect(() => {
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid), {
         timerType,
@@ -457,7 +648,7 @@ export default function App() {
       }, { merge: true })
         .catch(e => console.warn("Failed syncing timer configuration to cloud:", e));
     }
-  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, pomoSecondsLeft, isStudyingUser, activeSecondsUser, currentUser]);
+  }, [timerType, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, currentUser]);
 
   // AI coach advice sharing state (retrieved from dynamic coach executions)
   const [aiCoachAdvice, setAiCoachAdvice] = useState<{ quote: string; rating: string; scheduleTip: string } | null>(() => {
@@ -558,6 +749,10 @@ export default function App() {
     return local ? parseInt(local, 10) : 0;
   });
 
+  const studentLevelInfo = useMemo(() => {
+    return calculateStudentLevel(userXp);
+  }, [userXp]);
+
   const INITIAL_QUESTS: QuestChallenge[] = [
     { id: "quest-daily-focus", title: "Daily Deep Focus ⏱️", condition: "Study for 30 minutes today", xpReward: 150, isCompleted: false, category: "daily" },
     { id: "quest-deep-dive", title: "Milestone: Deep Work 🧠", condition: "Study for 120 minutes today", xpReward: 400, isCompleted: false, category: "milestone" },
@@ -584,14 +779,11 @@ export default function App() {
 
   const [rewards, setRewards] = useState<GiftReward[]>(() => {
     const local = secureStorage.getItem("study_rewards");
-    const defaults: GiftReward[] = [
-      { id: "def-1", title: "☕ Coffee Break Boost", costXp: 200, purchaseUrl: "https://www.amazon.com/s?k=gourmet+coffee", category: "Daily Treats", isUnlocked: false, isClaimed: false, notes: "A crisp hot caffeine mug to celebrate your hard studies!", createdAt: new Date().toISOString() },
-      { id: "def-2", title: "📚 Self-Directed Ebook", costXp: 800, purchaseUrl: "https://www.amazon.com/s?k=kindle+books", category: "Books & Supplies", isUnlocked: false, isClaimed: false, notes: "Unlock any Kindle study/story book to unwind.", createdAt: new Date().toISOString() },
-      { id: "def-3", title: "🎧 Noise Isolating Earplugs", costXp: 1500, purchaseUrl: "https://www.amazon.com/s?k=noise+reduction+earplugs+for+study", category: "Tech Gadget", isUnlocked: false, isClaimed: false, notes: "Acoustic peace to supercharge your deep focus blocks.", createdAt: new Date().toISOString() }
-    ];
+    const defaults: GiftReward[] = [];
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local) as GiftReward[];
+        return parsed.filter(item => !item.id.startsWith("def-"));
       } catch (e) {
         console.warn("Rewards parsing error", e);
         secureStorage.setItem("study_rewards", JSON.stringify(defaults));
@@ -613,7 +805,34 @@ export default function App() {
     return [];
   });
 
+  const [initSyncComplete, setInitSyncComplete] = useState(false);
   const lastLevelRef = useRef<number | null>(null);
+  const hasBootedRef = useRef<boolean>(false);
+  const levelMonitorActiveRef = useRef<boolean>(false);
+
+  // Buffer and stabilize level notifications for 4 seconds on initialization sync settle-down
+  useEffect(() => {
+    if (initSyncComplete) {
+      const timer = setTimeout(() => {
+        levelMonitorActiveRef.current = true;
+      }, 4000);
+      return () => clearTimeout(timer);
+    } else {
+      levelMonitorActiveRef.current = false;
+    }
+  }, [initSyncComplete, currentUser]);
+
+  // Synchronous registry of completed/claiming quests to prevent double claim click race conditions
+  const completedQuestsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const completedSet = new Set<string>();
+    quests.forEach(q => {
+      if (q.isCompleted) {
+        completedSet.add(q.id);
+      }
+    });
+    completedQuestsRef.current = completedSet;
+  }, [quests]);
 
   // Keep latest timer state values stored in a Ref to prevent dependency re-runs on fast-changing numbers
   const timerStateRef = useRef({
@@ -746,14 +965,50 @@ export default function App() {
   // -------------- ORGANIC STUDENT LEVEL UP MONITOR --------------
   useEffect(() => {
     const currentLvl = calculateStudentLevel(userXp).level;
+    
+    // Persistent user-aware notified level keys prevent duplication across login sessions and page-loads
+    const localKey = currentUser ? `study_last_notified_level_${currentUser.uid}` : "study_last_notified_level_guest";
+    const lastNotifiedVal = localStorage.getItem(localKey);
+    const lastNotifiedLevel = lastNotifiedVal ? parseInt(lastNotifiedVal, 10) : null;
+
+    // During settlement phase or initial load, keep the states aligned silently
+    if (!initSyncComplete || !levelMonitorActiveRef.current) {
+      lastLevelRef.current = currentLvl;
+      hasBootedRef.current = false;
+      if (lastNotifiedLevel === null && currentLvl > 0) {
+        localStorage.setItem(localKey, String(currentLvl));
+      }
+      return;
+    }
+
+    if (!hasBootedRef.current) {
+      lastLevelRef.current = currentLvl;
+      hasBootedRef.current = true;
+      if (lastNotifiedLevel === null || lastNotifiedLevel < currentLvl) {
+        localStorage.setItem(localKey, String(currentLvl));
+      }
+      return;
+    }
+
     if (lastLevelRef.current === null) {
       lastLevelRef.current = currentLvl;
+      if (lastNotifiedLevel === null) {
+        localStorage.setItem(localKey, String(currentLvl));
+      }
       return;
     }
 
     if (currentLvl > lastLevelRef.current) {
       const oldLvl = lastLevelRef.current;
       lastLevelRef.current = currentLvl;
+
+      // Only notify if actually higher than the peak notified level in persistence
+      if (lastNotifiedLevel !== null && currentLvl <= lastNotifiedLevel) {
+        return;
+      }
+
+      // Commit the peak level to local persistence
+      localStorage.setItem(localKey, String(currentLvl));
 
       // LevelUp notification settings check
       if (notificationSettings.notifyOnLevelUp) {
@@ -762,6 +1017,9 @@ export default function App() {
 
         // Bar / Toast modal
         setFiredNotification(`${title} — ${text}`);
+
+        // Visual celebration modal
+        setLevelUpModal({ oldLevel: oldLvl, newLevel: currentLvl });
 
         // Push Alert
         showSystemNotification(title, text);
@@ -777,10 +1035,11 @@ export default function App() {
         }
       }
     } else if (currentLvl < lastLevelRef.current) {
-      // Allow manual level reduction configs inside profile update
+      // Allow manual level reduction configs inside profile update or resets
       lastLevelRef.current = currentLvl;
+      localStorage.setItem(localKey, String(currentLvl));
     }
-  }, [userXp, notificationSettings]);
+  }, [userXp, notificationSettings, initSyncComplete, currentUser]);
   // ----------------------------------------------------------------
 
   // 0. Connection Test (Pillar Requirements)
@@ -823,6 +1082,8 @@ export default function App() {
 
     const unsubscribe = initAuth(
       async (user) => {
+        setInitSyncComplete(false);
+        hasBootedRef.current = false;
         // Stop any old snapshot listeners first
         cleanupListeners();
 
@@ -946,7 +1207,12 @@ export default function App() {
           subSnap.forEach(d => loadedSubs.push(d.data() as Subject));
           taskSnap.forEach(d => loadedTasks.push(d.data() as Task));
           logSnap.forEach(d => loadedLogs.push(d.data() as StudyLog));
-          rewardsSnap.forEach(d => loadedRewards.push(d.data() as GiftReward));
+          rewardsSnap.forEach(d => {
+            const r = d.data() as GiftReward;
+            if (!r.id.startsWith("def-")) {
+              loadedRewards.push(r);
+            }
+          });
           questsSnap.forEach(d => loadedQuests.push(d.data() as QuestChallenge));
           xpLogsSnap.forEach(d => loadedXpLogs.push(d.data() as XpGainLog));
           remindersSnap.forEach(d => loadedReminders.push(d.data() as Reminder));
@@ -1048,7 +1314,7 @@ export default function App() {
             setSubjects(finalSubs);
             setTasks(loadedTasks);
             setStudyLogs(loadedLogs);
-            if (loadedRewards.length > 0) setRewards(loadedRewards);
+            setRewards(loadedRewards);
             setQuests(finalQuests);
             if (loadedXpLogs.length > 0) setXpLogs(loadedXpLogs);
             if (loadedReminders.length > 0) {
@@ -1125,18 +1391,8 @@ export default function App() {
               loadedSubs.push(d.data() as Subject);
             });
             if (loadedSubs.length > 0) {
-              setStudyLogs(currentLogs => {
-                const todayStr = getLocalDateString();
-                const finalSubs = loadedSubs.map(sub => {
-                  const todayMins = currentLogs
-                    .filter(log => log.subjectId === sub.id && log.date === todayStr)
-                    .reduce((sum, log) => sum + log.durationMinutes, 0);
-                  return { ...sub, totalMinutes: Math.round(todayMins) };
-                });
-                setSubjects(finalSubs);
-                secureStorage.setItem("study_subjects", JSON.stringify(finalSubs));
-                return currentLogs;
-              });
+              setSubjects(loadedSubs);
+              secureStorage.setItem("study_subjects", JSON.stringify(loadedSubs));
             }
           }, err => console.warn("Subjects live syncer: encountered error", err));
 
@@ -1156,28 +1412,22 @@ export default function App() {
             });
             setStudyLogs(loadedLogs);
             secureStorage.setItem("study_logs", JSON.stringify(loadedLogs));
-
-            setSubjects(currentSubs => {
-              const todayStr = getLocalDateString();
-              const finalSubs = currentSubs.map(sub => {
-                const todayMins = loadedLogs
-                  .filter(log => log.subjectId === sub.id && log.date === todayStr)
-                  .reduce((sum, log) => sum + log.durationMinutes, 0);
-                return { ...sub, totalMinutes: Math.round(todayMins) };
-              });
-              secureStorage.setItem("study_subjects", JSON.stringify(finalSubs));
-              return finalSubs;
-            });
           }, err => console.warn("Logs live syncer: encountered error", err));
 
           const unsubRewards = onSnapshot(rewardsCol, (snap) => {
             const loadedRewards: GiftReward[] = [];
             snap.forEach(d => {
-              loadedRewards.push(d.data() as GiftReward);
+              const r = d.data() as GiftReward;
+              if (!r.id.startsWith("def-")) {
+                loadedRewards.push(r);
+              }
             });
             if (loadedRewards.length > 0) {
               setRewards(loadedRewards);
               secureStorage.setItem("study_rewards", JSON.stringify(loadedRewards));
+            } else {
+              setRewards([]);
+              secureStorage.setItem("study_rewards", JSON.stringify([]));
             }
           }, err => console.warn("Rewards live syncer: encountered error", err));
 
@@ -1225,6 +1475,7 @@ export default function App() {
             unsubReminders();
           };
 
+          setInitSyncComplete(true);
         } catch (err) {
           console.warn("Firestore sync failed or timed out on init, loading offline cache data instead.", err);
           
@@ -1304,9 +1555,12 @@ export default function App() {
           } catch (e) {
             console.warn("Cleanly caught Firestore permission/connection error on initialization:", e);
           }
+          setInitSyncComplete(true);
         }
       },
       () => {
+        setInitSyncComplete(false);
+        hasBootedRef.current = false;
         cleanupListeners();
         setCurrentUser(null);
         // Clear screen data to restore clean guest values / protect user sign-outs
@@ -1372,6 +1626,7 @@ export default function App() {
           try { parsedXpLogs = JSON.parse(localXpLogs); } catch (e) { console.warn("XpLogs parse err", e); }
         }
         setXpLogs(parsedXpLogs);
+        setInitSyncComplete(true);
       }
     );
     return () => {
@@ -1756,6 +2011,14 @@ export default function App() {
     }
   };
 
+  // Sync activeTimerTypeRef on mount
+  useEffect(() => {
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    if (isStudyingVal) {
+      activeTimerTypeRef.current = (localStorage.getItem("study_active_timer_type") as any) || "stopwatch";
+    }
+  }, []);
+
   // 1. Synchronize study start time and baseline when isStudyingUser toggles
   useEffect(() => {
     if (isStudyingUser) {
@@ -1766,31 +2029,37 @@ export default function App() {
         setStudySecondsBaseline(baseline);
         localStorage.setItem("study_start_time_ms", now.toString());
         localStorage.setItem("study_seconds_baseline", baseline.toString());
+        activeTimerTypeRef.current = timerType;
+        localStorage.setItem("study_active_timer_type", timerType);
       }
     } else {
       if (studyStartTime !== null) {
         const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch" || timerType === "custom") {
+        const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+        if (sessionType === "stopwatch" || sessionType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsed);
-        } else if (timerType === "pomodoro") {
+        } else if (sessionType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
         }
       }
       setStudyStartTime(null);
       setStudySecondsBaseline(0);
+      activeTimerTypeRef.current = null;
       localStorage.removeItem("study_start_time_ms");
       localStorage.removeItem("study_seconds_baseline");
+      localStorage.removeItem("study_active_timer_type");
     }
-  }, [isStudyingUser, timerType]);
+  }, [isStudyingUser]);
 
   // 2. Sync timer immediately when browser tab status changes or Chrome minimizes/restores
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && isStudyingUser && studyStartTime !== null) {
         const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch" || timerType === "custom") {
+        const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+        if (sessionType === "stopwatch" || sessionType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsed);
-        } else if (timerType === "pomodoro") {
+        } else if (sessionType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
         }
       }
@@ -1806,11 +2075,12 @@ export default function App() {
     let interval: NodeJS.Timeout | null = null;
     
     if (isStudyingUser && studyStartTime !== null) {
+      const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
       const tick = () => {
         const elapsedSecs = Math.floor((Date.now() - studyStartTime) / 1000);
-        if (timerType === "stopwatch" || timerType === "custom") {
+        if (sessionType === "stopwatch" || sessionType === "custom") {
           setActiveSecondsUser(studySecondsBaseline + elapsedSecs);
-        } else if (timerType === "pomodoro") {
+        } else if (sessionType === "pomodoro") {
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsedSecs));
         }
       };
@@ -2212,6 +2482,22 @@ export default function App() {
   };
 
   const handleCompleteQuest = async (questId: string) => {
+    // 1. Mem-lock to prevent rapid clicks double-submitting in memory
+    if (completedQuestsRef.current.has(questId)) {
+      console.warn("Quest already claimed/processing in memory:", questId);
+      return;
+    }
+    completedQuestsRef.current.add(questId);
+
+    // 2. LocalStorage lock to prevent double claim on multi-rendering/snapshot updates
+    const todayStr = getLocalDateString();
+    const lockKey = `study_claimed_quest_${todayStr}_${questId}`;
+    if (localStorage.getItem(lockKey) === "true") {
+      console.warn("Quest already claimed on tracker store today:", questId);
+      return;
+    }
+    localStorage.setItem(lockKey, "true");
+
     const targetQ = quests.find(q => q.id === questId);
     if (!targetQ || targetQ.isCompleted) return;
 
@@ -2243,19 +2529,24 @@ export default function App() {
     }
   };
 
+  const handleResetStudyTimer = () => {
+    setIsStudyingUser(false);
+    setActiveSecondsUser(0);
+    setStudyStartTime(null);
+    setStudySecondsBaseline(0);
+    localStorage.removeItem("study_start_time_ms");
+    localStorage.removeItem("study_seconds_baseline");
+  };
+
   const handleAddStudyMinutes = async (subjectId: string, minutes: number, customDate?: string) => {
     const todayStr = customDate || getLocalDateString();
     const targetSubject = subjects.find(s => s.id === subjectId);
     if (!targetSubject) return;
 
-    // Validate max 6 hours (360 minutes) per day limit
+    // Calculate existing minutes logged on this date to verify goal achievements
     const existingMinsForDate = studyLogs
       .filter(l => l.date === todayStr)
       .reduce((sum, l) => sum + l.durationMinutes, 0);
-
-    if (existingMinsForDate + minutes > 360) {
-      throw new Error(`Academic Integrity Rule: Daily logged study time is capped at a maximum of 6 hours (360 minutes). This selected date already has ${existingMinsForDate} minutes logged.`);
-    }
 
     // Create session entry
     const newLog: StudyLog = {
@@ -2605,7 +2896,7 @@ export default function App() {
     // If level changed, we will set XP to the matching level minimum XP requirement
     const calculatedLvl = calculateStudentLevel(userXp).level;
     if (updates.level !== calculatedLvl) {
-      const selectedLvlIdx = Math.max(1, Math.min(20, updates.level)) - 1;
+      const selectedLvlIdx = Math.max(1, Math.min(35, updates.level)) - 1;
       const targetXp = ALL_STUDENT_LEVELS[selectedLvlIdx].xpRequired;
       setUserXp(targetXp);
       secureStorage.setItem("study_user_xp", String(targetXp));
@@ -2657,6 +2948,9 @@ export default function App() {
             themePreset === "crimson" ? "bg-[#fdf5f5] text-[#701e23]" :
             themePreset === "honey" ? "bg-[#fbf7f0] text-[#5e4115]" :
             themePreset === "amoled" ? "bg-[#ffffff] text-[#0f172a]" :
+            themePreset === "cosmic" ? "bg-[#f5f3f9] text-[#2e1065]" :
+            themePreset === "cyberpunk" ? "bg-[#faf5fa] text-[#581c87]" :
+            themePreset === "nordic" ? "bg-[#f0f4f8] text-[#0f2d4a]" :
             "bg-[#f8fafc] text-slate-900"
           )
         : (
@@ -2664,6 +2958,9 @@ export default function App() {
             themePreset === "forest" ? "bg-[#05100c] text-[#d1e7dd]" :
             themePreset === "crimson" ? "bg-[#120102] text-[#f8d7da]" :
             themePreset === "honey" ? "bg-[#160e02] text-[#fbebd4]" :
+            themePreset === "cosmic" ? "bg-[#070512] text-[#e9d5ff]" :
+            themePreset === "cyberpunk" ? "bg-[#09050d] text-[#f7b7f9]" :
+            themePreset === "nordic" ? "bg-[#0b1016] text-[#e0f2fe]" :
             "bg-[#08080c] text-white"
           )
     }`} id="ypt-immersive-viewport-root">
@@ -2846,6 +3143,9 @@ export default function App() {
               themePreset === "crimson" ? "bg-[#fdf5f5]/85 border-[#f9e2e4]" :
               themePreset === "honey" ? "bg-[#fbf7f0]/85 border-[#f4ebda]" :
               themePreset === "amoled" ? "bg-[#ffffff]/90 border-slate-200" :
+              themePreset === "cosmic" ? "bg-[#f5f3f9]/85 border-[#e9e3f3]" :
+              themePreset === "cyberpunk" ? "bg-[#faf5fa]/85 border-[#f1e4f3]" :
+              themePreset === "nordic" ? "bg-[#f0f4f8]/85 border-[#d0dbe5]" :
               "bg-white/75 border-slate-200/60"
             )
           : (
@@ -2853,6 +3153,9 @@ export default function App() {
               themePreset === "forest" ? "bg-[#05100c]/90 border-emerald-950/40" :
               themePreset === "crimson" ? "bg-[#120102]/90 border-rose-950/40" :
               themePreset === "honey" ? "bg-[#160e02]/90 border-amber-950/40" :
+              themePreset === "cosmic" ? "bg-[#070512]/90 border-[#3b0764]/40" :
+              themePreset === "cyberpunk" ? "bg-[#09050d]/90 border-[#4a044e]/40" :
+              themePreset === "nordic" ? "bg-[#0b1016]/90 border-[#1e293b]/40" :
               "bg-[#08080c]/85 border-slate-900/40"
             )
       }`}>
@@ -2860,12 +3163,12 @@ export default function App() {
           
           {/* Logo brand & streak info */}
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-[#f26419] flex items-center justify-center text-white shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-transform" onClick={() => setActiveTab("focus")}>
-              <Clock className="w-5 h-5 font-bold" />
+            <div className={`h-10 w-10 rounded-2xl ${currentThemeStyle.accentBg} ${currentThemeStyle.glowClass} flex items-center justify-center text-white cursor-pointer hover:rotate-12 active:scale-90 transition-all duration-300`} onClick={() => setActiveTab("focus")}>
+              <Clock className="w-5.5 h-5.5 font-bold" />
             </div>
             <div className="text-left">
-              <h1 className={`text-sm font-black tracking-wider uppercase leading-none ${activeTheme === 'light' ? 'text-slate-950' : 'text-white'}`}>Flash5tudy</h1>
-              <div className="flex items-center gap-1.5 mt-0.5" title="Daily study streak indicator">
+              <h1 className={`text-base font-black tracking-widest uppercase leading-none ${currentThemeStyle.gradientText}`}>Flash5tudy</h1>
+              <div className="flex items-center gap-1.5 mt-1" title="Daily study streak indicator">
                 <Flame className="w-3.5 h-3.5 text-orange-500 animate-pulse shrink-0" />
                 <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">{activeStreakCount} days streak</span>
               </div>
@@ -2874,9 +3177,9 @@ export default function App() {
 
           {/* Quick Stats Summary badges */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-1.5 bg-white/45 dark:bg-[#171717]/80 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-800/40 font-mono text-[11px] text-slate-700 dark:text-slate-300 shadow-xs backdrop-blur-md">
-              <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-wider">Studied:</span>
-              <span className="font-bold text-[#f26419]">
+            <div className={`hidden sm:flex items-center gap-1.5 bg-white/45 dark:bg-[#171717]/80 px-3.5 py-1.5 rounded-full border ${currentThemeStyle.accentBorder} font-mono text-[11px] text-slate-700 dark:text-slate-300 shadow-xs backdrop-blur-md transition-all duration-300`}>
+              <span className="text-[9px] text-slate-450 dark:text-slate-550 uppercase font-black tracking-wider">Studied:</span>
+              <span className={`font-bold ${currentThemeStyle.accentText} ${currentThemeStyle.glowText}`}>
                 {Math.floor(totalStudiedTodayMins / 60)}h {Math.round(totalStudiedTodayMins % 60)}m
               </span>
             </div>
@@ -2888,13 +3191,13 @@ export default function App() {
                 setIsWideHud(updated);
                 localStorage.setItem("ypt_wide_hud", String(updated));
               }}
-              className="p-2 rounded-full cursor-pointer border transition-all bg-white/45 hover:bg-white/70 text-slate-600 border-slate-200 dark:bg-[#171717] dark:hover:bg-[#202020] dark:border-slate-900 dark:text-slate-400 dark:hover:text-white shadow-xs backdrop-blur-md flex items-center justify-center"
+              className={`p-2 rounded-full cursor-pointer border transition-all bg-white/45 hover:bg-white/70 text-slate-600 ${currentThemeStyle.accentBorder} dark:bg-[#171717] dark:hover:bg-[#202020] dark:text-slate-400 dark:hover:text-white shadow-xs backdrop-blur-md flex items-center justify-center`}
               title={isWideHud ? "Compact panel layout" : "Immersive widescreen HUD"}
             >
               {isWideHud ? (
-                <Minimize2 className="w-4 h-4 text-[#f26419]" />
+                <Minimize2 className="w-4 h-4 text-rose-500" />
               ) : (
-                <Maximize2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <Maximize2 className={`w-4 h-4 ${currentThemeStyle.accentText}`} />
               )}
             </button>
 
@@ -2904,8 +3207,8 @@ export default function App() {
               onClick={handleToggleFullscreen}
               className={`p-2 rounded-full cursor-pointer border transition-all shadow-xs backdrop-blur-md flex items-center justify-center ${
                 isFullscreen 
-                  ? "bg-[#f26419] text-white border-[#f26419]/55 animate-pulse" 
-                  : "bg-white/45 hover:bg-white/70 text-slate-600 border-slate-200 dark:bg-[#171717] dark:hover:bg-[#202020] dark:border-slate-900 dark:text-slate-400 dark:hover:text-amber-400"
+                  ? `${currentThemeStyle.accentBg} text-white border-transparent ${currentThemeStyle.glowClass}` 
+                  : `bg-white/45 hover:bg-white/70 text-slate-600 border-slate-200 dark:bg-[#171717] dark:hover:bg-[#202020] dark:border-slate-900 dark:text-slate-400 dark:hover:text-amber-400`
               }`}
               title={isFullscreen ? "Exit Chrome Fullscreen" : "Enter Chrome Fullscreen Mode"}
             >
@@ -2948,9 +3251,10 @@ export default function App() {
                 onClick={() => setThemeMode("system")}
                 className={`p-1.5 px-2.5 rounded-full cursor-pointer transition-all flex items-center justify-center gap-1 focus:outline-none ${
                   themeMode === "system"
-                    ? "bg-[#f26419]/10 text-[#f26419] font-black shadow-xs"
+                    ? "font-black shadow-xs"
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-white"
                 }`}
+                style={themeMode === "system" ? { backgroundColor: `${currentThemeStyle.primary}18`, color: currentThemeStyle.primary } : {}}
                 title="Sync with Device Scheme"
               >
                 <Laptop className="w-3.5 h-3.5" />
@@ -2965,29 +3269,29 @@ export default function App() {
               }}
               className={`p-2 rounded-full cursor-pointer relative border transition-all ${
                 activeTab === "reminders"
-                  ? "bg-[#f26419] border-[#f26419] text-white"
-                  : "bg-white/45 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-[#171717] dark:border-slate-900 dark:text-slate-400 dark:hover:text-white dark:hover:border-slate-800"
+                  ? `${currentThemeStyle.accentBg} border-transparent text-white ${currentThemeStyle.glowClass}`
+                  : `bg-white/45 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-[#171717] dark:border-[#1e293b]/50 dark:text-slate-400 dark:hover:text-white dark:hover:border-[#1e293b]`
               } shadow-xs backdrop-blur-md`}
               title="Study Focus Alarms & Reminders"
             >
               <Bell className="w-4 h-4" />
               {reminders.some(r => r.isActive && !r.isCompleted) && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-[#f26419] rounded-full animate-ping"></span>
+                <span className={`absolute top-1 right-1 w-2 h-2 ${currentThemeStyle.accentBg} rounded-full animate-ping`}></span>
               )}
             </button>
 
             {/* Google Authentication Section */}
             {currentUser ? (
-              <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-[#161616] p-1 pr-2.5 rounded-full border border-slate-200 dark:border-slate-900 hover:border-slate-350 dark:hover:border-slate-800 transition-colors">
+              <div className={`flex items-center gap-2.5 bg-slate-50/70 dark:bg-[#121214] p-1 pr-3 rounded-full border ${currentThemeStyle.accentBorder} hover:opacity-90 transition-all duration-300`}>
                 {currentUser.photoURL ? (
                   <img 
                     referrerPolicy="no-referrer" 
                     src={currentUser.photoURL} 
                     alt={currentUser.displayName || "User"} 
-                    className="w-6 h-6 rounded-full border border-slate-350 dark:border-slate-700/50" 
+                    className="w-7 h-7 rounded-full border border-slate-350 dark:border-slate-700/50" 
                   />
                 ) : (
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-[#f26419] font-black uppercase font-mono bg-[#f26419]/10 border border-[#f26419]/25`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] ${currentThemeStyle.accentText} font-black uppercase font-mono ${currentThemeStyle.badge}`}>
                     {(studentName || currentUser.displayName || currentUser.email || "S")[0].toUpperCase()}
                   </div>
                 )}
@@ -3091,6 +3395,7 @@ export default function App() {
               activeSeconds={activeSecondsUser}
               setActiveSeconds={setActiveSecondsUser}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+              onResetTimer={handleResetStudyTimer}
               timerType={timerType}
               setTimerType={setTimerType}
               pomoState={pomoState}
@@ -3107,6 +3412,7 @@ export default function App() {
               setPomoSecondsLeft={setPomoSecondsLeft}
               onUpdateSubjectGoal={handleUpdateSubjectGoal}
               themePreset={themePreset}
+              onThemeSelect={(themeId) => setThemePreset(themeId)}
               userXp={userXp}
               onAddXp={handleAddXp}
               onChangeTab={setActiveTab}
@@ -3222,8 +3528,8 @@ export default function App() {
                 {/* 1. Exam Targets & GPA Radar Widget */}
                 <div id="target_roadmap_sidebar_widget" className="liquid-glass p-5 rounded-3xl border border-slate-205/50 dark:border-slate-900/60 text-left space-y-4 shadow-md backdrop-blur-xl bg-white/40 dark:bg-[#121212]/30">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] uppercase font-mono text-[#f26419] font-black tracking-widest flex items-center gap-1.5 bg-transparent">
-                      <Target className="w-4 h-4 text-[#f26419]" />
+                    <span className="text-[10.5px] uppercase font-mono font-black tracking-widest flex items-center gap-1.5 bg-transparent" style={{ color: currentThemeStyle.primary }}>
+                      <Target className="w-4 h-4" style={{ color: currentThemeStyle.primary }} />
                       Academic Radar
                     </span>
                     <span className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/40 px-2.5 py-0.5 rounded-full font-bold">
@@ -3239,10 +3545,13 @@ export default function App() {
                     } catch(e) {}
                     
                     if (sideExams.length === 0) {
-                      sideExams = [
-                        { id: "exam_1", title: "AP Calculus BC Midterm", examDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], targetGrade: "A*", preparationLevel: 65 },
-                        { id: "exam_2", title: "AP Physics C Final Exam", examDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], targetGrade: "A", preparationLevel: 40 }
-                      ];
+                      return (
+                        <div className="flex flex-col items-center justify-center py-6 px-4 bg-slate-50/50 dark:bg-black/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center gap-2">
+                           <Target className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">No active exam roadmaps yet</p>
+                          <p className="text-[9px] text-slate-450 dark:text-slate-550 max-w-[180px]">Add your academic test dates and preparation list in the Targets tab!</p>
+                        </div>
+                      );
                     }
 
                     return (
@@ -3258,33 +3567,37 @@ export default function App() {
                             <div 
                               key={ex.id || idx} 
                               onClick={() => setActiveTab("target-suite")}
-                              className="flex flex-col gap-2 bg-white/40 dark:bg-black/15 p-3 rounded-2xl border border-slate-150/60 dark:border-slate-900/55 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] hover:border-[#f26419]/40 hover:bg-slate-50/20 dark:hover:bg-slate-900/20 transition-all cursor-pointer group text-left"
+                              className="flex flex-col gap-2 bg-white/40 dark:bg-black/15 p-3 rounded-2xl border border-slate-150/60 dark:border-slate-900/55 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] hover:bg-slate-50/20 dark:hover:bg-slate-900/20 transition-all cursor-pointer group text-left"
+                              style={{ borderWidth: '1px' }}
                             >
                               <div className="flex items-start justify-between gap-1.5 min-w-0">
                                 <div className="min-w-0">
-                                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate group-hover:text-[#f26419] transition-colors font-sans">
+                                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate group-hover:opacity-90 transition-colors font-sans" style={{ color: currentThemeStyle.primary }}>
                                     {ex.title}
                                   </h4>
                                   <p className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                                    Target grade: <span className="font-bold text-[#f26419]">{ex.targetGrade}</span>
+                                    Target grade: <span className="font-bold" style={{ color: currentThemeStyle.primary }}>{ex.targetGrade}</span>
                                   </p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <span className="text-[10px] font-mono bg-orange-500/10 text-[#f26419] font-black px-1.5 py-0.5 rounded-lg">
+                                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded-lg" style={{ color: currentThemeStyle.primary, backgroundColor: `${currentThemeStyle.primary}18` }}>
                                     {daysLeft}d left
                                   </span>
                                 </div>
                               </div>
 
                               <div className="space-y-1">
-                                <div className="flex justify-between text-[8px] font-mono text-slate-450">
+                                <div className="flex justify-between text-[8px] font-mono text-slate-450 font-semibold">
                                   <span>Preparation level</span>
                                   <span>{ex.preparationLevel}%</span>
                                 </div>
                                 <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
                                   <div 
-                                    className="h-full bg-gradient-to-r from-[#f26419] to-orange-400 rounded-full transition-all" 
-                                    style={{ width: `${ex.preparationLevel}%` }}
+                                    className="h-full rounded-full transition-all duration-500" 
+                                    style={{ 
+                                      width: `${ex.preparationLevel}%`,
+                                      backgroundImage: `linear-gradient(to right, ${currentThemeStyle.primary}, ${currentThemeStyle.primary}bf)`
+                                    }}
                                   />
                                 </div>
                               </div>
@@ -3294,7 +3607,12 @@ export default function App() {
 
                         <button 
                           onClick={() => setActiveTab("target-suite")}
-                          className="w-full text-center py-2 bg-[#f26419]/10 hover:bg-[#f26419]/15 border border-[#f26419]/15 text-[#f26419] rounded-xl text-[10.5px] font-black tracking-wide transition-all cursor-pointer uppercase font-mono"
+                          className="w-full text-center py-2 border rounded-xl text-[10.5px] font-black tracking-wide hover:opacity-90 transition-all cursor-pointer uppercase font-mono"
+                          style={{
+                            backgroundColor: `${currentThemeStyle.primary}18`,
+                            borderColor: `${currentThemeStyle.primary}33`,
+                            color: currentThemeStyle.primary
+                          }}
                         >
                           Open Target Suite
                         </button>
@@ -3309,7 +3627,7 @@ export default function App() {
                     <span className="text-[10.5px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-widest">
                       Distributions
                     </span>
-                    <span className="text-[10.5px] font-mono font-black text-[#f26419]">
+                    <span className="text-[10.5px] font-mono font-black animate-pulse" style={{ color: currentThemeStyle.primary }}>
                       Goal distribution
                     </span>
                   </div>
@@ -3321,12 +3639,15 @@ export default function App() {
                         <div key={sub.id} className="space-y-1">
                           <div className="flex justify-between items-center text-[10px]">
                             <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[155px]">{sub.name}</span>
-                            <span className="font-mono text-[#f26419] font-extrabold">{percent}%</span>
+                            <span className="font-mono font-extrabold" style={{ color: currentThemeStyle.primary }}>{percent}%</span>
                           </div>
                           <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-gradient-to-r from-[#f26419] to-orange-400 rounded-full transition-all duration-300" 
-                              style={{ width: `${percent}%` }}
+                              className="h-full rounded-full transition-all duration-500" 
+                              style={{ 
+                                width: `${percent}%`,
+                                backgroundImage: `linear-gradient(to right, ${currentThemeStyle.primary}, ${currentThemeStyle.primary}bf)`
+                              }}
                             />
                           </div>
                         </div>
@@ -3347,8 +3668,8 @@ export default function App() {
                   </div>
 
                   <div className="py-2 flex items-center justify-center relative">
-                    <div className="w-16 h-16 rounded-full bg-[#f26419]/10 absolute animate-ping duration-3000" style={{ animationDuration: '4s' }} />
-                    <div className="w-10 h-10 rounded-full bg-[#f26419] flex items-center justify-center text-white relative shadow-lg">
+                    <div className="w-16 h-16 rounded-full absolute animate-ping duration-3000" style={{ animationDuration: '4s', backgroundColor: `${currentThemeStyle.primary}1a` }} />
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white relative shadow-lg" style={{ backgroundColor: currentThemeStyle.primary, boxShadow: `0 4px 12px ${currentThemeStyle.primary}40` }}>
                       <Sparkles className="w-4 h-4 animate-spin-slow" />
                     </div>
                   </div>
@@ -3407,9 +3728,10 @@ export default function App() {
                 }}
                 className={`flex flex-col items-center gap-0.5 px-2 xs:px-3 py-0.5 sm:py-1 rounded-full cursor-pointer transition-all ${
                   isSelected 
-                    ? "text-[#f26419] font-black scale-105" 
+                    ? "font-black scale-105" 
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                 }`}
+                style={isSelected ? { color: currentThemeStyle.primary } : {}}
                 title={tab.label}
               >
                 <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isSelected ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
@@ -3426,14 +3748,15 @@ export default function App() {
               setIsSidebarOpen(!isSidebarOpen);
             }
           }}
-          className="w-11 h-11 sm:w-13 sm:h-13 bg-white/85 dark:bg-[#18181c]/90 active:scale-95 text-[#f26419] rounded-full flex items-center justify-center shadow-xl border border-slate-200/90 dark:border-slate-800/80 cursor-pointer hover:scale-105 transition-all backdrop-blur-md shrink-0"
+          className="w-11 h-11 sm:w-13 sm:h-13 bg-white/85 dark:bg-[#18181c]/90 active:scale-95 rounded-full flex items-center justify-center shadow-xl border border-slate-200/90 dark:border-slate-800/80 cursor-pointer hover:scale-105 transition-all backdrop-blur-md shrink-0"
+          style={{ color: currentThemeStyle.primary }}
           title="Flash5tudy Menu & Settings"
         >
-          {activeTab === "focus" && <Layers className="w-5 h-5 text-[#f26419] animate-pulse" />}
+          {activeTab === "focus" && <Layers className="w-5 h-5 animate-pulse" style={{ color: currentThemeStyle.primary }} />}
           {activeTab === "planner" && <Sparkles className="w-5 h-5 text-pink-500" />}
           {activeTab === "rewards" && <Award className="w-5 h-5 text-amber-500 animate-bounce" />}
           {activeTab === "calendar" && <TrendingUp className="w-5 h-5 text-emerald-500" />}
-          {activeTab === "target-suite" && <Target className="w-5 h-5 text-[#f26419]" />}
+          {activeTab === "target-suite" && <Target className="w-5 h-5" style={{ color: currentThemeStyle.primary }} />}
           {activeTab === "reminders" && <Bell className="w-5 h-5 text-violet-500 animate-pulse" />}
           {!["focus", "planner", "rewards", "calendar", "target-suite", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
         </button>
@@ -3490,14 +3813,14 @@ export default function App() {
             {/* Brand Logo Wrapper */}
             <div className="mb-5 flex flex-col items-start select-none">
               <div className="flex items-center gap-1 font-sans text-2xl font-black tracking-tight mb-1">
-                <span className="text-[#f26419]">F</span>
+                <span style={{ color: currentThemeStyle.primary }}>F</span>
                 <span className="text-[#4285F4]">l</span>
                 <span className="text-[#EA4335]">a</span>
                 <span className="text-[#FBBC05]">s</span>
                 <span className="text-[#34A853]">h</span>
-                <span className="text-[#f26419]">5</span>
+                <span style={{ color: currentThemeStyle.primary }}>5</span>
                 <span className="text-slate-800 dark:text-slate-100 font-extrabold">tudy</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-orange-500/10 text-[#f26419] font-bold tracking-wider uppercase ml-2 border border-orange-500/20">Cloud Synchronized</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold tracking-wider uppercase ml-2 border" style={{ color: currentThemeStyle.primary, backgroundColor: `${currentThemeStyle.primary}18`, borderColor: `${currentThemeStyle.primary}33` }}>Cloud Synchronized</span>
               </div>
               
               {authMode === "forgot" ? (
@@ -3998,8 +4321,8 @@ export default function App() {
             </button>
 
             {/* Icon */}
-            <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 flex items-center justify-center mb-4">
-              <Expand className="w-6 h-6 text-amber-500 animate-pulse" />
+            <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: `${currentThemeStyle.primary}18` }}>
+              <Expand className="w-6 h-6 animate-pulse" style={{ color: currentThemeStyle.primary }} />
             </div>
 
             {/* Topic Headings */}
@@ -4014,7 +4337,7 @@ export default function App() {
             {/* Onboarding info points */}
             <div className="my-5 space-y-3">
               <div className="flex gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">
-                <span className="text-xs font-mono font-black text-[#f26419] bg-[#f26419]/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">1</span>
+                <span className="text-xs font-mono font-black w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ color: currentThemeStyle.primary, backgroundColor: `${currentThemeStyle.primary}18` }}>1</span>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
                   Standard Fullscreen might be blocked because you are running the app inside Google AI Studio's preview iframe window.
                 </p>
@@ -4041,7 +4364,8 @@ export default function App() {
                 href={window.location.href}
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex-1 bg-[#f26419] hover:bg-[#d6510d] text-white font-extrabold py-2.5 px-4 rounded-xl text-xs flex justify-center items-center gap-1.5 cursor-pointer shadow-lg active:scale-98 transition-all"
+                className={`flex-1 ${currentThemeStyle.accentBg} text-white font-extrabold py-2.5 px-4 rounded-xl text-xs flex justify-center items-center gap-1.5 cursor-pointer shadow-lg active:scale-98 transition-all hover:brightness-110`}
+                style={{ boxShadow: `0 4px 14px -4px ${currentThemeStyle.primary}60` }}
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>Open in New Tab</span>
@@ -4067,6 +4391,76 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Level Up Celebration Premium Interactive Modal */}
+      {levelUpModal && (() => {
+        const tier = ALL_STUDENT_LEVELS[Math.max(1, Math.min(35, levelUpModal.newLevel)) - 1];
+        return (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+            <div className="bg-gradient-to-b from-slate-900 via-[#0e1015] to-[#0a0a0c] border border-amber-500/35 rounded-3xl w-full max-w-md p-6 shadow-2xl relative text-slate-100 overflow-hidden">
+              {/* Pulsing decorative background glows */}
+              <div className="absolute top-[-50px] left-[-50px] w-48 h-48 rounded-full filter blur-[60px] opacity-35 bg-amber-500 animate-pulse"></div>
+              <div className="absolute bottom-[-50px] right-[-50px] w-48 h-48 rounded-full filter blur-[60px] opacity-25 bg-[#f26419] animate-pulse"></div>
+              
+              {/* Top Banner Trophy Badge */}
+              <div className="relative text-center pt-4">
+                <div className="inline-flex relative">
+                  <div className="absolute inset-0 bg-amber-500/20 rounded-full filter blur-xl scale-125 animate-ping"></div>
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-[#f26419] flex items-center justify-center text-4xl shadow-2xl relative border-2 border-amber-300">
+                    {tier.badge}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#f26419] font-mono">CONGRATULATIONS!</p>
+                  <h3 className="text-2xl font-black text-white mt-1 leading-tight font-sans tracking-tight">
+                    LEVEL UP ACHIEVED!
+                  </h3>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs font-mono font-bold text-amber-400 mt-2.5">
+                    Level {levelUpModal.oldLevel} ➔ Level {levelUpModal.newLevel}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rank and Reward Showcase Card */}
+              <div className="bg-slate-950/90 border border-slate-900/80 rounded-2xl p-4 my-5 space-y-3 relative z-10">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">🏆</span>
+                  <div>
+                    <span className="text-[9px] text-[#f26419] font-black uppercase tracking-wider block">New Earned Title</span>
+                    <h4 className="text-sm font-black text-slate-100 uppercase">{tier.rank}</h4>
+                  </div>
+                </div>
+                
+                <div className="pt-2.5 border-t border-slate-900/60">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Unlocked Perk Feature</span>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed font-medium block">
+                    {tier.perk}
+                  </p>
+                </div>
+              </div>
+
+              {/* Dynamic Action Buttons */}
+              <div className="space-y-2.5 relative z-10">
+                <button
+                  onClick={() => {
+                    setLevelUpModal(null);
+                    setActiveTab("rewards");
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-[#f26419] hover:from-amber-400 hover:to-[#df5214] text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  🎁 Claim Unlocked Rewards or Perks
+                </button>
+                <button
+                  onClick={() => setLevelUpModal(null)}
+                  className="w-full py-2.5 bg-slate-950 hover:bg-slate-900/80 text-xs font-bold text-slate-400 hover:text-slate-200 rounded-xl active:scale-98 transition-all cursor-pointer text-center"
+                >
+                  Dismiss with Pride
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

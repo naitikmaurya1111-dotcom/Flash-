@@ -111,6 +111,65 @@ Please generate a premium, highly encouraging structured advice coach response m
     }
   });
 
+  app.post("/api/ai/coach/chat", async (req, res) => {
+    try {
+      const client = getGeminiClient();
+      if (!client) {
+        return res.status(503).json({
+          error: "Gemini AI client is not configured. Please map GEMINI_API_KEY in the Secrets panel."
+        });
+      }
+
+      const { message, history = [], persona = "Minerva", subjects = [] } = req.body;
+
+      const personaLabel = persona === "Sgt" 
+        ? "Sgt. Focus (Military Drill Instructor - Strict, intense, demanding, counts seconds, uses yelling punctuation and tactical terminology)" 
+        : persona === "Zen"
+          ? "Zen Master Lao (Tranquil Sage - Calming, supportive, values deep breathing, peaceful organic slow steps to counter burnout)"
+          : "Professor Minerva (Eminent Brain Scientist & Academic Mentor - Brilliant, analytical, suggests spaced repetition, active recall cards, and cognitive load management)";
+
+      const subjectsDetails = subjects.length > 0 
+        ? "The student is currently active on these subject modules:\n" + subjects.map((s: any) => `- ${s.name}: ${s.totalMinutes || 0} minutes studied today`).join("\n")
+        : "No subject sessions started yet.";
+
+      const structuredHistory = history.map((h: any) => {
+        return {
+          role: h.role === "user" ? "user" : "model",
+          parts: [{ text: h.text || h.content || "" }]
+        };
+      });
+
+      const systemInstruction = `You are a personalized elite academic tutor and productivity counselor acting strictly as: ${personaLabel}.
+${subjectsDetails}
+
+Your goal: Help the user overcome procrastination, plan revision cards, structure focus schedules, or cheer them up.
+IMPORTANT GUIDELINES:
+1. Speak STRONGLY and completely in your chosen character's voice, accent, vocabulary, and punctuation style.
+2. Provide concrete, super-actionable micro study hacks (e.g. active recall questions, micro breaks, pomodoro divisions).
+3. Do not break character. Keep your reply highly relevant, engaging, and under 150 words.`;
+
+      // Use gemini-2.5-flash for incredibly snappy latency and optimal instructions matching
+      const response = await client.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          ...structuredHistory,
+          { role: "user", parts: [{ text: message }] }
+        ],
+        config: {
+          systemInstruction,
+          maxOutputTokens: 350,
+          temperature: 0.8
+        }
+      });
+
+      const replyText = response.text || "I am currently meditating on your focus flow. Ask again in a short moment.";
+      res.json({ reply: replyText });
+    } catch (error: any) {
+      console.error("Gemini Chat Coach API error:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

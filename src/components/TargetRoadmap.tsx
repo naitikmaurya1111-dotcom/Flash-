@@ -14,58 +14,58 @@ interface TargetRoadmapProps {
 
 const DEFAULT_EXAMS: ExamTarget[] = [
   {
-    id: "exam_math_midterm",
-    title: "AP Calculus BC Section A Midterm",
-    subjectId: "default-1", // Mathematics fallback or maps dynamically
-    examDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 12 days from now
-    targetGrade: "A* (95%)",
-    preparationLevel: 65,
+    id: "exam_default_1",
+    title: "Midterm Examination 🧬",
+    subjectId: "general",
+    examDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    targetGrade: "A",
+    preparationLevel: 45,
     difficulty: "Hard",
     checklist: [
-      { id: "mc-1", text: "Master Integration by Parts & U-Substitution formulas", isDone: true },
-      { id: "mc-2", text: "Practice 2018-2022 AP past paper Section B problems", isDone: false },
-      { id: "mc-3", text: "Review Taylor Series convergence checks", isDone: false }
+      { id: "cli_def_1", text: "Read Chapter 5: Enzyme kinetics & active cell structure", isDone: true },
+      { id: "cli_def_2", text: "Simulate practice test questions with active feedback", isDone: false },
+      { id: "cli_def_3", text: "Create flash cards for carbon compound compounds", isDone: false }
     ]
   },
   {
-    id: "exam_phys_lab",
-    title: "Thermal Physics & Electromagnetism Final",
-    subjectId: "default-2", // Physics
-    examDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 25 days from now
-    targetGrade: "A (90%)",
-    preparationLevel: 40,
+    id: "exam_default_2",
+    title: "Calculus Linear Algebra Proof Final 📐",
+    subjectId: "general",
+    examDate: new Date(Date.now() + 22 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    targetGrade: "A-",
+    preparationLevel: 30,
     difficulty: "Expert",
     checklist: [
-      { id: "pc-1", text: "Memorize Gauss's law flux surfaces derivations", isDone: true },
-      { id: "pc-2", text: "Complete the Thermodynamics sample simulation labs", isDone: false }
+      { id: "cli_def_4", text: "Review matrix transformations and pivot columns", isDone: false },
+      { id: "cli_def_5", text: "Complete homework list exercise set B", isDone: true }
     ]
   }
 ];
 
 const DEFAULT_COURSES: GpaCourse[] = [
   {
-    id: "course_math",
-    name: "Advanced Calculus I",
+    id: "course_default_1",
+    name: "General Biochemistry 101",
     creditHours: 4,
-    currentGradePercent: 86,
-    targetGradePercent: 92,
-    remainingWeightPercent: 35 // 35% of the total grade remains (e.g. final exam)
+    currentGradePercent: 88.5,
+    targetGradePercent: 93.0,
+    remainingWeightPercent: 35
   },
   {
-    id: "course_phys",
-    name: "General Physics & Mechanics",
-    creditHours: 4,
-    currentGradePercent: 82,
-    targetGradePercent: 90,
-    remainingWeightPercent: 40 // 40% remains
-  },
-  {
-    id: "course_hist",
-    name: "Modern World History seminar",
+    id: "course_default_2",
+    name: "Linear Algebra & Matrices",
     creditHours: 3,
-    currentGradePercent: 93,
-    targetGradePercent: 95,
-    remainingWeightPercent: 20 // 20% remains
+    currentGradePercent: 82.0,
+    targetGradePercent: 90.0,
+    remainingWeightPercent: 40
+  },
+  {
+    id: "course_default_3",
+    name: "Advanced English Composition",
+    creditHours: 3,
+    currentGradePercent: 94.0,
+    targetGradePercent: 95.0,
+    remainingWeightPercent: 20
   }
 ];
 
