@@ -283,6 +283,32 @@ export interface GpaCourse {
   remainingWeightPercent: number; // e.g., 40% of grade left to be determined
 }
 
+/**
+ * Formats precise study minutes (including fractions) into human-readable hours, minutes, and seconds.
+ * Perfect for 100% accuracy, even under 5 seconds!
+ */
+export const formatStudyTimeExact = (minutes: number): string => {
+  const totalSeconds = Math.round(minutes * 60);
+  if (totalSeconds <= 0) return "0 secs";
+  
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  
+  const parts: string[] = [];
+  if (h > 0) {
+    parts.push(`${h} hr${h > 1 ? "s" : ""}`);
+  }
+  if (m > 0) {
+    parts.push(`${m} min${m > 1 ? "s" : ""}`);
+  }
+  if (s > 0 || (h === 0 && m === 0)) {
+    parts.push(`${s} sec${s > 1 ? "s" : ""}`);
+  }
+  return parts.join(" ");
+};
+
+
 
 
 

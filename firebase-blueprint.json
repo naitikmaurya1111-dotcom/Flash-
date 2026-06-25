@@ -5,6 +5,8 @@
       "description": "Student profile configuration, preferences and accumulated progression statistics",
       "type": "object",
       "properties": {
+        "userId": { "type": "string", "description": "The user's unique identifier" },
+        "email": { "type": "string", "description": "The user's primary email address" },
         "studentName": { "type": "string", "description": "The student's full name" },
         "studentClass": { "type": "string", "description": "Class standard/grade identifier" },
         "studentPrepTarget": { "type": "string", "description": "Focus target examination e.g. JEE/NEET/CLAT" },
@@ -12,7 +14,12 @@
         "themeMode": { "type": "string", "description": "UI layout visual dark/light theme mode" },
         "xp": { "type": "number", "description": "Total active study progression experience points" },
         "lastActiveDate": { "type": "string", "description": "ISO date representing the last active connection day" },
-        "displayName": { "type": "string", "description": "User alias for room chat visualization" }
+        "displayName": { "type": "string", "description": "User alias for room chat visualization" },
+        "dailyTargetMinutes": { "type": "number", "description": "Daily goal study minutes" },
+        "timerType": { "type": "string", "description": "Active timer focus type" },
+        "pomoFocusDuration": { "type": "number", "description": "Pomodoro active focus duration minutes" },
+        "pomoShortBreakDuration": { "type": "number", "description": "Pomodoro short break duration minutes" },
+        "pomoLongBreakDuration": { "type": "number", "description": "Pomodoro long break duration minutes" }
       },
       "required": ["studentName", "studentClass", "studentPrepTarget"]
     },
@@ -160,6 +167,59 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "userId", "userName", "userAvatarSeed", "text", "timestamp"]
+    },
+    "KeepNote": {
+      "title": "KeepNote",
+      "description": "Keep notes in user workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "title", "body", "timestamp"]
+    },
+    "ExamTarget": {
+      "title": "ExamTarget",
+      "description": "Custom examination target dates, preparation levels, checklists, and difficulty ratings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "examDate": { "type": "string" },
+        "targetGrade": { "type": "string" },
+        "preparationLevel": { "type": "number" },
+        "difficulty": { "type": "string" },
+        "checklist": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "isDone": { "type": "boolean" }
+            },
+            "required": ["id", "text", "isDone"]
+          }
+        }
+      },
+      "required": ["id", "title", "subjectId", "examDate", "targetGrade", "preparationLevel", "difficulty", "checklist"]
+    },
+    "GpaCourse": {
+      "title": "GpaCourse",
+      "description": "GPA course credit hours and targets mapped inside target roadmap",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "creditHours": { "type": "number" },
+        "currentGradePercent": { "type": "number" },
+        "targetGradePercent": { "type": "number" },
+        "remainingWeightPercent": { "type": "number" }
+      },
+      "required": ["id", "name", "creditHours", "currentGradePercent", "targetGradePercent", "remainingWeightPercent"]
     }
   },
   "firestore": {
@@ -171,6 +231,9 @@
     "/users/{userId}/rewards/{rewardId}": { "schema": "GiftReward", "description": "Claimable exchange-eligible gamified reward triggers" },
     "/users/{userId}/quests/{questId}": { "schema": "Quest", "description": "Preparation target challenges linked to active performance tiers" },
     "/users/{userId}/xpLogs/{xpLogId}": { "schema": "XpGainLog", "description": "Audit indexes mapping experience gains across study times" },
+    "/users/{userId}/keepNotes/{noteId}": { "schema": "KeepNote", "description": "Custom Keep notes inside user workspace" },
+    "/users/{userId}/exams/{examId}": { "schema": "ExamTarget", "description": "Target examinations and associated preparation checklists" },
+    "/users/{userId}/gpaCourses/{courseId}": { "schema": "GpaCourse", "description": "Interactive GPA calculations and progress criteria" },
     "/studyRooms/{roomId}": { "schema": "StudyRoom", "description": "Collaborative digital libraries representing student lobby floors" },
     "/studyRooms/{roomId}/members/{memberId}": { "schema": "RoomMember", "description": "Dynamic online user cards signaling current room membership" },
     "/studyRooms/{roomId}/chats/{chatId}": { "schema": "RoomChat", "description": "Live board message logs enabling group notes exchanges" }

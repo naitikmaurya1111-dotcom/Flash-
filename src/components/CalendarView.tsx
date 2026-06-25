@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Filter, Calendar, Sparkles, AlertCircle, ChevronLeft, ChevronRight, Check, X, Plus, Clock } from "lucide-react";
-import { StudyLog, Subject, calculateStudentLevel, getXpRateForLevel } from "../types";
+import { StudyLog, Subject, calculateStudentLevel, getXpRateForLevel, formatStudyTimeExact } from "../types";
 
 interface CalendarViewProps {
   studyLogs: StudyLog[];
@@ -227,10 +227,10 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   };
 
   return (
-    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-x3l rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="ypt-calendar-canvas">
+    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="ypt-calendar-canvas">
       
       {/* Upper Month Header */}
-      <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100 dark:border-slate-900/10">
+      <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-slate-100 dark:border-slate-900/10">
         <div className="flex items-center gap-2.5">
           <Calendar className="w-5 h-5 text-[#f26419]" />
           <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -306,7 +306,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
                   
                   {/* micro tooltip */}
                   <div className="absolute bottom-8 scale-0 group-hover:scale-100 transition-all z-10 bg-slate-900 text-white text-[9px] p-1.5 rounded-md font-mono whitespace-nowrap shadow-md pointer-events-none">
-                    {block.monthShort} {block.dayNum}: {block.minutes} mins studied
+                    {block.monthShort} {block.dayNum}: {formatStudyTimeExact(block.minutes)} studied
                   </div>
                 </div>
               );
@@ -328,9 +328,13 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
 
           // Format total hours
           const formatTotalStudyShort = (totalMinutes: number) => {
-            const h = Math.floor(totalMinutes / 60);
-            const m = Math.floor(totalMinutes % 60);
-            return `${h}:${String(m).padStart(2, "0")}`;
+            const totalSecs = Math.round(totalMinutes * 60);
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
+            if (h > 0) return `${h}h ${m}m ${s}s`;
+            if (m > 0) return `${m}m ${s}s`;
+            return `${s}s`;
           };
 
           // Preset simulated events mapped
@@ -392,11 +396,16 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
               {/* Day plot events stack */}
               <div className="flex-1 overflow-y-auto no-scrollbar space-y-0.5">
                 {/* Dynamically added study logs as tiny tags */}
-                {dateLogs.map((lg) => (
-                  <div key={lg.id} className="text-[8px] bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-slate-350 border border-indigo-100 dark:border-indigo-900/20 rounded px-1 text-left truncate">
-                    ⏱️ {lg.subjectName} ({lg.durationMinutes}m)
-                  </div>
-                ))}
+                {dateLogs.map((lg) => {
+                  const matchedSub = subjects.find(s => s.id === lg.subjectId);
+                  const subColor = matchedSub ? matchedSub.color : "bg-indigo-500";
+                  return (
+                    <div key={lg.id} className="text-[8px] bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-slate-350 border border-indigo-100 dark:border-indigo-900/20 rounded px-1 py-0.5 text-left truncate flex items-center gap-1">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${subColor} shrink-0`} />
+                      <span className="truncate">{lg.subjectName} ({formatStudyTimeExact(lg.durationMinutes)})</span>
+                    </div>
+                  );
+                })}
                 
                 {dayEvents.slice(0, 3).map((evt) => (
                   <div 
@@ -446,7 +455,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
             </div>
 
             {/* Inner scrollable area */}
-            <div className="p-6 overflow-y-auto no-scrollbar space-y-6">
+            <div className="p-4 sm:p-6 overflow-y-auto no-scrollbar space-y-4 sm:space-y-6">
 
               {/* Error Notification */}
               {logErrorText && (
@@ -480,7 +489,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
                           <span className="font-semibold text-slate-700 dark:text-slate-300">{log.subjectName}</span>
                         </div>
                         <span className="font-mono text-slate-600 dark:text-slate-400 font-bold bg-white dark:bg-[#141414] px-2 py-0.5 rounded-md border border-slate-150 dark:border-slate-900">
-                          {log.durationMinutes} Minutes studied
+                          {formatStudyTimeExact(log.durationMinutes)} studied
                         </span>
                       </div>
                     ))}
@@ -588,8 +597,8 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
 
       {/* Floating Filter dialog modal popup */}
       {showFilterModal && (
-        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-sm flex items-center justify-center p-5 z-40 animate-fade-in">
-          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-6 shadow-xl text-slate-805 dark:text-slate-200">
+        <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-5 z-40 animate-fade-in">
+          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-4 sm:p-6 shadow-xl text-slate-805 dark:text-slate-200">
             <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-3.5">Filter Logs</h3>
             <p className="text-xs text-slate-450 dark:text-slate-400 mb-4 font-sans leading-relaxed">Filter the logs plotted inside the calendar days depending on active criteria:</p>
             

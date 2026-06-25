@@ -98,21 +98,25 @@ export default function PlannerHub({
     setAddingTaskSubjectId(null);
   };
 
+  const totalTasksCount = tasks.length;
+  const completedTasksCount = tasks.filter(t => t.isCompleted).length;
+  const taskProgressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
+
   return (
-    <div className="relative font-sans flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800/80 bg-white/75 dark:bg-[#0c0d10]/95 text-slate-850 dark:text-neutral-100 p-6 shadow-xl hover:shadow-2xl transition-all duration-350" id="ypt-planner-canvas">
+    <div className="relative font-sans flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800/80 bg-white/75 dark:bg-[#0c0d10]/95 text-slate-850 dark:text-neutral-100 p-4 sm:p-5 md:p-6 shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-350" id="ypt-planner-canvas">
       
       {/* Header Month Day Title */}
-      <div className="flex items-center justify-between pb-4">
-        <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 dark:text-white mb-1">
+      <div className="flex items-center justify-between pb-3 sm:pb-4">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-slate-800 dark:text-white mb-0.5">
           {formattedSelectedDay}
         </h2>
-        <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800/80 text-slate-550 dark:text-slate-400 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700/50">
+        <span className="text-[9px] font-mono bg-slate-100 dark:bg-slate-800/80 text-slate-550 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700/50">
           Checkoff Log
         </span>
       </div>
 
       {/* Weekday columns indicator slider */}
-      <div className="grid grid-cols-7 gap-1 pb-4 border-b border-slate-100 dark:border-slate-900/30 text-center select-none mb-6">
+      <div className="grid grid-cols-7 gap-1 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-900/30 text-center select-none mb-4 sm:mb-4">
         {weekDays.map((wd) => {
           const isSelected = selectedDay === wd.dateStr;
           return (
@@ -125,7 +129,7 @@ export default function PlannerHub({
                 {wd.num} {wd.label}
               </span>
               <button 
-                className={`w-8 h-8 rounded-xl mt-1 text-[10px] font-mono font-bold leading-none flex items-center justify-center transition-all cursor-pointer ${
+                className={`w-8 h-8 rounded-xl mt-1 text-[10px] font-mono font-bold leading-none flex items-center justify-center transition-all cursor-pointer active:scale-90 ${
                   isSelected 
                     ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 scale-105 shadow-sm" 
                     : "bg-slate-100/70 hover:bg-slate-200 text-slate-600 dark:bg-[#161616]/70 dark:hover:bg-[#1a1a1a] dark:text-slate-400"
@@ -147,6 +151,22 @@ export default function PlannerHub({
             </div>
           );
         })}
+      </div>
+
+      {/* Real-time week-day checklist progress visual bar */}
+      <div className="space-y-1.5 mb-5 bg-slate-50/70 dark:bg-slate-900/40 p-3 rounded-2xl border border-slate-150 dark:border-slate-850">
+        <div className="flex justify-between items-center text-xs">
+          <span className="font-extrabold text-slate-500 dark:text-slate-400">Week-day checklist status</span>
+          <span className="font-mono font-black text-[#f26419] dark:text-orange-400">
+            {completedTasksCount}/{totalTasksCount} completed ({taskProgressPct}%)
+          </span>
+        </div>
+        <div className="relative w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-orange-450 via-orange-500 to-[#f26419] rounded-full transition-all duration-500" 
+            style={{ width: `${taskProgressPct}%` }}
+          />
+        </div>
       </div>
 
       {/* Categories task accordion lists stack */}

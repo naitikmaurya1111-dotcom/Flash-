@@ -4,12 +4,16 @@ import {
   Sparkles, Award, TrendingUp, HelpCircle, BookOpen, Clock, RefreshCw, ChevronRight, Check
 } from "lucide-react";
 import { Subject, ExamTarget, GpaCourse } from "../types";
+import { User } from "firebase/auth";
+import { db } from "../lib/googleApi";
+import { collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
 
 interface TargetRoadmapProps {
   subjects: Subject[];
   userXp: number;
   onAddXp: (reason: string, amount: number) => Promise<void>;
   themePreset?: string;
+  currentUser?: User | null;
 }
 
 const DEFAULT_EXAMS: ExamTarget[] = [
@@ -69,7 +73,7 @@ const DEFAULT_COURSES: GpaCourse[] = [
   }
 ];
 
-export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic" }: TargetRoadmapProps) {
+export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic", currentUser = null }: TargetRoadmapProps) {
   const [activeSubTab, setActiveSubTab] = useState<"milestones" | "gpa">("milestones");
   const [exams, setExams] = useState<ExamTarget[]>([]);
   const [courses, setCourses] = useState<GpaCourse[]>([]);
@@ -94,39 +98,112 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
   const [newChecklistText, setNewChecklistText] = useState<{ [examId: string]: string }>({});
 
   useEffect(() => {
-    // Load Exams
-    const savedExams = localStorage.getItem("study_target_exams");
-    if (savedExams) {
-      try {
-        setExams(JSON.parse(savedExams));
-      } catch (e) {
-        setExams(DEFAULT_EXAMS);
-      }
-    } else {
-      // Seed with initial defaults, but map default-1 and default-2 to real subject ids if possible
-      const seeded = DEFAULT_EXAMS.map((ex, idx) => {
-        if (subjects.length > idx) {
-          return { ...ex, subjectId: subjects[idx].id };
+    const fetchRoadmapData = async () => {
+      if (!currentUser) {
+        // Load Exams locally
+        const savedExams = localStorage.getItem("study_target_exams");
+        if (savedExams) {
+          try {
+            setExams(JSON.parse(savedExams));
+          } catch (e) {
+            setExams(DEFAULT_EXAMS);
+          }
+        } else {
+          const seeded = DEFAULT_EXAMS.map((ex, idx) => {
+            if (subjects.length > idx) {
+              return { ...ex, subjectId: subjects[idx].id };
+            }
+            return ex;
+          });
+          setExams(seeded);
+          localStorage.setItem("study_target_exams", JSON.stringify(seeded));
         }
-        return ex;
-      });
-      setExams(seeded);
-      localStorage.setItem("study_target_exams", JSON.stringify(seeded));
-    }
 
-    // Load Courses
-    const savedCourses = localStorage.getItem("study_target_gpa");
-    if (savedCourses) {
-      try {
-        setCourses(JSON.parse(savedCourses));
-      } catch (e) {
-        setCourses(DEFAULT_COURSES);
+        // Load Courses locally
+        const savedCourses = localStorage.getItem("study_target_gpa");
+        if (savedCourses) {
+          try {
+            setCourses(JSON.parse(savedCourses));
+          } catch (e) {
+            setCourses(DEFAULT_COURSES);
+          }
+        } else {
+          setCourses(DEFAULT_COURSES);
+          localStorage.setItem("study_target_gpa", JSON.stringify(DEFAULT_COURSES));
+        }
+        return;
       }
-    } else {
-      setCourses(DEFAULT_COURSES);
-      localStorage.setItem("study_target_gpa", JSON.stringify(DEFAULT_COURSES));
-    }
-  }, [subjects]);
+
+      // If user is authenticated, retrieve/synchronize with Firestore
+      try {
+        const examsCol = collection(db, "users", currentUser.uid, "exams");
+        const coursesCol = collection(db, "users", currentUser.uid, "gpaCourses");
+
+        const [examsSnap, coursesSnap] = await Promise.all([
+          getDocs(examsCol),
+          getDocs(coursesCol)
+        ]);
+
+        const loadedExams: ExamTarget[] = [];
+        examsSnap.forEach(docSnap => {
+          loadedExams.push(docSnap.data() as ExamTarget);
+        });
+
+        const loadedCourses: GpaCourse[] = [];
+        coursesSnap.forEach(docSnap => {
+          loadedCourses.push(docSnap.data() as GpaCourse);
+        });
+
+        // Seed empty Cloud with Local/Defaults
+        if (loadedExams.length === 0) {
+          const localExamsRaw = localStorage.getItem("study_target_exams");
+          let finalExams = DEFAULT_EXAMS.map((ex, idx) => {
+            if (subjects.length > idx) {
+              return { ...ex, subjectId: subjects[idx].id };
+            }
+            return ex;
+          });
+          if (localExamsRaw) {
+            try { finalExams = JSON.parse(localExamsRaw); } catch (e) {}
+          }
+          setExams(finalExams);
+          finalExams.forEach(ex => {
+            setDoc(doc(db, "users", currentUser.uid, "exams", ex.id), ex).catch(() => {});
+          });
+        } else {
+          setExams(loadedExams);
+          localStorage.setItem("study_target_exams", JSON.stringify(loadedExams));
+        }
+
+        if (loadedCourses.length === 0) {
+          const localCoursesRaw = localStorage.getItem("study_target_gpa");
+          let finalCourses = DEFAULT_COURSES;
+          if (localCoursesRaw) {
+            try { finalCourses = JSON.parse(localCoursesRaw); } catch (e) {}
+          }
+          setCourses(finalCourses);
+          finalCourses.forEach(c => {
+            setDoc(doc(db, "users", currentUser.uid, "gpaCourses", c.id), c).catch(() => {});
+          });
+        } else {
+          setCourses(loadedCourses);
+          localStorage.setItem("study_target_gpa", JSON.stringify(loadedCourses));
+        }
+      } catch (err) {
+        console.warn("Failed fetching cloud exam target datasets (falling back offline):", err);
+        const savedExams = localStorage.getItem("study_target_exams");
+        if (savedExams) {
+          try { setExams(JSON.parse(savedExams)); } catch (e) {}
+        }
+        const savedCourses = localStorage.getItem("study_target_gpa");
+        if (savedCourses) {
+          try { setCourses(JSON.parse(savedCourses)); } catch (e) {}
+        }
+      }
+    };
+
+    fetchRoadmapData();
+  }, [currentUser, subjects]);
 
   const saveExamsToStorage = (updatedExams: ExamTarget[]) => {
     setExams(updatedExams);
@@ -158,6 +235,12 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     saveExamsToStorage(updated);
     onAddXp("Added student exam target to focus radar 🎯", 25);
 
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid, "exams", newExam.id), newExam).catch(err => {
+        console.error("Failed saving exam target to cloud:", err);
+      });
+    }
+
     // Reset inputs
     setNewExamTitle("");
     setNewExamDate("");
@@ -170,6 +253,12 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
   const handleDeleteExam = (examId: string) => {
     const updated = exams.filter(e => e.id !== examId);
     saveExamsToStorage(updated);
+
+    if (currentUser) {
+      deleteDoc(doc(db, "users", currentUser.uid, "exams", examId)).catch(err => {
+        console.error("Failed deleting exam target from cloud:", err);
+      });
+    }
   };
 
   // Update Exam Prep Level
@@ -181,6 +270,15 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
       return ex;
     });
     saveExamsToStorage(updated);
+
+    if (currentUser) {
+      const targetEx = updated.find(e => e.id === examId);
+      if (targetEx) {
+        setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
+          console.error("Failed updating exam prep level on cloud:", err);
+        });
+      }
+    }
   };
 
   // Toggle checklist item
@@ -205,6 +303,15 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
       return ex;
     });
     saveExamsToStorage(updated);
+
+    if (currentUser) {
+      const targetEx = updated.find(e => e.id === examId);
+      if (targetEx) {
+        setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
+          console.error("Failed syncing checklist toggle to cloud:", err);
+        });
+      }
+    }
   };
 
   // Add item to checklist
@@ -227,6 +334,15 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
 
     saveExamsToStorage(updated);
     setNewChecklistText(prev => ({ ...prev, [examId]: "" }));
+
+    if (currentUser) {
+      const targetEx = updated.find(e => e.id === examId);
+      if (targetEx) {
+        setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
+          console.error("Failed syncing checklist addition to cloud:", err);
+        });
+      }
+    }
   };
 
   // Delete item from checklist
@@ -241,6 +357,15 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
       return ex;
     });
     saveExamsToStorage(updated);
+
+    if (currentUser) {
+      const targetEx = updated.find(e => e.id === examId);
+      if (targetEx) {
+        setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
+          console.error("Failed syncing checklist item deletion to cloud:", err);
+        });
+      }
+    }
   };
 
   // Add GPA Course
@@ -265,6 +390,12 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     saveCoursesToStorage(updated);
     onAddXp("Enrolled new coursework mapping into target GPA projections 📊", 20);
 
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid, "gpaCourses", newCourse.id), newCourse).catch(err => {
+        console.error("Failed saving GPA course to cloud:", err);
+      });
+    }
+
     // Reset inputs
     setNewCourseName("");
     setNewCourseCredits(3);
@@ -278,6 +409,12 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
   const handleDeleteCourse = (courseId: string) => {
     const updated = courses.filter(c => c.id !== courseId);
     saveCoursesToStorage(updated);
+
+    if (currentUser) {
+      deleteDoc(doc(db, "users", currentUser.uid, "gpaCourses", courseId)).catch(err => {
+        console.error("Failed deleting GPA course from cloud:", err);
+      });
+    }
   };
 
   // Dynamic Exam Calculations
@@ -448,15 +585,21 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
   };
 
   return (
-    <div id="target_roadmap_hub_container" className="space-y-6">
+    <div id="target_roadmap_hub_container" className="space-y-4 sm:space-y-6">
       
       {/* Visual Banner Header */}
-      <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#0d131f] dark:to-[#090b11] border border-slate-200 dark:border-slate-850/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden p-4 sm:p-6 md:p-8 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#0d131f] dark:to-[#090b11] border border-slate-200 dark:border-slate-850/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#f26419]/5 rounded-full filter blur-3xl -z-10" />
         <div className="space-y-2 text-left shrink-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f26419]/10 text-[#f26419] text-xs font-black uppercase tracking-wider">
             <Target className="w-3.5 h-3.5" />
             Designer Grade Target Suite
+            {currentUser && (
+              <span className="ml-2.5 inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-black uppercase tracking-widest bg-emerald-100/65 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Cloud Connected
+              </span>
+            )}
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white font-sans leading-none">
             Target Roadmaps & Projections
@@ -470,7 +613,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
         <div className="flex bg-slate-150/60 dark:bg-[#161616]/85 p-1 rounded-2xl border border-slate-200/40 dark:border-slate-905 shrink-0 select-none self-start md:self-center">
           <button
             onClick={() => setActiveSubTab("milestones")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
               activeSubTab === "milestones"
                 ? "bg-[#f26419] text-white shadow-md shadow-orange-500/20"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -482,7 +625,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
           
           <button
             onClick={() => setActiveSubTab("gpa")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
               activeSubTab === "gpa"
                 ? "bg-[#f26419] text-white shadow-md shadow-orange-500/20"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -515,14 +658,25 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
           </div>
 
           {/* Exam Cards Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 text-left">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5 text-left">
             {exams.length === 0 ? (
-              <div className="col-span-full py-12 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-6 text-center space-y-3 bg-white/40 dark:bg-black/10">
-                <Target className="w-10 h-10 text-slate-350 dark:text-slate-650 mx-auto" />
-                <h4 className="text-sm font-black text-slate-755 dark:text-slate-300">No upcoming exam targets set</h4>
-                <p className="text-xs text-slate-450 dark:text-slate-400 max-w-sm mx-auto">
-                  Click the button above to add an upcoming test, or midterm to start tracking preparation status and recommended study time.
-                </p>
+              <div className="col-span-full py-8 sm:py-16 rounded-2xl sm:rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 p-6 sm:p-8 text-center space-y-4 bg-white/40 dark:bg-black/10 backdrop-blur-sm">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-500/10 flex items-center justify-center text-[#f26419]">
+                  <Target className="w-8 h-8 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-slate-800 dark:text-slate-200">Set Your First Exam Milestone</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    Track upcoming quizzes, midterms, or standardized tests. We'll automatically calculate preparation confidence, study urgency ratings, and recommended daily study focus hours.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddExamModal(true)}
+                  className="inline-flex items-center gap-1.5 bg-[#f26419] hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Target
+                </button>
               </div>
             ) : (
               exams.map((ex) => {
@@ -534,7 +688,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
                   : 0;
 
                 return (
-                  <div key={ex.id} className="bg-white/80 dark:bg-[#121212]/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-900/60 p-5 shadow-sm space-y-4 hover:border-slate-300 dark:hover:border-slate-800 transition-all flex flex-col justify-between relative overflow-hidden group">
+                  <div key={ex.id} className="bg-white/80 dark:bg-[#121212]/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-900/60 p-4 sm:p-5 shadow-sm space-y-3 sm:space-y-4 hover:border-slate-300 dark:hover:border-slate-800 transition-all flex flex-col justify-between relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-1.5 h-full bg-[#f26419]" />
                     
                     <div className="space-y-3.5">
@@ -691,10 +845,10 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
           </div>
 
           {gpaStats && (
-            <div className="bg-gradient-to-r from-indigo-50/70 via-white/80 to-blue-50/50 dark:from-[#0d1325]/50 dark:via-[#090b11]/80 dark:to-[#0b101f]/70 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-850/75 grid grid-cols-1 sm:grid-cols-3 gap-5 text-left shadow-sm hover-lift transition-all duration-300">
+            <div className="bg-gradient-to-r from-indigo-50/70 via-white/80 to-blue-50/50 dark:from-[#0d1325]/50 dark:via-[#090b11]/80 dark:to-[#0b101f]/70 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/60 dark:border-slate-850/75 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 text-left shadow-sm hover-lift transition-all duration-300">
               
               {/* CURRENT GPA MODULE */}
-              <div className="space-y-2 border-r border-slate-200/50 dark:border-slate-850/60 pr-4 last:border-0">
+              <div className="space-y-2 border-b sm:border-b-0 sm:border-r border-slate-200/50 dark:border-slate-850/60 pb-3 sm:pb-0 sm:pr-4 last:border-0">
                 <span className="text-[10px] font-mono font-black uppercase tracking-wider text-slate-400 block dark:text-slate-500">Current Cumulative</span>
                 <div className="flex items-baseline gap-1.5 pt-0.5">
                   <span className="text-2xl font-mono font-black text-slate-800 dark:text-neutral-100">{gpaStats.currentGpa.toFixed(2)}</span>
@@ -708,7 +862,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
               </div>
 
               {/* TARGET GPA MODULE */}
-              <div className="space-y-2 border-r border-slate-200/50 dark:border-slate-850/60 pr-4 last:border-0">
+              <div className="space-y-2 border-b sm:border-b-0 sm:border-r border-slate-200/50 dark:border-slate-850/60 pb-3 sm:pb-0 sm:pr-4 last:border-0">
                 <span className="text-[10px] font-mono font-black uppercase tracking-wider text-slate-400 block dark:text-slate-500">Target Cumulative</span>
                 <div className="flex items-baseline gap-1.5 pt-0.5">
                   <span className="text-2xl font-mono font-black text-[#f26419]">{gpaStats.targetGpa.toFixed(2)}</span>
@@ -755,12 +909,23 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
             {courses.length === 0 ? (
-              <div className="col-span-full py-12 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-6 text-center space-y-3 bg-white/40 dark:bg-black/10">
-                <Calculator className="w-10 h-10 text-slate-350 dark:text-slate-650 mx-auto animate-bounce-slow" />
-                <h4 className="text-sm font-black text-slate-755 dark:text-slate-300">No course grade trackers set</h4>
-                <p className="text-xs text-slate-450 dark:text-slate-400 max-w-sm mx-auto">
-                  Click the button above to add a course, its credits, current grade average, and remaining grade components.
-                </p>
+              <div className="col-span-full py-8 sm:py-16 rounded-2xl sm:rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 p-6 sm:p-8 text-center space-y-4 bg-white/40 dark:bg-black/10 backdrop-blur-sm">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#f26419]/10 flex items-center justify-center text-[#f26419]">
+                  <Calculator className="w-8 h-8 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-slate-800 dark:text-slate-200">Enrol Your First Class Target</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    Configure your current class averages, remaining grade weights, and targets to dynamically calculate the precise average required on remaining finals to hit your goals.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddCourseModal(true)}
+                  className="inline-flex items-center gap-1.5 bg-[#f26419] hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-5 py-2.5 rounded-xl shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Class Target
+                </button>
               </div>
             ) : (
               courses.map((c) => {
@@ -768,14 +933,39 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
                 const isImpossible = projectedScoreNeeded > 100;
                 const isAlreadySecured = projectedScoreNeeded <= 0;
 
+                // Dynamic feasibility tag helper
+                let feasibilityTag = "Feasible";
+                let feasibilityClass = "bg-sky-500/10 text-sky-500 border border-sky-500/25";
+                if (isImpossible) {
+                  feasibilityTag = "Impossible";
+                  feasibilityClass = "bg-rose-500/15 text-rose-500 border border-rose-500/30 animate-pulse";
+                } else if (isAlreadySecured) {
+                  feasibilityTag = "Secured";
+                  feasibilityClass = "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-black";
+                } else if (projectedScoreNeeded <= 70) {
+                  feasibilityTag = "Highly Feasible";
+                  feasibilityClass = "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
+                } else if (projectedScoreNeeded <= 85) {
+                  feasibilityTag = "Feasible";
+                  feasibilityClass = "bg-blue-500/10 text-blue-500 border border-blue-500/20";
+                } else {
+                  feasibilityTag = "Challenging";
+                  feasibilityClass = "bg-amber-500/10 text-amber-500 border border-amber-500/20";
+                }
+
                 return (
-                  <div key={c.id} className="bg-white/80 dark:bg-[#121212]/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-900/60 p-5 shadow-sm space-y-4 hover:border-slate-300 dark:hover:border-slate-800 transition-all flex flex-col justify-between relative group/course">
+                  <div key={c.id} className="bg-white/80 dark:bg-[#121212]/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-900/60 p-5 shadow-sm space-y-4 hover:border-slate-350 dark:hover:border-slate-850 hover:shadow-lg hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between relative group/course">
                     <div className="space-y-3.5">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <span className="text-[9.5px] font-mono uppercase text-slate-450 dark:text-slate-500 font-extrabold select-none">
-                            {c.creditHours} Credits Course
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9.5px] font-mono uppercase text-slate-400 dark:text-slate-500 font-extrabold select-none">
+                              {c.creditHours} Credits Course
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full select-none ${feasibilityClass}`}>
+                              {feasibilityTag}
+                            </span>
+                          </div>
                           <h4 className="text-xs sm:text-sm font-black text-slate-805 dark:text-slate-50 leading-tight truncate max-w-[170px] group-hover/course:text-[#f26419] transition-all">
                             {c.name}
                           </h4>
@@ -783,7 +973,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
 
                         <button
                           onClick={() => handleDeleteCourse(c.id)}
-                          className="p-1 px-1.5 text-slate-400 hover:text-rose-500 rounded hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-all cursor-pointer"
+                          className="p-1 px-1.5 text-slate-400 hover:text-rose-500 rounded hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-all cursor-pointer"
                         >
                           ✕
                         </button>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft, Target, Expand, Shrink, ExternalLink } from "lucide-react";
-import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel } from "./types";
+import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel, formatStudyTimeExact } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
 import RewardSystem from "./components/RewardSystem";
 import { 
@@ -564,6 +565,18 @@ export default function App() {
       localStorage.setItem("study_active_seconds_user", "0");
       return 0;
     }
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    const sessionType = localStorage.getItem("study_active_timer_type") || localStorage.getItem("study_timer_type") || "stopwatch";
+    if (isStudyingVal && (sessionType === "stopwatch" || sessionType === "custom")) {
+      const rawStartTime = localStorage.getItem("study_start_time_ms");
+      const rawBaseline = localStorage.getItem("study_seconds_baseline");
+      if (rawStartTime) {
+        const startTimeMs = parseInt(rawStartTime, 10);
+        const baselineSecs = rawBaseline ? parseInt(rawBaseline, 10) : 0;
+        const elapsed = Math.floor((Date.now() - startTimeMs) / 1000);
+        return baselineSecs + elapsed;
+      }
+    }
     const s = localStorage.getItem("study_active_seconds_user");
     return s ? parseInt(s, 10) : 0;
   });
@@ -619,6 +632,18 @@ export default function App() {
     return d ? parseInt(d, 10) : 15;
   });
   const [pomoSecondsLeft, setPomoSecondsLeft] = useState<number>(() => {
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    const sessionType = localStorage.getItem("study_active_timer_type") || localStorage.getItem("study_timer_type") || "stopwatch";
+    if (isStudyingVal && sessionType === "pomodoro") {
+      const rawStartTime = localStorage.getItem("study_start_time_ms");
+      const rawBaseline = localStorage.getItem("study_seconds_baseline");
+      if (rawStartTime) {
+        const startTimeMs = parseInt(rawStartTime, 10);
+        const baselineSecs = rawBaseline ? parseInt(rawBaseline, 10) : 25 * 60;
+        const elapsed = Math.floor((Date.now() - startTimeMs) / 1000);
+        return Math.max(0, baselineSecs - elapsed);
+      }
+    }
     const s = localStorage.getItem("study_pomo_seconds_left");
     if (s) return parseInt(s, 10);
     return 25 * 60; // Default to 25 mins Focus
@@ -725,8 +750,19 @@ export default function App() {
   });
 
   const [activeSubjectId, setActiveSubjectId] = useState<string>(() => {
-    return INITIAL_SUBJECTS[0]?.id || "";
+    const saved = localStorage.getItem("study_active_subject_id") || secureStorage.getItem("study_active_subject_id");
+    return saved || "";
   });
+
+  useEffect(() => {
+    if (activeSubjectId) {
+      secureStorage.setItem("study_active_subject_id", activeSubjectId);
+      localStorage.setItem("study_active_subject_id", activeSubjectId);
+    } else {
+      secureStorage.removeItem("study_active_subject_id");
+      localStorage.removeItem("study_active_subject_id");
+    }
+  }, [activeSubjectId]);
 
   const [dailyTargetMinutes, setDailyTargetMinutes] = useState<number>(() => {
     const local = secureStorage.getItem("study_daily_target");
@@ -873,13 +909,13 @@ export default function App() {
         if (state.isStudyingUser) {
           let minsToSave = 0;
           if (state.timerType === "stopwatch") {
-            minsToSave = Math.round(state.activeSecondsUser / 60);
+            minsToSave = state.activeSecondsUser / 60;
           } else if (state.timerType === "pomodoro" && state.pomoState === "focus") {
             const elapsedFocusSeconds = (state.pomoFocusDuration * 60) - state.pomoSecondsLeft;
-            minsToSave = Math.round(elapsedFocusSeconds / 60);
+            minsToSave = elapsedFocusSeconds / 60;
           }
 
-          if (minsToSave >= 1 && state.activeSubjectId) {
+          if (minsToSave > 0 && state.activeSubjectId) {
             handleAddStudyMinutes(state.activeSubjectId, minsToSave, lastDay).catch(() => {});
           }
         }
@@ -1026,6 +1062,9 @@ export default function App() {
 
         // Sound effect
         if (notificationSettings.enableSoundEffects) {
+          try {
+            playChime("success");
+          } catch (e) {}
           try {
             // Mixkit level up / coin reward sound block
             const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-2019.wav");
@@ -1222,7 +1261,7 @@ export default function App() {
             const todayMins = loadedLogs
               .filter(log => log.subjectId === sub.id && log.date === todayStr)
               .reduce((sum, log) => sum + log.durationMinutes, 0);
-            return { ...sub, totalMinutes: Math.round(todayMins) };
+            return { ...sub, totalMinutes: todayMins };
           });
 
           // Reset daily quests if date changed
@@ -1512,7 +1551,7 @@ export default function App() {
             const todayMins = parsedLogs
               .filter(log => log.subjectId === sub.id && log.date === todayStr)
               .reduce((sum, log) => sum + log.durationMinutes, 0);
-            return { ...sub, totalMinutes: Math.round(todayMins) };
+            return { ...sub, totalMinutes: todayMins };
           });
 
           const finalQuests = parsedQuests.map(q => {
@@ -1593,7 +1632,7 @@ export default function App() {
           const todayMins = parsedLogs
             .filter(log => log.subjectId === sub.id && log.date === todayStr)
             .reduce((sum, log) => sum + log.durationMinutes, 0);
-          return { ...sub, totalMinutes: Math.round(todayMins) };
+          return { ...sub, totalMinutes: todayMins };
         });
 
         const finalQuests = parsedQuests.map(q => {
@@ -1695,13 +1734,13 @@ export default function App() {
         ? activeSecondsUser > 0
         : (pomoState === "focus" && (pomoFocusDuration * 60 - pomoSecondsLeft) > 0)
     );
-    const studiedToday = studyLogs.some(l => l.date === todayStr && l.durationMinutes >= 1) || isActivelyFocusing;
+    const studiedToday = studyLogs.some(l => l.date === todayStr && l.durationMinutes > 0) || isActivelyFocusing;
     if (studiedToday) {
       uniqueDatesSet.add(todayStr);
     }
 
     studyLogs.forEach(l => {
-      if (l.durationMinutes >= 1) {
+      if (l.durationMinutes > 0) {
         uniqueDatesSet.add(l.date);
       }
     });
@@ -2002,10 +2041,10 @@ export default function App() {
 
 
   // Web Audio double bell chime generator
-  const playPomoChime = () => {
+  const playPomoChime = (overridePreset?: "chime" | "success" | "break") => {
     if (!notificationSettings.enableSoundEffects) return;
     try {
-      playChime(notificationSettings.activeSoundPreset);
+      playChime(overridePreset || notificationSettings.activeSoundPreset);
     } catch (e) {
       console.warn("Web audio playback bypassed due to environment constraints: ", e);
     }
@@ -2018,6 +2057,147 @@ export default function App() {
       activeTimerTypeRef.current = (localStorage.getItem("study_active_timer_type") as any) || "stopwatch";
     }
   }, []);
+
+  // Synchronize study start time and baseline when isStudyingUser toggles
+  const isRecoveringRef = useRef<boolean>(false);
+
+  // Recovery function to catch up on study sessions when returning from offline/closed tab state
+  const verifyAndRecoverOfflineStudyProgress = async () => {
+    if (isRecoveringRef.current) return;
+    
+    const isStudyingVal = localStorage.getItem("study_is_studying") === "true";
+    if (!isStudyingVal) return;
+
+    const rawStartTime = localStorage.getItem("study_start_time_ms");
+    if (!rawStartTime) return;
+    const startTimeMs = parseInt(rawStartTime, 10);
+
+    const rawBaseline = localStorage.getItem("study_seconds_baseline");
+    const baselineSecs = rawBaseline ? parseInt(rawBaseline, 10) : 0;
+
+    const activeSubId = localStorage.getItem("study_active_subject_id") || secureStorage.getItem("study_active_subject_id") || activeSubjectId;
+    if (!activeSubId) return;
+
+    const rawSubs = localStorage.getItem("study_subjects") || secureStorage.getItem("study_subjects");
+    let currentSubs = subjects;
+    if (rawSubs) {
+      try {
+        currentSubs = JSON.parse(rawSubs);
+      } catch (e) {}
+    }
+    const targetSub = currentSubs.find(s => s.id === activeSubId);
+    if (!targetSub) return;
+
+    const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+    const now = Date.now();
+    const elapsedSecs = Math.floor((now - startTimeMs) / 1000);
+
+    if (sessionType === "pomodoro") {
+      isRecoveringRef.current = true;
+      let tempElapsed = elapsedSecs;
+      let tempPomoState = pomoState;
+      let tempPomoRound = pomoRound;
+      let tempSecondsLeft = baselineSecs;
+
+      let completedFocusSessions = 0;
+      let totalMinutesAdded = 0;
+
+      while (tempElapsed >= tempSecondsLeft && tempSecondsLeft > 0) {
+        tempElapsed -= tempSecondsLeft;
+
+        if (tempPomoState === "focus") {
+          completedFocusSessions++;
+          totalMinutesAdded += pomoFocusDuration;
+          
+          if (tempPomoRound >= 4) {
+            tempPomoState = "longBreak";
+            tempSecondsLeft = pomoLongBreakDuration * 60;
+            tempPomoRound = 1;
+          } else {
+            tempPomoState = "shortBreak";
+            tempSecondsLeft = pomoShortBreakDuration * 60;
+            tempPomoRound += 1;
+          }
+        } else {
+          tempPomoState = "focus";
+          tempSecondsLeft = pomoFocusDuration * 60;
+        }
+      }
+
+      if (completedFocusSessions > 0) {
+        const finalSecondsLeft = tempSecondsLeft - tempElapsed;
+        
+        setIsStudyingUser(false);
+        localStorage.setItem("study_is_studying", "false");
+
+        try {
+          await handleAddStudyMinutes(activeSubId, totalMinutesAdded);
+          
+          setPomoState(tempPomoState);
+          setPomoRound(tempPomoRound);
+          setPomoSecondsLeft(finalSecondsLeft);
+          
+          const nextStartTime = Date.now();
+          setStudyStartTime(nextStartTime);
+          setStudySecondsBaseline(finalSecondsLeft);
+          localStorage.setItem("study_start_time_ms", nextStartTime.toString());
+          localStorage.setItem("study_seconds_baseline", finalSecondsLeft.toString());
+          setIsStudyingUser(true);
+          localStorage.setItem("study_is_studying", "true");
+
+          const welcomeTitle = `🍅 Welcome Back! Progress Auto-Saved`;
+          const welcomeBody = `While you were offline/minimized, you successfully completed ${completedFocusSessions} Pomodoro focus cycles (+${totalMinutesAdded} minutes saved under folder "${targetSub.name}")! +${Math.round(totalMinutesAdded * 10)} XP gained. Keeping you focused! 🚀`;
+          
+          setFiredNotification(`${welcomeTitle} ${welcomeBody}`);
+          showSystemNotification(welcomeTitle, welcomeBody);
+
+          if (notificationSettings.enableSoundEffects) {
+            playPomoChime("success");
+          }
+        } catch (e) {
+          console.error("Failed to recover offline pomodoro study logs:", e);
+        }
+      }
+      isRecoveringRef.current = false;
+    } else if (sessionType === "custom") {
+      isRecoveringRef.current = true;
+      const rawCustomMins = localStorage.getItem("study_custom_target_minutes");
+      const customTargetMins = rawCustomMins ? parseInt(rawCustomMins, 10) : 45;
+      
+      const targetSecsToComplete = (customTargetMins * 60) - baselineSecs;
+      if (elapsedSecs >= targetSecsToComplete) {
+        setIsStudyingUser(false);
+        localStorage.setItem("study_is_studying", "false");
+
+        try {
+          await handleAddStudyMinutes(activeSubId, customTargetMins);
+          
+          handleResetStudyTimer();
+
+          const alertTitle = `🏆 Custom Countdown Goal Achieved!`;
+          const alertBody = `While away, you successfully hit your ${customTargetMins} mins study target for your folder: ${targetSub.name}! +${customTargetMins * 10} XP earned!`;
+          
+          setFiredNotification(`${alertTitle} ${alertBody}`);
+          showSystemNotification(alertTitle, alertBody);
+
+          if (notificationSettings.enableSoundEffects) {
+            playPomoChime("success");
+          }
+        } catch (e) {
+          console.error("Failed to recover offline custom countdown session:", e);
+        }
+      }
+      isRecoveringRef.current = false;
+    }
+  };
+
+  // Run auto-recovery check once upon startup/mounting delay
+  useEffect(() => {
+    const delayCheck = setTimeout(() => {
+      verifyAndRecoverOfflineStudyProgress();
+    }, 1500);
+    return () => clearTimeout(delayCheck);
+  }, [subjects]);
 
   // 1. Synchronize study start time and baseline when isStudyingUser toggles
   useEffect(() => {
@@ -2054,13 +2234,19 @@ export default function App() {
   // 2. Sync timer immediately when browser tab status changes or Chrome minimizes/restores
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && isStudyingUser && studyStartTime !== null) {
-        const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
-        const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
-        if (sessionType === "stopwatch" || sessionType === "custom") {
-          setActiveSecondsUser(studySecondsBaseline + elapsed);
-        } else if (sessionType === "pomodoro") {
-          setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
+      if (document.visibilityState === "visible") {
+        if (isStudyingUser && studyStartTime !== null) {
+          verifyAndRecoverOfflineStudyProgress();
+          
+          const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
+          const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+          if (sessionType === "stopwatch" || sessionType === "custom") {
+            setActiveSecondsUser(studySecondsBaseline + elapsed);
+          } else if (sessionType === "pomodoro") {
+            setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
+          }
+        } else {
+          verifyAndRecoverOfflineStudyProgress();
         }
       }
     };
@@ -2068,14 +2254,16 @@ export default function App() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType]);
+  }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, activeSubjectId, subjects, notificationSettings]);
 
-  // 3. Root Study Ticking loop that uses actual timestamps to be completely resilient against background throttling
+  // 3. Root Study Ticking loop that uses actual timestamps & Web Workers to be completely resilient against background throttling
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let worker: Worker | null = null;
+    let fallbackInterval: NodeJS.Timeout | null = null;
     
     if (isStudyingUser && studyStartTime !== null) {
       const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+      
       const tick = () => {
         const elapsedSecs = Math.floor((Date.now() - studyStartTime) / 1000);
         if (sessionType === "stopwatch" || sessionType === "custom") {
@@ -2086,11 +2274,46 @@ export default function App() {
       };
       
       tick();
-      interval = setInterval(tick, 250); // High frequency check for smooth UI updates
+
+      try {
+        const code = `
+          let timerId = null;
+          self.onmessage = function(e) {
+            if (e.data === "start") {
+              if (timerId) clearInterval(timerId);
+              timerId = setInterval(() => {
+                self.postMessage("tick");
+              }, 500);
+            } else if (e.data === "stop") {
+              if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+              }
+            }
+          };
+        `;
+        const blob = new Blob([code], { type: "application/javascript" });
+        worker = new Worker(URL.createObjectURL(blob));
+        worker.onmessage = (e) => {
+          if (e.data === "tick") {
+            tick();
+          }
+        };
+        worker.postMessage("start");
+      } catch (err) {
+        console.warn("Web Worker background ticking generation failed, fallback to standard main thread loop:", err);
+        fallbackInterval = setInterval(tick, 250);
+      }
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (worker) {
+        worker.postMessage("stop");
+        worker.terminate();
+      }
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
     };
   }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType]);
 
@@ -2098,9 +2321,9 @@ export default function App() {
   useEffect(() => {
     if (isStudyingUser && timerType === "pomodoro" && pomoSecondsLeft === 0) {
       setIsStudyingUser(false);
-      playPomoChime();
       
       if (pomoState === "focus") {
+        playPomoChime("success");
         const minsToSave = pomoFocusDuration;
         handleAddStudyMinutes(activeSubjectId, minsToSave).catch(e => {
           setFiredNotification(`Academic Limit Warning: ${e.message}`);
@@ -2109,10 +2332,8 @@ export default function App() {
         const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
         setFiredNotification("You did it! Study session completed!");
         
-        // Push Native Desktop / Mobile Notification if granted
         showSystemNotification("You did it! Study session completed!", completionMsg);
         
-        // Advance rounds or shift to break
         if (pomoRound >= 4) {
           setPomoState("longBreak");
           setPomoSecondsLeft(pomoLongBreakDuration * 60);
@@ -2123,11 +2344,11 @@ export default function App() {
           setPomoRound(prev => prev + 1);
         }
       } else {
+        playPomoChime("break");
         const breakLabel = pomoState === "shortBreak" ? "Short break" : "Long break";
         const breakEndMsg = `💪 ${breakLabel} ended! Excellent job resting, you are ready to focus!`;
         setFiredNotification(breakEndMsg);
 
-        // Push Native Desktop / Mobile Notification if granted
         showSystemNotification("Flash5tudy Focus Alert", breakEndMsg);
 
         setPomoState("focus");
@@ -2463,6 +2684,13 @@ export default function App() {
       setRewards(nextRewards);
       secureStorage.setItem("study_rewards", JSON.stringify(nextRewards));
 
+      // Trigger app notifications and sound
+      setFiredNotification(`🛍️ Reward Claimed! You successfully claimed: "${target.title}"! Enjoy your reward.`);
+      showSystemNotification(`🛍️ Reward Claimed!`, `You claimed: "${target.title}"! Enjoy your academic reward!`);
+      if (notificationSettings.enableSoundEffects) {
+        playChime("success");
+      }
+
       setXpLogs(prev => {
         const nextXpLogs = [transactionLog, ...prev];
         secureStorage.setItem("study_xp_logs", JSON.stringify(nextXpLogs));
@@ -2523,6 +2751,12 @@ export default function App() {
     // Do NOT await, execute synchronously in memory
     handleAddXp(`Completed quest: ${targetQ.title}`, targetQ.xpReward);
 
+    setFiredNotification(`⚡ Quest Completed! Outstanding job completing: "${targetQ.title}". (+${targetQ.xpReward} XP claimed!)`);
+    showSystemNotification(`⚡ Quest Completed!`, `Completed: ${targetQ.title} (+${targetQ.xpReward} XP)`);
+    if (notificationSettings.enableSoundEffects) {
+      playChime("success");
+    }
+
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid, "quests", questId), { ...targetQ, isCompleted: true })
         .catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${currentUser.uid}/quests/${questId}`));
@@ -2566,7 +2800,7 @@ export default function App() {
     });
 
     setSubjects(prev => {
-      const nextSubjects = prev.map(s => (s.id === subjectId ? { ...s, totalMinutes: Math.round(s.totalMinutes + minutes) } : s));
+      const nextSubjects = prev.map(s => (s.id === subjectId ? { ...s, totalMinutes: s.totalMinutes + minutes } : s));
       secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
       return nextSubjects;
     });
@@ -2574,17 +2808,29 @@ export default function App() {
     // Earn XP per minute studied based on level: Lvl 1-4 is 5 XP/min, Lvl 5+ is 10 XP/min
     const currentLevel = calculateStudentLevel(userXp).level;
     const currentRate = getXpRateForLevel(currentLevel);
-    const earnedXp = minutes * currentRate;
-    handleAddXp(`Studied ${targetSubject.name} for ${minutes}m (+${earnedXp} XP ⏱️)`, earnedXp);
+    
+    // Exact rounded XP value (minimum 1 XP for any study session done)
+    const earnedXp = Math.max(1, Math.round(minutes * currentRate));
+    handleAddXp(`Studied ${targetSubject.name} for ${formatStudyTimeExact(minutes)} (+${earnedXp} XP ⏱️)`, earnedXp);
 
     // Check if the subject's daily goal is newly met!
     const previouslyCompleted = targetSubject.totalMinutes >= targetSubject.goalMinutes;
-    const newlyCompleted = Math.round(targetSubject.totalMinutes + minutes) >= targetSubject.goalMinutes;
+    const newlyCompleted = (targetSubject.totalMinutes + minutes) >= targetSubject.goalMinutes;
     if (!previouslyCompleted && newlyCompleted) {
       const bonusXp = 150;
       setTimeout(() => {
         handleAddXp(`🎉 Daily Goal Met: ${targetSubject.name}!`, bonusXp);
         setFiredNotification(`🎯 Subject Goal Completed! You completed your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. Outstanding persistent effort! (+${bonusXp} XP Bonus)`);
+        
+        if (notificationSettings.notifyOnDailyGoalMet) {
+          showSystemNotification(
+            `🎯 Subject Goal Completed: ${targetSubject.name}!`,
+            `Congratulations! You finished your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. (+${bonusXp} XP)`
+          );
+        }
+        if (notificationSettings.enableSoundEffects) {
+          playChime("success");
+        }
       }, 800);
     }
 
@@ -2596,7 +2842,13 @@ export default function App() {
       setTimeout(() => {
         handleAddXp(`🏆 Daily Focus Goal Met (${dailyTargetMinutes}m)!`, bonusXp);
         setFiredNotification(`🙌 Daily focus goal of ${dailyTargetMinutes} minutes met! Excellent academic persistence. (+${bonusXp} XP Reward!)`);
-        showSystemNotification("Daily Focus Goal Met!", `Congratulations! You have completed your overall daily study goal of ${dailyTargetMinutes} minutes today!`);
+        
+        if (notificationSettings.notifyOnDailyGoalMet) {
+          showSystemNotification("Daily Focus Goal Met!", `Congratulations! You have completed your overall daily study goal of ${dailyTargetMinutes} minutes today! (+${bonusXp} XP)`);
+        }
+        if (notificationSettings.enableSoundEffects) {
+          playChime("success");
+        }
       }, 1500);
     }
 
@@ -2604,7 +2856,7 @@ export default function App() {
     if (currentUser) {
       const subRef = doc(db, "users", currentUser.uid, "subjects", subjectId);
       const logRef = doc(db, "users", currentUser.uid, "studyLogs", newLog.id);
-      const updatedSubject = { ...targetSubject, totalMinutes: Math.round(targetSubject.totalMinutes + minutes) };
+      const updatedSubject = { ...targetSubject, totalMinutes: targetSubject.totalMinutes + minutes };
 
       Promise.all([
         setDoc(subRef, updatedSubject),
@@ -2744,8 +2996,19 @@ export default function App() {
           ? activeSecondsUser / 60
           : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) / 60 : 0))
       : 0;
-    return Math.round(logMinsToday + liveMins);
+    return logMinsToday + liveMins;
   }, [studyLogs, isStudyingUser, activeSecondsUser, timerType, pomoState, pomoFocusDuration, pomoSecondsLeft]);
+
+  // Dynamically synchronized subjects with exact visual minute calculation matching study logs
+  const synchronizedSubjects = useMemo(() => {
+    const todayStr = getLocalDateString();
+    return subjects.map(sub => {
+      const todayMins = studyLogs
+        .filter(log => log.subjectId === sub.id && log.date === todayStr)
+        .reduce((sum, log) => sum + log.durationMinutes, 0);
+      return { ...sub, totalMinutes: todayMins };
+    });
+  }, [subjects, studyLogs]);
 
   const handleSimulateTomorrow = async () => {
     // Force reset today's session as if a new day has arrived
@@ -3159,7 +3422,7 @@ export default function App() {
               "bg-[#08080c]/85 border-slate-900/40"
             )
       }`}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between relative z-10">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
           
           {/* Logo brand & streak info */}
           <div className="flex items-center gap-3">
@@ -3178,9 +3441,9 @@ export default function App() {
           {/* Quick Stats Summary badges */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className={`hidden sm:flex items-center gap-1.5 bg-white/45 dark:bg-[#171717]/80 px-3.5 py-1.5 rounded-full border ${currentThemeStyle.accentBorder} font-mono text-[11px] text-slate-700 dark:text-slate-300 shadow-xs backdrop-blur-md transition-all duration-300`}>
-              <span className="text-[9px] text-slate-450 dark:text-slate-550 uppercase font-black tracking-wider">Studied:</span>
+              <span className="text-[9px] text-slate-450 dark:text-slate-550 uppercase font-black tracking-wider">Studied Today:</span>
               <span className={`font-bold ${currentThemeStyle.accentText} ${currentThemeStyle.glowText}`}>
-                {Math.floor(totalStudiedTodayMins / 60)}h {Math.round(totalStudiedTodayMins % 60)}m
+                {formatStudyTimeExact(totalStudiedTodayMins)}
               </span>
             </div>
 
@@ -3380,144 +3643,217 @@ export default function App() {
                 </div>
               )}
           
-          {activeTab === "focus" && (
-            <TimelineView
-              subjects={subjects}
-              studyLogs={studyLogs}
-              setSubjects={setSubjects}
-              onAddStudyMinutes={handleAddStudyMinutes}
-              onAddSubject={handleAddSubject}
-              onRemoveSubject={handleRemoveSubject}
-              activeSubjectId={activeSubjectId}
-              setActiveSubjectId={setActiveSubjectId}
-              isStudying={isStudyingUser}
-              setIsStudying={setIsStudyingUser}
-              activeSeconds={activeSecondsUser}
-              setActiveSeconds={setActiveSecondsUser}
-              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-              onResetTimer={handleResetStudyTimer}
-              timerType={timerType}
-              setTimerType={setTimerType}
-              pomoState={pomoState}
-              setPomoState={setPomoState}
-              pomoRound={pomoRound}
-              setPomoRound={setPomoRound}
-              pomoFocusDuration={pomoFocusDuration}
-              setPomoFocusDuration={setPomoFocusDuration}
-               pomoShortBreakDuration={pomoShortBreakDuration}
-              setPomoShortBreakDuration={setPomoShortBreakDuration}
-              pomoLongBreakDuration={pomoLongBreakDuration}
-              setPomoLongBreakDuration={setPomoLongBreakDuration}
-              pomoSecondsLeft={pomoSecondsLeft}
-              setPomoSecondsLeft={setPomoSecondsLeft}
-              onUpdateSubjectGoal={handleUpdateSubjectGoal}
-              themePreset={themePreset}
-              onThemeSelect={(themeId) => setThemePreset(themeId)}
-              userXp={userXp}
-              onAddXp={handleAddXp}
-              onChangeTab={setActiveTab}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            {activeTab === "focus" && (
+              <motion.div
+                key="focus"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <TimelineView
+                  subjects={synchronizedSubjects}
+                  studyLogs={studyLogs}
+                  setSubjects={setSubjects}
+                  onAddStudyMinutes={handleAddStudyMinutes}
+                  onAddSubject={handleAddSubject}
+                  onRemoveSubject={handleRemoveSubject}
+                  activeSubjectId={activeSubjectId}
+                  setActiveSubjectId={setActiveSubjectId}
+                  isStudying={isStudyingUser}
+                  setIsStudying={setIsStudyingUser}
+                  activeSeconds={activeSecondsUser}
+                  setActiveSeconds={setActiveSecondsUser}
+                  onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                  onResetTimer={handleResetStudyTimer}
+                  timerType={timerType}
+                  setTimerType={setTimerType}
+                  pomoState={pomoState}
+                  setPomoState={setPomoState}
+                  pomoRound={pomoRound}
+                  setPomoRound={setPomoRound}
+                  pomoFocusDuration={pomoFocusDuration}
+                  setPomoFocusDuration={setPomoFocusDuration}
+                   pomoShortBreakDuration={pomoShortBreakDuration}
+                  setPomoShortBreakDuration={setPomoShortBreakDuration}
+                  pomoLongBreakDuration={pomoLongBreakDuration}
+                  setPomoLongBreakDuration={setPomoLongBreakDuration}
+                  pomoSecondsLeft={pomoSecondsLeft}
+                  setPomoSecondsLeft={setPomoSecondsLeft}
+                  onUpdateSubjectGoal={handleUpdateSubjectGoal}
+                  themePreset={themePreset}
+                  onThemeSelect={(themeId) => setThemePreset(themeId)}
+                  userXp={userXp}
+                  onAddXp={handleAddXp}
+                  onChangeTab={setActiveTab}
+                  showSystemNotification={showSystemNotification}
+                  setFiredNotification={setFiredNotification}
+                  notificationSettings={notificationSettings}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "planner" && (
-            <PlannerHub
-              subjects={subjects}
-              tasks={tasks}
-              onAddTask={handleAddTask}
-              onToggleTask={handleToggleTask}
-              onRemoveTask={handleRemoveTask}
-            />
-          )}
+            {activeTab === "planner" && (
+              <motion.div
+                key="planner"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <PlannerHub
+                  subjects={synchronizedSubjects}
+                  tasks={tasks}
+                  onAddTask={handleAddTask}
+                  onToggleTask={handleToggleTask}
+                  onRemoveTask={handleRemoveTask}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "calendar" && (
-            <CalendarView 
-              studyLogs={studyLogs} 
-              subjects={subjects}
-              onAddStudyMinutes={handleAddStudyMinutes}
-              userXp={userXp}
-            />
-          )}
+            {activeTab === "calendar" && (
+              <motion.div
+                key="calendar"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <CalendarView 
+                  studyLogs={studyLogs} 
+                  subjects={synchronizedSubjects}
+                  onAddStudyMinutes={handleAddStudyMinutes}
+                  userXp={userXp}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "rewards" && (
-            <div className="liquid-glass p-0 rounded-3xl shadow-xl transition-all duration-300 relative z-10 overflow-hidden text-left">
-              <RewardSystem
-                userXp={userXp}
-                rewards={rewards}
-                xpLogs={xpLogs}
-                quests={quests}
-                onAddReward={handleAddReward}
-                onEditReward={handleEditReward}
-                onDeleteReward={handleDiscardReward}
-                onClaimReward={handleClaimReward}
-                onAddXp={handleAddXp}
-                onCompleteQuest={handleCompleteQuest}
-                totalStudiedTodayMins={totalStudiedTodayMins}
-                completedTasksCountToday={completedTasksCountToday}
-                themePreset={themePreset}
-                studyLogs={studyLogs}
-              />
-            </div>
-          )}
+            {activeTab === "rewards" && (
+              <motion.div
+                key="rewards"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="liquid-glass p-0 rounded-3xl shadow-xl transition-all duration-300 relative z-10 overflow-hidden text-left"
+              >
+                <RewardSystem
+                  userXp={userXp}
+                  rewards={rewards}
+                  xpLogs={xpLogs}
+                  quests={quests}
+                  onAddReward={handleAddReward}
+                  onEditReward={handleEditReward}
+                  onDeleteReward={handleDiscardReward}
+                  onClaimReward={handleClaimReward}
+                  onAddXp={handleAddXp}
+                  onCompleteQuest={handleCompleteQuest}
+                  totalStudiedTodayMins={totalStudiedTodayMins}
+                  completedTasksCountToday={completedTasksCountToday}
+                  themePreset={themePreset}
+                  studyLogs={studyLogs}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "target-suite" && (
-            <TargetRoadmap 
-              subjects={subjects}
-              userXp={userXp}
-              onAddXp={handleAddXp}
-              themePreset={themePreset}
-            />
-          )}
+            {activeTab === "target-suite" && (
+              <motion.div
+                key="target-suite"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <TargetRoadmap 
+                  subjects={synchronizedSubjects}
+                  userXp={userXp}
+                  onAddXp={handleAddXp}
+                  themePreset={themePreset}
+                  currentUser={currentUser}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "analytics" && (
-            <div className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10">
-              <AnalyticsDashboard
-                subjects={subjects}
-                studyLogs={studyLogs}
-                streak={activeStreakCount}
-                dailyTargetMinutes={dailyTargetMinutes}
-                totalMinutesToday={totalStudiedTodayMins}
-              />
-            </div>
-          )}
+            {activeTab === "analytics" && (
+              <motion.div
+                key="analytics"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
+              >
+                <AnalyticsDashboard
+                  subjects={synchronizedSubjects}
+                  studyLogs={studyLogs}
+                  streak={activeStreakCount}
+                  dailyTargetMinutes={dailyTargetMinutes}
+                  totalMinutesToday={totalStudiedTodayMins}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "ai-coach" && (
-            <div className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10">
-              <AICoachCard
-                subjects={subjects}
-                streak={activeStreakCount}
-                dailyTargetMinutes={dailyTargetMinutes}
-              />
-            </div>
-          )}
+            {activeTab === "ai-coach" && (
+              <motion.div
+                key="ai-coach"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
+              >
+                <AICoachCard
+                  subjects={synchronizedSubjects}
+                  streak={activeStreakCount}
+                  dailyTargetMinutes={dailyTargetMinutes}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "workspace" && (
-            <div className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10">
-              <WorkspaceHub
-                streak={activeStreakCount}
-                aiCoachAdvice={aiCoachAdvice}
-                globalCurrentUser={currentUser}
-                onGlobalLogin={handleHeaderLogin}
-                onGlobalLogout={handleHeaderLogout}
-              />
-            </div>
-          )}
+            {activeTab === "workspace" && (
+              <motion.div
+                key="workspace"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
+              >
+                <WorkspaceHub
+                  streak={activeStreakCount}
+                  aiCoachAdvice={aiCoachAdvice}
+                  globalCurrentUser={currentUser}
+                  onGlobalLogin={handleHeaderLogin}
+                  onGlobalLogout={handleHeaderLogout}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === "reminders" && (
-            <div className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10">
-              <RemindersHub
-                subjects={subjects}
-                reminders={reminders}
-                onAddReminder={handleAddReminder}
-                onToggleReminder={handleToggleReminder}
-                onRemoveReminder={handleRemoveReminder}
-                notificationPermission={notificationPermission}
-                audioAutoplayApproved={audioAutoplayApproved}
-                onGrantPermissions={handleGrantAllPermissions}
-                notificationSettings={notificationSettings}
-                onUpdateNotificationSettings={setNotificationSettings}
-              />
-            </div>
-          )}
+            {activeTab === "reminders" && (
+              <motion.div
+                key="reminders"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
+              >
+                <RemindersHub
+                  subjects={synchronizedSubjects}
+                  reminders={reminders}
+                  onAddReminder={handleAddReminder}
+                  onToggleReminder={handleToggleReminder}
+                  onRemoveReminder={handleRemoveReminder}
+                  notificationPermission={notificationPermission}
+                  audioAutoplayApproved={audioAutoplayApproved}
+                  onGrantPermissions={handleGrantAllPermissions}
+                  notificationSettings={notificationSettings}
+                  onUpdateNotificationSettings={setNotificationSettings}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
             </div>
 
@@ -4402,6 +4738,16 @@ export default function App() {
               <div className="absolute top-[-50px] left-[-50px] w-48 h-48 rounded-full filter blur-[60px] opacity-35 bg-amber-500 animate-pulse"></div>
               <div className="absolute bottom-[-50px] right-[-50px] w-48 h-48 rounded-full filter blur-[60px] opacity-25 bg-[#f26419] animate-pulse"></div>
               
+              {/* Animated Floating Sparkles celebrating the milestone */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                <span className="absolute top-12 left-10 text-lg animate-bounce duration-500">✨</span>
+                <span className="absolute top-28 right-8 text-xl animate-pulse">⭐</span>
+                <span className="absolute bottom-20 left-16 text-lg animate-bounce duration-700">✨</span>
+                <span className="absolute bottom-12 right-12 text-sm animate-ping">✨</span>
+                <span className="absolute top-1/2 left-4 text-xs opacity-40 animate-pulse">🌟</span>
+                <span className="absolute top-1/3 right-1/4 text-lg animate-bounce">✨</span>
+              </div>
+
               {/* Top Banner Trophy Badge */}
               <div className="relative text-center pt-4">
                 <div className="inline-flex relative">

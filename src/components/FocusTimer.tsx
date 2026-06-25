@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, Volume2, VolumeX, Sparkles, AlertCircle, CheckCircle } from "lucide-react";
-import { Subject } from "../types";
+import { Subject, formatStudyTimeExact } from "../types";
 
 interface FocusTimerProps {
   subjects: Subject[];
@@ -300,7 +300,7 @@ export default function FocusTimer({
     setIsFocusMode(false);
     stopAmbientSynthMixer();
 
-    const roundedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+    const roundedMinutes = elapsedSeconds / 60;
     if (activeSubjectId && elapsedSeconds > 0) {
       onAddStudyMinutes(activeSubjectId, roundedMinutes);
     }
@@ -368,7 +368,7 @@ export default function FocusTimer({
                     </span>
                     <span className="font-sans text-sm truncate pr-2">{sub.name}</span>
                     <span className="text-xs font-mono text-slate-400 dark:text-slate-500 mt-1">
-                      {sub.totalMinutes}m done today
+                      {formatStudyTimeExact(sub.totalMinutes)} done today
                     </span>
                   </div>
 
@@ -490,7 +490,7 @@ export default function FocusTimer({
                   {formatTime(elapsedSeconds)}
                 </span>
                 <span className="text-xs text-slate-400 font-sans">
-                  Rounded: {Math.max(1, Math.round(elapsedSeconds / 60))}m
+                  Earned: {formatStudyTimeExact(elapsedSeconds / 60)}
                 </span>
                 <span className="text-xs text-emerald-400/80 font-mono mt-1">
                   Target Goal: {localTargetMinutes}m
@@ -624,7 +624,7 @@ export default function FocusTimer({
                 title="Complete focus sessions and save minutes code blocks studied"
               >
                 <CheckCircle className="w-4 h-4" />
-                Finish ({Math.max(1, Math.round(elapsedSeconds / 60))}m)
+                Finish ({formatStudyTimeExact(elapsedSeconds / 60)})
               </button>
 
               <button

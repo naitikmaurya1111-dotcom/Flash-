@@ -57,6 +57,16 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
         allow update: if isOwner(userId);
       }
+      match /exams/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
+      }
+      match /gpaCourses/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
+        allow update: if isOwner(userId);
+      }
     }
 
     match /studyRooms/{roomId} {

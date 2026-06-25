@@ -34,6 +34,10 @@
   text-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
 }
 
+.progress-glow {
+  filter: drop-shadow(0 0 8px rgba(242, 100, 25, 0.5));
+}
+
 /* Glassmorphism utility classes */
 .glass-panel {
   background: rgba(255, 255, 255, 0.88);

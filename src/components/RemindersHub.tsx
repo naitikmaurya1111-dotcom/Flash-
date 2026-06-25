@@ -1230,10 +1230,10 @@ export default function RemindersHub({
       </div>
 
       {/* 6. Form Creator vs Active Queue Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 sm:gap-6">
         
         {/* Form panel for custom creations */}
-        <div className="md:col-span-2 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-5 rounded-3xl space-y-4 flex flex-col justify-between">
+        <div className="md:col-span-2 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-4 sm:p-5 rounded-2xl sm:rounded-3xl space-y-3 sm:space-y-4 flex flex-col justify-between">
           <div>
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-900 pb-2 flex items-center gap-1">
               <Plus className="w-4 h-4 text-[#f26419]" /> Configure Custom Alert
@@ -1356,7 +1356,7 @@ export default function RemindersHub({
         </div>
 
         {/* Reminders List Queue Status list */}
-        <div className="md:col-span-3 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-5 rounded-3xl flex flex-col justify-start">
+        <div className="md:col-span-3 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col justify-start">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-900 pb-2 mb-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <Clock className="w-4 h-4 text-indigo-550" /> Reminders Queue ({reminders.length})

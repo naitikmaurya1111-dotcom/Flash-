@@ -1602,31 +1602,53 @@ ${localAdvice.scheduleTip}
               </div>
 
               {keepNotes.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
-                  <p className="text-xs font-semibold">Your study pinboard is clear</p>
-                  <p className="text-[11px] text-slate-400">Keep notes pinned here to trigger custom memory-retention aids!</p>
+                <div className="py-12 sm:py-16 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-4 bg-slate-50/20 dark:bg-slate-950/20">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
+                    <Pin className="w-6 h-6 rotate-45" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Your Study Pinboard is Clear</p>
+                    <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                      Keep urgent syllabus notes, formulas, or dynamic checklists pinned to your board. They auto-sync securely to Cloud Firestore!
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
-                  {keepNotes.map(n => (
-                    <div key={n.id} className="p-4 bg-yellow-50/50 dark:bg-slate-950/40 border border-yellow-250/20 dark:border-slate-850/60 rounded-2xl space-y-2 h-fit relative group hover-lift transition-all duration-300">
-                      <div className="flex justify-between items-start">
-                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 capitalize">{n.title}</span>
-                        <button 
-                          onClick={() => handleDeleteKeepNote(n.id)}
-                          className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px]"
-                        >
-                          delete
-                        </button>
+                  {keepNotes.map((n, idx) => {
+                    const hues = [
+                      "bg-amber-50/65 border-amber-250/25 dark:bg-[#1d1711]/45 dark:border-amber-900/30 text-amber-900 dark:text-amber-200",
+                      "bg-rose-50/65 border-rose-250/25 dark:bg-[#201317]/45 dark:border-rose-900/30 text-rose-900 dark:text-rose-200",
+                      "bg-sky-50/65 border-sky-250/25 dark:bg-[#101a28]/45 dark:border-sky-900/30 text-sky-900 dark:text-sky-200",
+                      "bg-emerald-50/65 border-emerald-250/25 dark:bg-[#0f1d18]/45 dark:border-emerald-900/30 text-emerald-900 dark:text-emerald-200",
+                      "bg-violet-50/65 border-violet-250/25 dark:bg-[#181326]/45 dark:border-violet-900/30 text-violet-900 dark:text-violet-200"
+                    ];
+                    const hueClass = hues[idx % hues.length];
+                    const rotClass = idx % 2 === 0 ? "hover:rotate-1" : "hover:-rotate-1";
+
+                    return (
+                      <div key={n.id} className={`p-4 ${hueClass} ${rotClass} border rounded-2xl space-y-2 h-fit relative group hover:shadow-md hover:scale-[1.01] transition-all duration-300 text-left`}>
+                        <div className="absolute top-2 right-2 opacity-15 group-hover:opacity-75 transition-opacity">
+                          <Pin className="w-3.5 h-3.5 rotate-45 fill-current" />
+                        </div>
+                        <div className="flex justify-between items-start">
+                          <span className="font-extrabold text-xs capitalize text-slate-800 dark:text-slate-100">{n.title}</span>
+                          <button 
+                            onClick={() => handleDeleteKeepNote(n.id)}
+                            className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px]"
+                          >
+                            delete
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-650 dark:text-slate-300 whitespace-pre-line leading-relaxed pb-2">
+                          {n.body}
+                        </p>
+                        <span className="block text-[9px] text-slate-400 dark:text-slate-500 font-mono scale-95 origin-left">
+                          {new Date(n.timestamp).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit" })}
+                        </span>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line leading-relaxed pb-2">
-                        {n.body}
-                      </p>
-                      <span className="block text-[9px] text-slate-400 font-mono scale-95 origin-left">
-                        {new Date(n.timestamp).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit" })}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

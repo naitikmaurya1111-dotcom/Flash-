@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie } from "recharts";
 import { Award, Target, TrendingUp, Calendar, Info } from "lucide-react";
-import { Subject, StudyLog } from "../types";
+import { Subject, StudyLog, formatStudyTimeExact } from "../types";
 
 interface AnalyticsDashboardProps {
   subjects: Subject[];
@@ -151,8 +151,8 @@ export default function AnalyticsDashboard({
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="mt-4">
-            <h4 className="text-2xl font-bold font-mono text-slate-800 dark:text-white">
-              {Math.floor(totalMinutesToday / 60)}h {totalMinutesToday % 60}m
+            <h4 className="text-lg font-bold font-mono text-slate-800 dark:text-white">
+              {formatStudyTimeExact(totalMinutesToday)}
             </h4>
             <p className="text-xs text-slate-400 mt-1">
               Goal progress: {progressPct}%
@@ -199,8 +199,8 @@ export default function AnalyticsDashboard({
             <Calendar className="w-4 h-4 text-rose-500" />
           </div>
           <div className="mt-4">
-            <h4 className="text-2xl font-bold font-mono text-slate-800 dark:text-white">
-              {(totalAllTimeMinutes / 60).toFixed(1)} hrs
+            <h4 className="text-lg font-bold font-mono text-slate-800 dark:text-white col-span-2">
+              {formatStudyTimeExact(totalAllTimeMinutes)}
             </h4>
             <p className="text-xs text-slate-400 mt-1">
               Active sessions: {studyLogs.length + (totalMinutesToday > 0 ? 1 : 0)}
@@ -297,10 +297,10 @@ export default function AnalyticsDashboard({
                     </PieChart>
                   </ResponsiveContainer>
                   {/* Centered label */}
-                  <div className="absolute text-center mt-2">
+                  <div className="absolute text-center mt-2 flex flex-col items-center">
                     <p className="text-[10px] uppercase font-mono tracking-wider text-slate-400">Total Today</p>
-                    <p className="text-lg font-bold font-mono text-slate-800 dark:text-slate-200">
-                      {totalMinutesToday}m
+                    <p className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200 mt-1 max-w-[120px]">
+                      {formatStudyTimeExact(totalMinutesToday)}
                     </p>
                   </div>
                 </div>
