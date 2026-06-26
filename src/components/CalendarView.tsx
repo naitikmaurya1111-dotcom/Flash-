@@ -111,7 +111,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // Hardcoded mockup holidays / other YPT events from the user images:
+  // Hardcoded mockup holidays / other Flash5tudy events from the user images:
   // Buddha Purnima on Fri 1st, Birthday of Rabindranath, Google I/O event, etc.
   const presetEvents: CalendarEventItem[] = [
     { id: "e1-1", day: 1, title: "Buddha Purnima", color: "bg-emerald-950/40 text-emerald-500 font-medium" },
@@ -227,7 +227,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   };
 
   return (
-    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="ypt-calendar-canvas">
+    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="f5-calendar-canvas">
       
       {/* Upper Month Header */}
       <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-slate-100 dark:border-slate-900/10">

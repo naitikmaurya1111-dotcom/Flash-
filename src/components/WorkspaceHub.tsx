@@ -48,7 +48,7 @@ import {
 } from "../lib/googleApi";
 import { User } from "firebase/auth";
 import { collection, doc, setDoc, getDocs, deleteDoc } from "firebase/firestore";
-import { db, auth } from "../lib/googleApi";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/googleApi";
 
 interface WorkspaceHubProps {
   streak: number;
@@ -207,15 +207,51 @@ export default function WorkspaceHub({
   // Sandbox data persistence synchronizers
   useEffect(() => {
     localStorage.setItem("sandbox_calendar_events", JSON.stringify(sandboxEvents));
-  }, [sandboxEvents]);
+    if (currentUser) {
+      sandboxEvents.forEach(ev => {
+        setDoc(doc(db, "users", currentUser.uid, "sandboxEvents", ev.id), ev).catch(() => {});
+      });
+      getDocs(collection(db, "users", currentUser.uid, "sandboxEvents")).then(snap => {
+        snap.forEach(d => {
+          if (!sandboxEvents.some(ev => ev.id === d.id)) {
+            deleteDoc(doc(db, "users", currentUser.uid, "sandboxEvents", d.id)).catch(() => {});
+          }
+        });
+      }).catch(() => {});
+    }
+  }, [sandboxEvents, currentUser]);
 
   useEffect(() => {
     localStorage.setItem("sandbox_drive_files", JSON.stringify(sandboxDriveFiles));
-  }, [sandboxDriveFiles]);
+    if (currentUser) {
+      sandboxDriveFiles.forEach(f => {
+        setDoc(doc(db, "users", currentUser.uid, "sandboxDriveFiles", f.id), f).catch(() => {});
+      });
+      getDocs(collection(db, "users", currentUser.uid, "sandboxDriveFiles")).then(snap => {
+        snap.forEach(d => {
+          if (!sandboxDriveFiles.some(f => f.id === d.id)) {
+            deleteDoc(doc(db, "users", currentUser.uid, "sandboxDriveFiles", d.id)).catch(() => {});
+          }
+        });
+      }).catch(() => {});
+    }
+  }, [sandboxDriveFiles, currentUser]);
 
   useEffect(() => {
     localStorage.setItem("sandbox_tasks", JSON.stringify(sandboxTasks));
-  }, [sandboxTasks]);
+    if (currentUser) {
+      sandboxTasks.forEach(t => {
+        setDoc(doc(db, "users", currentUser.uid, "sandboxTasks", t.id), t).catch(() => {});
+      });
+      getDocs(collection(db, "users", currentUser.uid, "sandboxTasks")).then(snap => {
+        snap.forEach(d => {
+          if (!sandboxTasks.some(t => t.id === d.id)) {
+            deleteDoc(doc(db, "users", currentUser.uid, "sandboxTasks", d.id)).catch(() => {});
+          }
+        });
+      }).catch(() => {});
+    }
+  }, [sandboxTasks, currentUser]);
 
   // New Google Keep and dynamic Docs states
   const [docsMode, setDocsMode] = useState<"strategy" | "custom" | "compile">("strategy");
@@ -255,6 +291,7 @@ export default function WorkspaceHub({
   useEffect(() => {
     if (currentUser) {
       loadKeepNotes();
+      loadSandboxData();
     } else {
       // Local fallback
       const local = localStorage.getItem("workspace_keep_notes");
@@ -265,6 +302,7 @@ export default function WorkspaceHub({
   // Load Keep Notes from Firebase (or LocalStorage)
   const loadKeepNotes = async () => {
     if (!currentUser) return;
+    const targetPath = `users/${currentUser.uid}/keepNotes`;
     try {
       const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "keepNotes"));
       const loaded: GKeepNote[] = [];
@@ -273,10 +311,54 @@ export default function WorkspaceHub({
       });
       setKeepNotes(loaded);
     } catch (err) {
-      console.warn("Failed loading synced keep notes (falling back to offline local storage):", err);
-      // Local fallback
-      const local = localStorage.getItem("workspace_keep_notes");
-      if (local) setKeepNotes(JSON.parse(local));
+      handleFirestoreError(err, OperationType.LIST, targetPath);
+    }
+  };
+
+  // Load Sandbox Calendar, Drive, and Tasks from Firestore for absolute cloud-only persistence compliance
+  const loadSandboxData = async () => {
+    if (!currentUser) return;
+    try {
+      // Load events
+      const eventsCol = collection(db, "users", currentUser.uid, "sandboxEvents");
+      const eventsSnap = await getDocs(eventsCol);
+      if (!eventsSnap.empty) {
+        const loadedEvents: GCalendarEvent[] = [];
+        eventsSnap.forEach(d => loadedEvents.push(d.data() as GCalendarEvent));
+        setSandboxEvents(loadedEvents);
+      } else {
+        sandboxEvents.forEach(ev => {
+          setDoc(doc(db, "users", currentUser.uid, "sandboxEvents", ev.id), ev).catch(() => {});
+        });
+      }
+
+      // Load files
+      const filesCol = collection(db, "users", currentUser.uid, "sandboxDriveFiles");
+      const filesSnap = await getDocs(filesCol);
+      if (!filesSnap.empty) {
+        const loadedFiles: GDriveFile[] = [];
+        filesSnap.forEach(d => loadedFiles.push(d.data() as GDriveFile));
+        setSandboxDriveFiles(loadedFiles);
+      } else {
+        sandboxDriveFiles.forEach(f => {
+          setDoc(doc(db, "users", currentUser.uid, "sandboxDriveFiles", f.id), f).catch(() => {});
+        });
+      }
+
+      // Load tasks
+      const tasksCol = collection(db, "users", currentUser.uid, "sandboxTasks");
+      const tasksSnap = await getDocs(tasksCol);
+      if (!tasksSnap.empty) {
+        const loadedTasks: GTask[] = [];
+        tasksSnap.forEach(d => loadedTasks.push(d.data() as GTask));
+        setSandboxTasks(loadedTasks);
+      } else {
+        sandboxTasks.forEach(t => {
+          setDoc(doc(db, "users", currentUser.uid, "sandboxTasks", t.id), t).catch(() => {});
+        });
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, `users/${currentUser.uid}/sandboxData`);
     }
   };
 
@@ -296,6 +378,7 @@ export default function WorkspaceHub({
     setNewKeepBody("");
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/keepNotes/${newNote.id}`;
       try {
         await setDoc(doc(db, "users", currentUser.uid, "keepNotes", newNote.id), newNote);
         showNotification("Study note synchronized in secure cloud database profile.");
@@ -310,7 +393,7 @@ export default function WorkspaceHub({
           }
         }
       } catch (err) {
-        console.error("Firestore save exception:", err);
+        handleFirestoreError(err, OperationType.WRITE, targetPath);
       }
     } else {
       localStorage.setItem("workspace_keep_notes", JSON.stringify(updated));
@@ -323,11 +406,12 @@ export default function WorkspaceHub({
     setKeepNotes(updated);
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/keepNotes/${noteId}`;
       try {
         await deleteDoc(doc(db, "users", currentUser.uid, "keepNotes", noteId));
         showNotification("Securely deleted Keep study note.");
       } catch (err) {
-        console.error("Firestore delete error", err);
+        handleFirestoreError(err, OperationType.DELETE, targetPath);
       }
     } else {
       localStorage.setItem("workspace_keep_notes", JSON.stringify(updated));

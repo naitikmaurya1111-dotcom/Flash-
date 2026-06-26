@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Subject, ExamTarget, GpaCourse } from "../types";
 import { User } from "firebase/auth";
-import { db } from "../lib/googleApi";
+import { db, handleFirestoreError, OperationType } from "../lib/googleApi";
 import { collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
 
 interface TargetRoadmapProps {
@@ -236,8 +236,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     onAddXp("Added student exam target to focus radar 🎯", 25);
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/exams/${newExam.id}`;
       setDoc(doc(db, "users", currentUser.uid, "exams", newExam.id), newExam).catch(err => {
-        console.error("Failed saving exam target to cloud:", err);
+        handleFirestoreError(err, OperationType.WRITE, targetPath);
       });
     }
 
@@ -255,8 +256,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     saveExamsToStorage(updated);
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/exams/${examId}`;
       deleteDoc(doc(db, "users", currentUser.uid, "exams", examId)).catch(err => {
-        console.error("Failed deleting exam target from cloud:", err);
+        handleFirestoreError(err, OperationType.DELETE, targetPath);
       });
     }
   };
@@ -274,8 +276,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     if (currentUser) {
       const targetEx = updated.find(e => e.id === examId);
       if (targetEx) {
+        const targetPath = `users/${currentUser.uid}/exams/${examId}`;
         setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
-          console.error("Failed updating exam prep level on cloud:", err);
+          handleFirestoreError(err, OperationType.WRITE, targetPath);
         });
       }
     }
@@ -307,8 +310,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     if (currentUser) {
       const targetEx = updated.find(e => e.id === examId);
       if (targetEx) {
+        const targetPath = `users/${currentUser.uid}/exams/${examId}`;
         setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
-          console.error("Failed syncing checklist toggle to cloud:", err);
+          handleFirestoreError(err, OperationType.WRITE, targetPath);
         });
       }
     }
@@ -338,8 +342,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     if (currentUser) {
       const targetEx = updated.find(e => e.id === examId);
       if (targetEx) {
+        const targetPath = `users/${currentUser.uid}/exams/${examId}`;
         setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
-          console.error("Failed syncing checklist addition to cloud:", err);
+          handleFirestoreError(err, OperationType.WRITE, targetPath);
         });
       }
     }
@@ -361,8 +366,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     if (currentUser) {
       const targetEx = updated.find(e => e.id === examId);
       if (targetEx) {
+        const targetPath = `users/${currentUser.uid}/exams/${examId}`;
         setDoc(doc(db, "users", currentUser.uid, "exams", examId), targetEx).catch(err => {
-          console.error("Failed syncing checklist item deletion to cloud:", err);
+          handleFirestoreError(err, OperationType.WRITE, targetPath);
         });
       }
     }
@@ -391,8 +397,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     onAddXp("Enrolled new coursework mapping into target GPA projections 📊", 20);
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/gpaCourses/${newCourse.id}`;
       setDoc(doc(db, "users", currentUser.uid, "gpaCourses", newCourse.id), newCourse).catch(err => {
-        console.error("Failed saving GPA course to cloud:", err);
+        handleFirestoreError(err, OperationType.WRITE, targetPath);
       });
     }
 
@@ -411,8 +418,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     saveCoursesToStorage(updated);
 
     if (currentUser) {
+      const targetPath = `users/${currentUser.uid}/gpaCourses/${courseId}`;
       deleteDoc(doc(db, "users", currentUser.uid, "gpaCourses", courseId)).catch(err => {
-        console.error("Failed deleting GPA course from cloud:", err);
+        handleFirestoreError(err, OperationType.DELETE, targetPath);
       });
     }
   };

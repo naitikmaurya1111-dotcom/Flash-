@@ -17,72 +17,11 @@ service cloud.firestore {
       allow get, delete: if isOwner(userId);
       allow create, update: if isOwner(userId) && isValidUser(request.resource.data, userId);
 
-      match /subjects/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId) && request.resource.data.name is string;
-      }
-      match /tasks/{id} {
+      // Secure all user subcollections dynamically with high-performance rules
+      match /{subcollection}/{id} {
         allow list, get, delete: if isOwner(userId);
         allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
         allow update: if isOwner(userId);
-      }
-      match /studyLogs/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /rewards/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /quests/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /xpLogs/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /reminders/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /keepNotes/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /exams/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-      match /gpaCourses/{id} {
-        allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
-      }
-    }
-
-    match /studyRooms/{roomId} {
-      allow list, get: if true;
-      allow create: if isSignedIn() && isEmailVerified() && isValidId(roomId);
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
-
-      match /members/{memberId} {
-        allow list, get: if isSignedIn();
-        allow create, update, delete: if isSignedIn() && request.auth.uid == memberId;
-      }
-      match /chats/{chatId} {
-        allow list, get: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidId(chatId);
-        allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
       }
     }
   }

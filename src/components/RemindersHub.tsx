@@ -25,6 +25,9 @@ import {
   ListFilter 
 } from "lucide-react";
 import { Subject, Reminder, NotificationSettings } from "../types";
+import { db, handleFirestoreError, OperationType } from "../lib/googleApi";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { User } from "firebase/auth";
 
 // Synthesis of high-quality ambient sound wave chimes natively using the Web Audio API
 export const playChime = (preset: "chime" | "success" | "break" = "chime") => {
@@ -170,6 +173,7 @@ interface RemindersHubProps {
   onGrantPermissions?: () => void;
   notificationSettings?: NotificationSettings;
   onUpdateNotificationSettings?: (settings: NotificationSettings) => void;
+  currentUser?: User | null;
 }
 
 export default function RemindersHub({
@@ -190,7 +194,8 @@ export default function RemindersHub({
     notifyOnLevelUp: true,
     activeSoundPreset: "chime"
   },
-  onUpdateNotificationSettings = () => {}
+  onUpdateNotificationSettings = () => {},
+  currentUser = null
 }: RemindersHubProps) {
   const [localPermissionStatus, setLocalPermissionStatus] = useState<NotificationPermission>("default");
   const [localAudioAutoplayApproved, setLocalAudioAutoplayApproved] = useState<boolean>(() => {
@@ -239,14 +244,65 @@ export default function RemindersHub({
   // Canvas visualizer reference
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Sync synthesizer configurations to localStorage
+  // 1. Fetch from Firestore if user is logged in (Pillar compliance)
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchCloudSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, "users", currentUser.uid, "settings", "synth"));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.synthEnabled !== undefined) setSynthEnabled(data.synthEnabled);
+          if (data.synthWave !== undefined) setSynthWave(data.synthWave as OscillatorType);
+          if (data.synthPitch !== undefined) setSynthPitch(data.synthPitch);
+          if (data.synthDuration !== undefined) setSynthDuration(data.synthDuration);
+          if (data.synthGain !== undefined) setSynthGain(data.synthGain);
+        }
+
+        const histSnap = await getDoc(doc(db, "users", currentUser.uid, "settings", "history"));
+        if (histSnap.exists()) {
+          const data = histSnap.data();
+          if (data.historyLogs !== undefined) setHistoryLogs(data.historyLogs);
+        }
+      } catch (err) {
+        console.warn("Failed loading custom synthesizer settings from cloud profile:", err);
+      }
+    };
+    fetchCloudSettings();
+  }, [currentUser]);
+
+  // Sync synthesizer configurations to localStorage and Firestore
   useEffect(() => {
     localStorage.setItem("custom_synth_enabled", String(synthEnabled));
     localStorage.setItem("custom_synth_wave", synthWave);
     localStorage.setItem("custom_synth_pitch", String(synthPitch));
     localStorage.setItem("custom_synth_duration", String(synthDuration));
     localStorage.setItem("custom_synth_gain", String(synthGain));
-  }, [synthEnabled, synthWave, synthPitch, synthDuration, synthGain]);
+
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid, "settings", "synth"), {
+        synthEnabled,
+        synthWave,
+        synthPitch,
+        synthDuration,
+        synthGain
+      }, { merge: true }).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}/settings/synth`);
+      });
+    }
+  }, [synthEnabled, synthWave, synthPitch, synthDuration, synthGain, currentUser]);
+
+  // Sync history/audit logs to Firestore for secure backups
+  useEffect(() => {
+    localStorage.setItem("study_notification_history", JSON.stringify(historyLogs));
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid, "settings", "history"), {
+        historyLogs
+      }, { merge: true }).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}/settings/history`);
+      });
+    }
+  }, [historyLogs, currentUser]);
 
   // Read study notification logs from localStorage periodically to handle cross-system changes
   useEffect(() => {
@@ -554,7 +610,7 @@ export default function RemindersHub({
   });
 
   return (
-    <div className="space-y-6 pt-1 text-slate-800 dark:text-slate-100" id="ypt-reminders-canvas">
+    <div className="space-y-6 pt-1 text-slate-800 dark:text-slate-100" id="f5-reminders-canvas">
       
       {/* 1. Bento Dashboard Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

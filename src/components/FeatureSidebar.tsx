@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
   BarChart2, Trophy, Clock, ShieldCheck, Dumbbell, BookOpen, Music, 
-  Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, 
+  Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, Cloud,
   Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
   Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock, User, Target
 } from "lucide-react";
@@ -23,6 +23,7 @@ interface FeatureSidebarProps {
   studentClass: string;
   studentPrepTarget: string;
   onUpdateProfile: (updates: { name: string; class: string; preparation: string; level: number }) => Promise<void>;
+  isFirebaseConnected?: boolean | null;
 }
 
 export default function FeatureSidebar({
@@ -40,7 +41,8 @@ export default function FeatureSidebar({
   studentName,
   studentClass,
   studentPrepTarget,
-  onUpdateProfile
+  onUpdateProfile,
+  isFirebaseConnected = null
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -265,7 +267,7 @@ export default function FeatureSidebar({
           
           {/* Main Title Row */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-900/40">
-            <span className="text-sm font-black tracking-widest text-[#f26419] uppercase">YPT Functions</span>
+            <span className="text-sm font-black tracking-widest text-[#f26419] uppercase">Flash5tudy Functions</span>
             <button 
               onClick={onClose}
               className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer"
@@ -395,6 +397,35 @@ export default function FeatureSidebar({
                 <CloudOff className="w-4 h-4" />
                 <span className="text-xs font-semibold">{isOfflineMode ? "Offline" : "Offline Mode"}</span>
               </button>
+
+              <div className="col-span-2 py-2 px-3.5 rounded-2xl flex items-center justify-between text-[11px] font-mono border border-slate-150 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#111]/80">
+                <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                  <Cloud className="w-3 h-3 text-sky-400" />
+                  Cloud Sync:
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`inline-block w-2 h-2 rounded-full ${
+                    isFirebaseConnected === true 
+                      ? "bg-emerald-500 animate-pulse" 
+                      : isFirebaseConnected === false 
+                        ? "bg-rose-500 animate-pulse" 
+                        : "bg-amber-400 animate-pulse"
+                  }`} />
+                  <span className={
+                    isFirebaseConnected === true 
+                      ? "text-emerald-500 font-extrabold" 
+                      : isFirebaseConnected === false 
+                        ? "text-rose-400 font-extrabold" 
+                        : "text-amber-400 font-extrabold"
+                  }>
+                    {isFirebaseConnected === true 
+                      ? "CONNECTED" 
+                      : isFirebaseConnected === false 
+                        ? "DISCONNECTED" 
+                        : "VALIDATING..."}
+                  </span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -472,7 +503,7 @@ export default function FeatureSidebar({
               <div className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-900/40 text-xs">
                 <div className="flex items-center gap-2">
                   <HelpCircle className="w-4 h-4 text-slate-400" />
-                  <span className="font-semibold text-slate-705 dark:text-slate-300">YPT Help Desk</span>
+                  <span className="font-semibold text-slate-705 dark:text-slate-300">Flash5tudy Help Desk</span>
                 </div>
                 <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-750 dark:text-slate-300">Active</span>
               </div>
@@ -866,7 +897,7 @@ export default function FeatureSidebar({
                 
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   {(() => {
-                    const currentPresetId = localStorage.getItem("ypt_theme_preset") || "dark-classic";
+                    const currentPresetId = localStorage.getItem("f5_theme_preset") || "dark-classic";
                     const userLevel = calculateStudentLevel(userXp || 0).level;
 
                     return [
@@ -954,7 +985,7 @@ export default function FeatureSidebar({
             {activeSubView === "allowed" && (
               <div className="space-y-4">
                 <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Permitted App Whitelist</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">YPT blocking emulator. Permit only focus apps during active logs:</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Flash5tudy app blocking emulator. Permit only focus apps during active logs:</p>
                 
                 <div className="space-y-2 pt-2">
                   {allowedApps.map((app, index) => (

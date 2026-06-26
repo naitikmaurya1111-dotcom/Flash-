@@ -122,7 +122,7 @@ export default function TimelineView({
   // Navigation inside the Focus subtab
   const [subView, setSubView] = useState<"timer" | "timeline" | "atmosphere">("timer");
   const [showLevelGuide, setShowLevelGuide] = useState(false);
-  const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(() => localStorage.getItem("ypt_launchpad_open") !== "false");
+  const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(() => localStorage.getItem("f5_launchpad_open") !== "false");
   
   const gradientStops = useMemo(() => {
     switch (themePreset) {
@@ -221,7 +221,7 @@ export default function TimelineView({
     }
   }, [themePreset]);
 
-  // ==================== YPT ADAPTIVE STUDY HABIT & STREAK CALCULATOR ====================
+  // ==================== FLASH5TUDY ADAPTIVE STUDY HABIT & STREAK CALCULATOR ====================
   const calculatedStreak = useMemo(() => {
     const uniqueDatesSet = new Set<string>();
     studyLogs.forEach(l => {
@@ -281,7 +281,7 @@ export default function TimelineView({
     return logged + liveMinutes;
   }, [studyLogs, isStudying, timerType, activeSeconds, pomoState, pomoSecondsLeft, pomoFocusDuration]);
 
-  // ==================== YPT CIRCULAR WHEEL ARC COORDINATES GENERATOR ====================
+  // ==================== CIRCULAR WHEEL ARC COORDINATES GENERATOR ====================
   const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
     const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
     return {
@@ -920,6 +920,81 @@ export default function TimelineView({
     }
   };
 
+  // Global Keyboard Shortcuts for peak focus flow productivity UX
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      // Ignore shortcuts if user is typing in interactive form fields
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (subjects.length > 0) {
+          const verifiedSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+          if (verifiedSubject) {
+            const currentStudyingState = !isStudying;
+            if (!currentStudyingState) {
+              handleStopAndSave();
+            } else {
+              setIsStudying(true);
+              setToast({
+                message: `Study session started for: "${verifiedSubject.name}" ⚡ (Space)`,
+                type: "info"
+              });
+            }
+          }
+        }
+      } else if (e.code === "KeyM") {
+        e.preventDefault();
+        const sounds: ("none" | "brown" | "rain" | "waves" | "fire" | "binaural")[] = [
+          "none", "brown", "rain", "waves", "fire", "binaural"
+        ];
+        const currentIndex = sounds.indexOf(ambientSound);
+        const nextIndex = (currentIndex + 1) % sounds.length;
+        const nextSound = sounds[nextIndex];
+        setAmbientSound(nextSound);
+        setToast({
+          message: nextSound === "none" ? "Acoustic ambient soundscapes muted 🎧 (M)" : `Acoustics changed to ${nextSound} 🎧 (M)`,
+          type: "info"
+        });
+      } else if (e.code === "KeyB") {
+        e.preventDefault();
+        const nextCoach = !showBreathingCoach;
+        setShowBreathingCoach(nextCoach);
+        setToast({
+          message: nextCoach ? "Breathing Coach Active 🧘 (B)" : "Breathing Coach Disabled (B)",
+          type: "info"
+        });
+      } else if (e.code === "KeyT") {
+        e.preventDefault();
+        const views: ("timer" | "timeline" | "atmosphere")[] = ["timer", "timeline", "atmosphere"];
+        const nextIdx = (views.indexOf(subView) + 1) % views.length;
+        setSubView(views[nextIdx]);
+        setToast({
+          message: `Switched perspective to ${views[nextIdx].toUpperCase()} 🎛️ (T)`,
+          type: "info"
+        });
+      } else if (e.code === "Escape" && isStudying) {
+        e.preventDefault();
+        handleStopAndSave();
+        setToast({
+          message: "Session finalized and saved! 🎉 (Esc)",
+          type: "info"
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [subjects, activeSubjectId, isStudying, ambientSound, showBreathingCoach, subView, handleStopAndSave]);
+
   const handleSubmitReflection = async () => {
     if (sessionSavedMinutes > 0 && activeSubjectId) {
       setReflectionErrorText(null);
@@ -1084,7 +1159,7 @@ export default function TimelineView({
   };
 
   return (
-    <div id="ypt-active-focus-pane" className="relative flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800 bg-white/70 dark:bg-[#0c0d10]/95 backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-350">
+    <div id="f5-active-focus-pane" className="relative flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800 bg-white/70 dark:bg-[#0c0d10]/95 backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-350">
       {/* Dynamic Toast / Premium Study notification banner */}
       {toast && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900/90 dark:bg-slate-50/95 text-white dark:text-slate-900 border border-slate-700/30 dark:border-slate-200/50 shadow-2xl backdrop-blur-md transition-all duration-300">
@@ -1157,7 +1232,7 @@ export default function TimelineView({
         </div>
       </div>
 
-      {/* ==================== YPT-STYLE STREAK & FOCUS OVERVIEW DASHBOARD ROW ==================== */}
+      {/* ==================== FLASH5TUDY STREAK & FOCUS OVERVIEW DASHBOARD ROW ==================== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 mx-3 sm:mx-6 mt-3 sm:mt-5 antialiased">
         
         {/* Total studied minutes of today */}
@@ -1296,7 +1371,7 @@ export default function TimelineView({
               onClick={() => {
                 const nextVal = !isLaunchpadOpen;
                 setIsLaunchpadOpen(nextVal);
-                localStorage.setItem("ypt_launchpad_open", String(nextVal));
+                localStorage.setItem("f5_launchpad_open", String(nextVal));
               }}
             >
               <div className="flex items-center gap-2">
@@ -1392,7 +1467,7 @@ export default function TimelineView({
                           <button 
                             type="button" 
                             onClick={() => {
-                              const timerEl = document.getElementById("ypt-active-focus-pane");
+                              const timerEl = document.getElementById("f5-active-focus-pane");
                               if (timerEl) {
                                 timerEl.scrollIntoView({ behavior: "smooth" });
                               }
@@ -1839,7 +1914,7 @@ export default function TimelineView({
                             message: "⚠️ Please select an active Subject/Topic below before starting the focus session!",
                             type: "warning"
                           });
-                          const grid = document.getElementById("ypt-subject-selection");
+                          const grid = document.getElementById("f5-subject-selection");
                           if (grid) {
                             grid.scrollIntoView({ behavior: "smooth" });
                           }
@@ -1872,6 +1947,18 @@ export default function TimelineView({
                         <Trash className="w-4 h-4" /> Discard
                       </button>
                     )}
+                  </div>
+
+                  {/* Elegant Hotkeys Guide Panel */}
+                  <div className="pt-3 border-t border-slate-800/40 flex flex-col xs:flex-row xs:items-center justify-between gap-2 text-[10px] text-slate-400 font-mono">
+                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[8px]">⌨️ Pro Shortcuts</span>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 bg-slate-950/20 p-2 rounded-xl border border-slate-800/40 w-full xs:w-auto">
+                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">Space</kbd> Start/Pause</span>
+                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">Esc</kbd> Stop</span>
+                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">M</kbd> Sound</span>
+                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">B</kbd> Breath</span>
+                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">T</kbd> Tab</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1910,7 +1997,7 @@ export default function TimelineView({
                 </div>
                 
                 {/* Subject selection container */}
-                <div id="ypt-subject-selection" className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3.5 max-h-[140px] xs:max-h-[200px] sm:max-h-[260px] overflow-y-auto no-scrollbar pr-1">
+                <div id="f5-subject-selection" className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3.5 max-h-[140px] xs:max-h-[200px] sm:max-h-[260px] overflow-y-auto no-scrollbar pr-1">
                   {subjects.map((sub) => {
                     const isSelected = activeSubjectId === sub.id;
                     const liveMinutes = sub.totalMinutes + (isSelected && isStudying && timerType === "stopwatch" ? activeSeconds / 60 : 0);
@@ -2099,7 +2186,7 @@ export default function TimelineView({
                       const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
                       if (!verifiedSubject) {
                         setTimerAlertMessage("⚠️ Please select an active Subject/Topic from the Disciplines section before initiating the Focus Odyssey.");
-                        const grid = document.getElementById("ypt-subject-selection");
+                        const grid = document.getElementById("f5-subject-selection");
                         if (grid) {
                           grid.scrollIntoView({ behavior: "smooth" });
                         }
@@ -2597,17 +2684,17 @@ export default function TimelineView({
             </div>
           </div>
 
-          {/* ==================== YPT 24-HOUR RADIAL TIMELINE WHEEL ==================== */}
+          {/* ==================== FLASH5TUDY 24-HOUR RADIAL TIMELINE WHEEL ==================== */}
           <div className="px-6 py-5 border-b border-slate-250 dark:border-slate-900/40 bg-slate-50/10 dark:bg-slate-950/20 text-left">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#f26419]" /> YPT 24-Hour Focus Dial
+                  <Clock className="w-3.5 h-3.5 text-[#f26419]" /> Flash5tudy 24-Hour Focus Dial
                 </h3>
                 <p className="text-[10px] text-slate-500 dark:text-slate-500 font-bold mt-0.5">Continuous hourly study grid of today's focused sessions</p>
               </div>
               <span className="text-[9px] font-mono font-black bg-gradient-to-r from-[#f26419] to-amber-500 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm animate-pulse">
-                YPT Active 🚀
+                Focus Active 🚀
               </span>
             </div>
 

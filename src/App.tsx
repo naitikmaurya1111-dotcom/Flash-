@@ -25,7 +25,7 @@ import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import AICoachCard from "./components/AICoachCard";
 import WorkspaceHub from "./components/WorkspaceHub";
 
-// Custom YPT-themed modules
+// Custom Flash5tudy-themed modules
 import TimelineView from "./components/TimelineView";
 import CalendarView from "./components/CalendarView";
 import FeatureSidebar from "./components/FeatureSidebar";
@@ -264,9 +264,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"focus" | "target-suite" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // YPT configuration overlays
+  // Flash5tudy configuration overlays
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [themePreset, setThemePreset] = useState(() => localStorage.getItem("ypt_theme_preset") || "dark-classic");
+  const [themePreset, setThemePreset] = useState(() => localStorage.getItem("f5_theme_preset") || "dark-classic");
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
     const local = localStorage.getItem("study_notification_settings");
     if (local) {
@@ -302,6 +302,11 @@ export default function App() {
     return saved as "light" | "dark";
   });
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean | null>(null);
+  const [lastNotifiedLevel, setLastNotifiedLevel] = useState<number | null>(() => {
+    const val = localStorage.getItem("study_last_notified_level_guest");
+    return val ? parseInt(val, 10) : null;
+  });
   const dynamicBlobs = useMemo(() => {
     const isLight = activeTheme === "light";
     switch (themePreset) {
@@ -470,7 +475,7 @@ export default function App() {
   };
 
   const [isWideHud, setIsWideHud] = useState(() => {
-    const local = localStorage.getItem("ypt_wide_hud");
+    const local = localStorage.getItem("f5_wide_hud");
     return local !== null ? local === "true" : true; // Default to wide hud enabled for premium tablet landscape feel
   });
 
@@ -549,9 +554,9 @@ export default function App() {
     }
   };
 
-  // YPT Lobby real-time states
+  // Flash5tudy Lobby real-time states
   const [joinedRoomId, setJoinedRoomId] = useState<string | null>(() => {
-    return localStorage.getItem("ypt_joined_room_id");
+    return localStorage.getItem("f5_joined_room_id");
   });
   const [isStudyingUser, setIsStudyingUser] = useState<boolean>(() => {
     if (isNewDayOnStart) {
@@ -1004,15 +1009,17 @@ export default function App() {
     
     // Persistent user-aware notified level keys prevent duplication across login sessions and page-loads
     const localKey = currentUser ? `study_last_notified_level_${currentUser.uid}` : "study_last_notified_level_guest";
-    const lastNotifiedVal = localStorage.getItem(localKey);
-    const lastNotifiedLevel = lastNotifiedVal ? parseInt(lastNotifiedVal, 10) : null;
 
     // During settlement phase or initial load, keep the states aligned silently
     if (!initSyncComplete || !levelMonitorActiveRef.current) {
       lastLevelRef.current = currentLvl;
       hasBootedRef.current = false;
       if (lastNotifiedLevel === null && currentLvl > 0) {
+        setLastNotifiedLevel(currentLvl);
         localStorage.setItem(localKey, String(currentLvl));
+        if (currentUser) {
+          setDoc(doc(db, "users", currentUser.uid), { lastNotifiedLevel: currentLvl }, { merge: true }).catch(() => {});
+        }
       }
       return;
     }
@@ -1021,7 +1028,11 @@ export default function App() {
       lastLevelRef.current = currentLvl;
       hasBootedRef.current = true;
       if (lastNotifiedLevel === null || lastNotifiedLevel < currentLvl) {
+        setLastNotifiedLevel(currentLvl);
         localStorage.setItem(localKey, String(currentLvl));
+        if (currentUser) {
+          setDoc(doc(db, "users", currentUser.uid), { lastNotifiedLevel: currentLvl }, { merge: true }).catch(() => {});
+        }
       }
       return;
     }
@@ -1029,7 +1040,11 @@ export default function App() {
     if (lastLevelRef.current === null) {
       lastLevelRef.current = currentLvl;
       if (lastNotifiedLevel === null) {
+        setLastNotifiedLevel(currentLvl);
         localStorage.setItem(localKey, String(currentLvl));
+        if (currentUser) {
+          setDoc(doc(db, "users", currentUser.uid), { lastNotifiedLevel: currentLvl }, { merge: true }).catch(() => {});
+        }
       }
       return;
     }
@@ -1044,7 +1059,13 @@ export default function App() {
       }
 
       // Commit the peak level to local persistence
+      setLastNotifiedLevel(currentLvl);
       localStorage.setItem(localKey, String(currentLvl));
+      if (currentUser) {
+        setDoc(doc(db, "users", currentUser.uid), { lastNotifiedLevel: currentLvl }, { merge: true }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+        });
+      }
 
       // LevelUp notification settings check
       if (notificationSettings.notifyOnLevelUp) {
@@ -1076,9 +1097,13 @@ export default function App() {
     } else if (currentLvl < lastLevelRef.current) {
       // Allow manual level reduction configs inside profile update or resets
       lastLevelRef.current = currentLvl;
+      setLastNotifiedLevel(currentLvl);
       localStorage.setItem(localKey, String(currentLvl));
+      if (currentUser) {
+        setDoc(doc(db, "users", currentUser.uid), { lastNotifiedLevel: currentLvl }, { merge: true }).catch(() => {});
+      }
     }
-  }, [userXp, notificationSettings, initSyncComplete, currentUser]);
+  }, [userXp, notificationSettings, initSyncComplete, currentUser, lastNotifiedLevel]);
   // ----------------------------------------------------------------
 
   // 0. Connection Test (Pillar Requirements)
@@ -1086,6 +1111,7 @@ export default function App() {
     async function testConnection() {
       try {
         await getDocFromServer(doc(db, "test", "connection"));
+        setIsFirebaseConnected(true);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         const isPermissionError = errorMsg.toLowerCase().includes("permission") || 
@@ -1094,10 +1120,14 @@ export default function App() {
         
         if (error instanceof Error && error.message.includes("offline")) {
           console.warn("Please check your Firebase configuration (client is currently offline).");
+          setIsFirebaseConnected(false);
+          setIsOfflineMode(true);
         } else if (isPermissionError) {
           console.info("Firebase Connection check: Online! Successfully connected to Firestore. (Authentication / Rules will unlock complete storage namespaces).");
+          setIsFirebaseConnected(true);
         } else {
           console.error("Firebase connection check error:", error);
+          setIsFirebaseConnected(false);
         }
       }
     }
@@ -1204,6 +1234,10 @@ export default function App() {
             }
             if (userData.pomoLongBreakDuration) {
               setPomoLongBreakDuration(userData.pomoLongBreakDuration);
+            }
+            if (userData.lastNotifiedLevel !== undefined) {
+              setLastNotifiedLevel(userData.lastNotifiedLevel);
+              localStorage.setItem(`study_last_notified_level_${user.uid}`, String(userData.lastNotifiedLevel));
             }
             
             // Check if user's cloud profile last active date is from a previous day
@@ -1811,7 +1845,7 @@ export default function App() {
   }, [dailyTargetMinutes, currentUser]);
 
   useEffect(() => {
-    localStorage.setItem("ypt_theme_preset", themePreset);
+    localStorage.setItem("f5_theme_preset", themePreset);
     if (currentUser) {
       setDoc(doc(db, "users", currentUser.uid), { themePreset }, { merge: true })
         .catch(e => console.warn("Failed syncing theme preset to cloud:", e));
@@ -1856,9 +1890,9 @@ export default function App() {
 
   useEffect(() => {
     if (joinedRoomId) {
-      localStorage.setItem("ypt_joined_room_id", joinedRoomId);
+      localStorage.setItem("f5_joined_room_id", joinedRoomId);
     } else {
-      localStorage.removeItem("ypt_joined_room_id");
+      localStorage.removeItem("f5_joined_room_id");
     }
   }, [joinedRoomId]);
 
@@ -3090,7 +3124,7 @@ export default function App() {
     secureStorage.removeItem("study_reminders");
     
     // Clear other keys
-    localStorage.removeItem("ypt_joined_room_id");
+    localStorage.removeItem("f5_joined_room_id");
     secureStorage.removeItem("google_oauth_access_token");
 
     // 2. Reset React states
@@ -3226,7 +3260,7 @@ export default function App() {
             themePreset === "nordic" ? "bg-[#0b1016] text-[#e0f2fe]" :
             "bg-[#08080c] text-white"
           )
-    }`} id="ypt-immersive-viewport-root">
+    }`} id="f5-immersive-viewport-root">
       
       {/* Liquid Glass Background Drifting Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -3452,7 +3486,7 @@ export default function App() {
               onClick={() => {
                 const updated = !isWideHud;
                 setIsWideHud(updated);
-                localStorage.setItem("ypt_wide_hud", String(updated));
+                localStorage.setItem("f5_wide_hud", String(updated));
               }}
               className={`p-2 rounded-full cursor-pointer border transition-all bg-white/45 hover:bg-white/70 text-slate-600 ${currentThemeStyle.accentBorder} dark:bg-[#171717] dark:hover:bg-[#202020] dark:text-slate-400 dark:hover:text-white shadow-xs backdrop-blur-md flex items-center justify-center`}
               title={isWideHud ? "Compact panel layout" : "Immersive widescreen HUD"}
@@ -3850,6 +3884,7 @@ export default function App() {
                   onGrantPermissions={handleGrantAllPermissions}
                   notificationSettings={notificationSettings}
                   onUpdateNotificationSettings={setNotificationSettings}
+                  currentUser={currentUser}
                 />
               </motion.div>
             )}
@@ -4039,6 +4074,7 @@ export default function App() {
         studentClass={studentClass}
         studentPrepTarget={studentPrepTarget}
         onUpdateProfile={handleUpdateProfile}
+        isFirebaseConnected={isFirebaseConnected}
       />
 
       {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}

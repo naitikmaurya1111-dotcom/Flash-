@@ -1,9 +1,10 @@
 {
-  "projectId": "study-security-2",
-  "appId": "1:885872462383:web:783a11d061b47a5b3c14da",
-  "apiKey": "AIzaSyDn-rKOcslhHyFMsuQzRIJm6CUSs4itMX4",
-  "authDomain": "study-security-2.firebaseapp.com",
-  "storageBucket": "study-security-2.firebasestorage.app",
-  "messagingSenderId": "885872462383",
-  "measurementId": "G-TVJXZZBFZH"
+  "projectId": "consistent-study",
+  "appId": "1:290084285720:web:7a7376770f1f1e42f1026d",
+  "apiKey": "AIzaSyBvxJmo6qP8T06CXdq71lNFljovLU-nYeM",
+  "authDomain": "consistent-study.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "consistent-study.firebasestorage.app",
+  "messagingSenderId": "290084285720",
+  "measurementId": "G-S3P9R31FR8"
 }

@@ -22,7 +22,7 @@ export default function FocusTimer({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Notify parent state of ticks and starts (for YPT Real-time groups sync)
+  // Notify parent state of ticks and starts (for Flash5tudy Real-time groups sync)
   useEffect(() => {
     if (onStateChange) {
       onStateChange(isRunning, elapsedSeconds);

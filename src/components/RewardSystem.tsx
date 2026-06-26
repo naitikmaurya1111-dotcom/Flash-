@@ -210,7 +210,7 @@ export default function RewardSystem({
   };
 
   return (
-    <div className="space-y-6 pt-1 text-slate-800 dark:text-slate-100" id="ypt-rewards-dashboard">
+    <div className="space-y-6 pt-1 text-slate-800 dark:text-slate-100" id="f5-rewards-dashboard">
       
       {/* 1. Header Level Progress Card */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 rounded-3xl border border-indigo-900/30 text-white shadow-2xl relative overflow-hidden">

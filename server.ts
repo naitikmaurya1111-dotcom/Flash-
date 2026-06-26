@@ -148,9 +148,9 @@ IMPORTANT GUIDELINES:
 2. Provide concrete, super-actionable micro study hacks (e.g. active recall questions, micro breaks, pomodoro divisions).
 3. Do not break character. Keep your reply highly relevant, engaging, and under 150 words.`;
 
-      // Use gemini-2.5-flash for incredibly snappy latency and optimal instructions matching
+      // Use gemini-3.5-flash for incredibly snappy latency and optimal instructions matching
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: [
           ...structuredHistory,
           { role: "user", parts: [{ text: message }] }
