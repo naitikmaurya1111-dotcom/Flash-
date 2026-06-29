@@ -844,16 +844,36 @@ export default function TimelineView({
   };
 
   const handleStopAndSave = async () => {
-    const secondsToSave = timerType === "pomodoro"
+    let secondsToSave = timerType === "pomodoro"
       ? (pomoState === "focus" ? Math.max(0, pomoFocusDuration * 60 - pomoSecondsLeft) : 0)
       : activeSeconds;
 
-    if (secondsToSave > 0 && activeSubjectId) {
+    // Smart Fallback: If secondsToSave is 0 (e.g. state reset or page loaded in background), recover exact elapsed seconds from localStorage start time
+    if (secondsToSave <= 0) {
+      const rawStart = localStorage.getItem("study_start_time_ms");
+      if (rawStart) {
+        const startTimeMs = parseInt(rawStart, 10);
+        const rawBaseline = localStorage.getItem("study_seconds_baseline");
+        const baselineSecs = rawBaseline ? parseInt(rawBaseline, 10) : 0;
+        const elapsed = Math.floor((Date.now() - startTimeMs) / 1000);
+        secondsToSave = baselineSecs + elapsed;
+      }
+    }
+
+    // Smart Fallback: Resolve active subject from multiple layers: activeSubjectId, localStorage, or first subject
+    let currentActiveSubjectId = activeSubjectId;
+    if (!currentActiveSubjectId) {
+      currentActiveSubjectId = localStorage.getItem("study_active_subject_id") || "";
+    }
+    if (!currentActiveSubjectId && subjects.length > 0) {
+      currentActiveSubjectId = subjects[0].id;
+    }
+
+    if (secondsToSave > 0 && currentActiveSubjectId) {
       setReflectionErrorText(null);
       
       // Precise hours, minutes, seconds decimal value (no more 15-second minimum limit!)
       const preciseMinutes = secondsToSave / 60;
-      const currentActiveSubjectId = activeSubjectId;
 
       // Save focus minutes to database and states IMMEDIATELY (no risk of loss)
       try {
@@ -1232,61 +1252,7 @@ export default function TimelineView({
         </div>
       </div>
 
-      {/* ==================== FLASH5TUDY STREAK & FOCUS OVERVIEW DASHBOARD ROW ==================== */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 mx-3 sm:mx-6 mt-3 sm:mt-5 antialiased">
-        
-        {/* Total studied minutes of today */}
-        <div className="p-3 sm:p-4.5 rounded-2xl sm:rounded-3xl bg-slate-50/50 dark:bg-[#0c0d12]/50 border border-slate-150/50 dark:border-slate-900 shadow-sm hover:border-[#f26419]/20 transition-all duration-300 flex items-center gap-2 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-[#f26419]/10 text-[#f26419] flex items-center justify-center border border-orange-500/10 shrink-0">
-            <Flame className="w-4 sm:w-4.5 h-4 sm:h-4.5 animate-bounce" style={{ animationDuration: "2.5s" }} />
-          </div>
-          <div className="min-w-0 text-left">
-            <span className="text-[7.5px] sm:text-[8px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold block">Daily Focus Span</span>
-            <span className="text-xs sm:text-sm md:text-base font-black text-slate-800 dark:text-neutral-100 font-mono flex items-baseline gap-0.5 truncate">
-              {formatStudyTimeExact(totalFocusMinutesToday)}
-            </span>
-          </div>
-        </div>
 
-        {/* Continuous study daily streak counter */}
-        <div className="p-3 sm:p-4.5 rounded-2xl sm:rounded-3xl bg-slate-50/50 dark:bg-[#0c0d12]/50 border border-slate-150/50 dark:border-slate-900 shadow-sm hover:border-amber-500/20 transition-all duration-300 flex items-center gap-2 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/10 shrink-0">
-            <Award className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-amber-400" />
-          </div>
-          <div className="min-w-0 text-left">
-            <span className="text-[7.5px] sm:text-[8px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold block">Dedication Cycle</span>
-            <span className="text-xs sm:text-sm md:text-base font-black text-slate-800 dark:text-neutral-100 font-mono flex items-baseline gap-0.5 truncate">
-              {calculatedStreak} <span className="text-[9px] sm:text-[10px] font-sans font-bold text-slate-400">days</span>
-            </span>
-          </div>
-        </div>
-
-        {/* Live level XP Boost tier */}
-        <div className="p-3 sm:p-4.5 rounded-2xl sm:rounded-3xl bg-slate-50/50 dark:bg-[#0c0d12]/50 border border-slate-150/50 dark:border-slate-900 shadow-sm hover:border-indigo-500/20 transition-all duration-300 flex items-center gap-2 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center border border-indigo-500/10 shrink-0">
-            <Sparkles className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-indigo-400" />
-          </div>
-          <div className="min-w-0 text-left">
-            <span className="text-[7.5px] sm:text-[8px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold block">Catalyst Amplify</span>
-            <span className="text-[10.5px] sm:text-xs md:text-[12px] font-black text-[#6366f1] dark:text-indigo-400 uppercase tracking-tight block truncate mt-0.5">
-              {calculateStudentLevel(userXp).level < 5 ? "1.0x Base Scale" : "1.5x Intellect 🎉"}
-            </span>
-          </div>
-        </div>
-
-        {/* Focus task summary checklist tracker */}
-        <div className="p-3 sm:p-4.5 rounded-2xl sm:rounded-3xl bg-slate-50/50 dark:bg-[#0c0d12]/50 border border-slate-150/50 dark:border-slate-900 shadow-sm hover:border-emerald-500/20 transition-all duration-300 flex items-center gap-2 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/10 shrink-0">
-            <Target className="w-4 sm:w-4.5 h-4 sm:h-4.5 text-emerald-400" />
-          </div>
-          <div className="min-w-0 text-left">
-            <span className="text-[7.5px] sm:text-[8px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold block">Scholastic Quests</span>
-            <span className="text-xs sm:text-sm md:text-base font-black text-emerald-600 dark:text-emerald-400 font-mono block truncate">
-              {sessionTodos.filter(t => t.isDone).length}/{sessionTodos.length} done
-            </span>
-          </div>
-        </div>
-      </div>
 
       {(subView === "timer" || subView === "atmosphere") ? (
         /* ==================== SCREEN A: PREMIUM STUDY CHROMOPHORE TIMER & POMODORO ==================== */
@@ -1364,191 +1330,23 @@ export default function TimelineView({
             </div>
           </div>
 
-          {/* ==================== 🚀 QUICK STUDY LAUNCHPAD ==================== */}
-          <div className="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150/40 dark:border-slate-900/60 p-4 rounded-2xl text-left font-sans transition-all duration-300">
-            <div 
-              className="flex items-center justify-between cursor-pointer select-none" 
-              onClick={() => {
-                const nextVal = !isLaunchpadOpen;
-                setIsLaunchpadOpen(nextVal);
-                localStorage.setItem("f5_launchpad_open", String(nextVal));
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="p-1 px-2 rounded-lg bg-[#f26419]/10 text-[#f26419] text-[9px] font-black uppercase tracking-wider font-mono">
-                  💡 Launchpad Guide
-                </span>
-                <span className="text-xs font-black text-slate-800 dark:text-neutral-100">
-                  4 Simple Steps to Success
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 hidden sm:inline">
-                  (Onboarding Checklist)
-                </span>
-              </div>
-              <button className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer">
-                {isLaunchpadOpen ? "Hide Guide ✕" : "Show Guide 🗃️"}
-              </button>
-            </div>
 
-            {isLaunchpadOpen && (
-              <div className="mt-3 pt-1 space-y-3">
-                {/* Micro Progress Bar */}
-                {(() => {
-                  const step1 = subjects.length > 0;
-                  const step2 = totalFocusMinutesToday > 0 || studyLogs.length > 0;
-                  let step3 = false;
-                  try {
-                    const exData = localStorage.getItem("study_target_exams");
-                    if (exData && JSON.parse(exData).length > 0) step3 = true;
-                  } catch (e) {}
-                  const step4 = userXp > 0;
-                  
-                  const completedCount = [step1, step2, step3, step4].filter(Boolean).length;
-                  const progressPct = (completedCount / 4) * 100;
 
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-550 dark:text-slate-400">
-                        <span>Onboarding Progress: {completedCount}/4 Completed</span>
-                        <span className="text-[#f26419]">{Math.round(progressPct)}%</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-200/50 dark:bg-slate-900 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#f26419] to-amber-500 rounded-full transition-all duration-500" 
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-
-                      {/* Launchpad Grid List Box */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
-                        
-                        {/* Box 1: Subjects */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          step1 
-                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
-                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
-                        }`}>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
-                              step1 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
-                            }`}>
-                              ✓
-                            </div>
-                            <span className="text-xs font-black">1. Course Subjects</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Configure custom subjects and goals.</p>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setShowSubjectsModal(true);
-                              setIsEditingSubjectsList(true);
-                            }}
-                            className="mt-1.5 text-[9px] font-black text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-0.5 cursor-pointer"
-                          >
-                            Manage Subjects →
-                          </button>
-                        </div>
-
-                        {/* Box 2: Start Focus Timer */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          step2 
-                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
-                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
-                        }`}>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
-                              step2 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
-                            }`}>
-                              ✓
-                            </div>
-                            <span className="text-xs font-black">2. Focus Timer</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Start custom countdowns or stopwatch.</p>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              const timerEl = document.getElementById("f5-active-focus-pane");
-                              if (timerEl) {
-                                timerEl.scrollIntoView({ behavior: "smooth" });
-                              }
-                            }}
-                            className="mt-1.5 text-[9px] font-black text-[#f26419] hover:opacity-90 flex items-center gap-0.5 cursor-pointer"
-                          >
-                            Show Timer Block ↓
-                          </button>
-                        </div>
-
-                        {/* Box 3: Exam Planning */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          step3 
-                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
-                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
-                        }`}>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
-                              step3 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
-                            }`}>
-                              ✓
-                            </div>
-                            <span className="text-xs font-black">3. Target Suite</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Map board exams & target GPAs.</p>
-                          <button 
-                            type="button" 
-                            onClick={() => onChangeTab?.("target-suite")}
-                            className="mt-1.5 text-[9px] font-black text-emerald-500 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-350 flex items-center gap-0.5 cursor-pointer"
-                          >
-                            Explore Targets →
-                          </button>
-                        </div>
-
-                        {/* Box 4: Redeem */}
-                        <div className={`p-2.5 rounded-xl border transition-all ${
-                          step4 
-                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-800 dark:text-slate-200" 
-                            : "bg-white dark:bg-[#121215] border-slate-200/60 dark:border-slate-900/50"
-                        }`}>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border text-[8px] ${
-                              step4 ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-750 text-transparent"
-                            }`}>
-                              ✓
-                            </div>
-                            <span className="text-xs font-black">4. Rewards Store</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-normal">Redeem earned focus XP for breaks.</p>
-                          <button 
-                            type="button" 
-                            onClick={() => onChangeTab?.("rewards")}
-                            className="mt-1.5 text-[9px] font-black text-amber-500 hover:text-amber-600 flex items-center gap-0.5 cursor-pointer"
-                          >
-                            Claim Rewards →
-                          </button>
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start flex-1 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4.5 items-start flex-1 w-full">
             
             {/* Left side: Premium Circular progress ring (customizes based on stopwatch vs pomodoro) */}
-            <div className="md:col-span-5 col-span-12 flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50/45 dark:bg-[#0c0d12]/80 border border-slate-200/50 dark:border-slate-[#13141a] shadow-md relative space-y-3.5 sm:space-y-5">
+            <div className="lg:col-span-4 col-span-12 flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-slate-50/45 dark:bg-[#0c0d12]/80 border border-slate-200/50 dark:border-slate-[#13141a] shadow-md relative space-y-3 sm:space-y-3.5">
               
               <div className="w-full flex items-center justify-between px-1">
-                <span className="text-[10px] font-mono tracking-widest uppercase font-black text-[#f26419] bg-orange-500/10 px-2.5 py-0.5 rounded-full">
+                <span className="text-[9.5px] font-mono tracking-widest uppercase font-black text-[#f26419] bg-orange-500/10 px-2.5 py-0.5 rounded-full">
                   ⏱️ Chrono Orb
                 </span>
-                <span className="text-[10px] font-mono font-bold text-slate-450 dark:text-slate-500">
+                <span className="text-[9.5px] font-mono font-bold text-slate-455 dark:text-slate-500">
                   Precision Focus Gauge
                 </span>
               </div>
 
-              <div className="relative w-48 h-48 xs:w-56 xs:h-56 sm:w-60 sm:h-60 md:w-64 md:h-64 flex items-center justify-center">
+              <div className="relative w-44 h-44 xs:w-48 xs:h-48 sm:w-52 sm:h-52 md:w-56 md:h-56 lg:w-60 lg:h-60 xl:w-68 xl:h-68 2xl:w-76 2xl:h-76 flex items-center justify-center">
                 
                 {/* Multi-layered Pulsing Halo Outer Rings */}
                 {isStudying && (
@@ -1678,13 +1476,13 @@ export default function TimelineView({
                 </svg>
 
                 {/* Digital readout inside the glass crystal (Swapped/Repositioned for balanced, clean UX) */}
-                <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10 scale-90 xs:scale-100">
+                <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10 scale-[0.8] xs:scale-[0.88] lg:scale-95 xl:scale-100 2xl:scale-105">
                   {activeSubject ? (
-                    <div className="flex flex-col items-center max-w-[190px] mb-1">
-                      <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[150px]">
+                    <div className="flex flex-col items-center max-w-[210px] mb-1">
+                      <span className="text-[10px] md:text-xs font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[170px]">
                         {activeSubject.name}
                       </span>
-                      <div className="flex items-center gap-1 text-[9px] font-mono font-black mt-0.5" style={{ color: themeHexAccent }}>
+                      <div className="flex items-center gap-1 text-[9px] md:text-[10px] font-mono font-black mt-0.5" style={{ color: themeHexAccent }}>
                         <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
                         <span className="opacity-40">•</span>
                         <span>
@@ -1707,7 +1505,7 @@ export default function TimelineView({
                     <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Study Focus</span>
                   )}
 
-                  <span className="text-4xl md:text-5xl font-mono font-black tracking-tighter text-slate-800 dark:text-neutral-50 my-1 antialiased tabular-nums leading-none">
+                  <span className="text-3xl xs:text-4xl lg:text-4xl xl:text-[44px] 2xl:text-[50px] font-mono font-black tracking-tight text-slate-800 dark:text-neutral-50 my-1 antialiased tabular-nums leading-none">
                     {timerType === "custom" 
                       ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
                       : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
@@ -1790,31 +1588,7 @@ export default function TimelineView({
                 </div>
               )}
 
-              {/* Gamified Concentration Milestone Badge */}
-              <div className="mt-4 w-full flex flex-col items-center">
-                {(() => {
-                  const badgeInfo = getActiveSessionBadge(timerType === "stopwatch" ? activeSeconds : (pomoState === "focus" ? (pomoFocusDuration * 60 - pomoSecondsLeft) : 0));
-                  return (
-                    <div className={`p-3.5 rounded-2xl border text-center w-full max-w-[256px] flex items-center gap-2.5 transition-all duration-300 ${badgeInfo.color} shadow-xs`}>
-                      <div className="p-1.5 rounded-xl bg-white dark:bg-slate-900 relative shadow-xs flex items-center justify-center shrink-0">
-                        {timerType === "stopwatch" && activeSeconds >= 600 ? (
-                          <Award className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Flame className="w-4 h-4 text-[#f26419]" />
-                        )}
-                      </div>
-                      <div className="text-left min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">Level:</span>
-                          <span className="text-[9px] font-sans font-extrabold tracking-wide text-slate-750 dark:text-slate-250">{badgeInfo.badge}</span>
-                        </div>
-                        <h5 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 truncate">{badgeInfo.title}</h5>
-                        <p className="text-[8px] text-slate-450 dark:text-slate-500 leading-tight mt-0.5 max-w-[190px]">{badgeInfo.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
+
 
               {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
               <div className="flex items-center gap-3 mt-6">
@@ -1861,7 +1635,7 @@ export default function TimelineView({
             </div>
 
             {/* Right side: Modern Strategic Focus Disciplines Planner */}
-            <div className="md:col-span-7 col-span-12 space-y-4.5 text-left animate-fade-in">
+            <div className="lg:col-span-8 col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start text-left animate-fade-in">
               
               {/* RAPID STUDY LAUNCHER FOCUS COCKPIT - IMMENSE COGNITIVE ELEVATION */}
               {subView === "timer" && (
@@ -1886,7 +1660,7 @@ export default function TimelineView({
                   <div className="flex flex-col sm:flex-row items-stretch gap-3">
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (subjects.length === 0) {
                           setToast({
                             message: "⚠️ Please enroll a Subject or Topic first using the '+' button!",
@@ -1896,18 +1670,62 @@ export default function TimelineView({
                           setIsEditingSubjectsList(true);
                           return;
                         }
+                        if (isStudying) {
+                          handleStopAndSave();
+                          return;
+                        }
+
+                        // Smart Unended Session Recovery: Check localStorage first
+                        const localIsStudying = localStorage.getItem("study_is_studying") === "true";
+                        const localActiveSubjectId = localStorage.getItem("study_active_subject_id") || activeSubjectId;
+                        
+                        // Dynamically check Firebase Firestore for active unended session
+                        let dbIsStudying = false;
+                        let dbActiveSubjectId = "";
+                        try {
+                          const { getAuth } = await import("firebase/auth");
+                          const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+                          const auth = getAuth();
+                          if (auth.currentUser) {
+                            const db = getFirestore();
+                            const userDocRef = doc(db, "users", auth.currentUser.uid);
+                            const docSnap = await getDoc(userDocRef);
+                            if (docSnap.exists()) {
+                              const userData = docSnap.data();
+                              if (userData.isStudyingUser) {
+                                dbIsStudying = true;
+                                dbActiveSubjectId = userData.activeSubjectId || "";
+                              }
+                            }
+                          }
+                        } catch (err) {
+                          console.warn("Firestore active study check failed on play button click:", err);
+                        }
+
+                        const resolvedActiveSubjectId = dbActiveSubjectId || localActiveSubjectId;
+                        const hasRunningSession = dbIsStudying || localIsStudying;
+
+                        if (hasRunningSession && resolvedActiveSubjectId) {
+                          // Unended active study session exists! Recover and save it directly.
+                          setActiveSubjectId(resolvedActiveSubjectId);
+                          setIsStudying(true);
+                          setToast({
+                            message: "⏱️ Unended active study session detected! Auto-restoring and saving...",
+                            type: "info"
+                          });
+                          setTimeout(() => {
+                            handleStopAndSave();
+                          }, 350);
+                          return;
+                        }
+
                         const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
                         if (verifiedSubject) {
-                          const currentStudyingState = !isStudying;
-                          if (!currentStudyingState) {
-                            handleStopAndSave();
-                          } else {
-                            setIsStudying(true);
-                            setToast({
-                              message: `Study session started for: "${verifiedSubject.name}" ⚡`,
-                              type: "info"
-                            });
-                          }
+                          setIsStudying(true);
+                          setToast({
+                            message: `Study session started for: "${verifiedSubject.name}" ⚡`,
+                            type: "info"
+                          });
                         } else {
                           // No valid active topic has been selected yet. Highlight selection area.
                           setToast({
@@ -1949,17 +1767,7 @@ export default function TimelineView({
                     )}
                   </div>
 
-                  {/* Elegant Hotkeys Guide Panel */}
-                  <div className="pt-3 border-t border-slate-800/40 flex flex-col xs:flex-row xs:items-center justify-between gap-2 text-[10px] text-slate-400 font-mono">
-                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[8px]">⌨️ Pro Shortcuts</span>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 bg-slate-950/20 p-2 rounded-xl border border-slate-800/40 w-full xs:w-auto">
-                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">Space</kbd> Start/Pause</span>
-                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">Esc</kbd> Stop</span>
-                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">M</kbd> Sound</span>
-                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">B</kbd> Breath</span>
-                      <span className="flex items-center gap-1.2"><kbd className="px-1.5 py-0.2 rounded bg-white/10 text-slate-200 font-extrabold text-[9px] border border-white/5">T</kbd> Tab</span>
-                    </div>
-                  </div>
+
                 </div>
               )}
 
@@ -2652,7 +2460,7 @@ export default function TimelineView({
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-[11px] font-mono font-black text-[#f26419] bg-[#f26419]/5 px-2 py-0.5 rounded-lg">
-                              +{log.durationMinutes}m
+                              +{Number(log.durationMinutes.toFixed(2))}m
                             </span>
                           </div>
                         </div>

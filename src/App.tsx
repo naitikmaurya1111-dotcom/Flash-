@@ -30,6 +30,7 @@ import TimelineView from "./components/TimelineView";
 import CalendarView from "./components/CalendarView";
 import FeatureSidebar from "./components/FeatureSidebar";
 import RemindersHub, { playChime } from "./components/RemindersHub";
+import BeastHub from "./components/BeastHub";
 
 
 // Firestore Error Helper (from firebase-integration skill)
@@ -474,10 +475,7 @@ export default function App() {
     }
   };
 
-  const [isWideHud, setIsWideHud] = useState(() => {
-    const local = localStorage.getItem("f5_wide_hud");
-    return local !== null ? local === "true" : true; // Default to wide hud enabled for premium tablet landscape feel
-  });
+  const [isWideHud] = useState(true);
 
   // Reminders and local active alert popups
   const [reminders, setReminders] = useState<Reminder[]>(() => {
@@ -1235,6 +1233,26 @@ export default function App() {
             if (userData.pomoLongBreakDuration) {
               setPomoLongBreakDuration(userData.pomoLongBreakDuration);
             }
+            if (userData.isStudyingUser !== undefined) {
+              setIsStudyingUser(userData.isStudyingUser);
+              localStorage.setItem("study_is_studying", userData.isStudyingUser ? "true" : "false");
+            }
+            if (userData.isStudyingUser && userData.activeSubjectId) {
+              setActiveSubjectId(userData.activeSubjectId);
+              localStorage.setItem("study_active_subject_id", userData.activeSubjectId);
+              if (userData.studyStartTimeMs) {
+                setStudyStartTime(userData.studyStartTimeMs);
+                localStorage.setItem("study_start_time_ms", userData.studyStartTimeMs.toString());
+              }
+              if (userData.studySecondsBaseline !== undefined) {
+                setStudySecondsBaseline(userData.studySecondsBaseline);
+                localStorage.setItem("study_seconds_baseline", userData.studySecondsBaseline.toString());
+              }
+              if (userData.studyTimerType) {
+                setTimerType(userData.studyTimerType);
+                localStorage.setItem("study_active_timer_type", userData.studyTimerType);
+              }
+            }
             if (userData.lastNotifiedLevel !== undefined) {
               setLastNotifiedLevel(userData.lastNotifiedLevel);
               localStorage.setItem(`study_last_notified_level_${user.uid}`, String(userData.lastNotifiedLevel));
@@ -1454,6 +1472,44 @@ export default function App() {
               }
               if (userData.pomoLongBreakDuration !== undefined) {
                 setPomoLongBreakDuration(userData.pomoLongBreakDuration);
+              }
+              if (userData.isStudyingUser !== undefined) {
+                const localIsStudying = localStorage.getItem("study_is_studying") === "true";
+                if (userData.isStudyingUser !== localIsStudying) {
+                  setIsStudyingUser(userData.isStudyingUser);
+                  localStorage.setItem("study_is_studying", userData.isStudyingUser ? "true" : "false");
+                }
+              }
+              if (userData.isStudyingUser && userData.activeSubjectId) {
+                if (userData.activeSubjectId !== activeSubjectId) {
+                  setActiveSubjectId(userData.activeSubjectId);
+                  localStorage.setItem("study_active_subject_id", userData.activeSubjectId);
+                }
+                if (userData.studyStartTimeMs !== undefined && userData.studyStartTimeMs !== studyStartTime) {
+                  setStudyStartTime(userData.studyStartTimeMs);
+                  if (userData.studyStartTimeMs) {
+                    localStorage.setItem("study_start_time_ms", userData.studyStartTimeMs.toString());
+                  } else {
+                    localStorage.removeItem("study_start_time_ms");
+                  }
+                }
+                if (userData.studySecondsBaseline !== undefined && userData.studySecondsBaseline !== studySecondsBaseline) {
+                  setStudySecondsBaseline(userData.studySecondsBaseline);
+                  localStorage.setItem("study_seconds_baseline", userData.studySecondsBaseline.toString());
+                }
+                if (userData.studyTimerType !== undefined && userData.studyTimerType !== timerType) {
+                  setTimerType(userData.studyTimerType);
+                  localStorage.setItem("study_active_timer_type", userData.studyTimerType);
+                }
+              } else if (userData.isStudyingUser === false) {
+                const localIsStudying = localStorage.getItem("study_is_studying") === "true";
+                if (localIsStudying) {
+                  setIsStudyingUser(false);
+                  localStorage.setItem("study_is_studying", "false");
+                  localStorage.removeItem("study_start_time_ms");
+                  localStorage.removeItem("study_seconds_baseline");
+                  localStorage.removeItem("study_active_timer_type");
+                }
               }
             }
           }, err => console.warn("User profile live syncer: encountered error", err));
@@ -2265,6 +2321,34 @@ export default function App() {
     }
   }, [isStudyingUser]);
 
+  // Synchronize active study session state to Firestore
+  useEffect(() => {
+    if (currentUser) {
+      if (isStudyingUser) {
+        if (studyStartTime !== null) {
+          setDoc(doc(db, "users", currentUser.uid), {
+            isStudyingUser: true,
+            activeSubjectId: activeSubjectId,
+            studyStartTimeMs: studyStartTime,
+            studySecondsBaseline: studySecondsBaseline,
+            studyTimerType: timerType
+          }, { merge: true }).catch(err => {
+            console.warn("Failed to sync study start session to cloud:", err);
+          });
+        }
+      } else {
+        setDoc(doc(db, "users", currentUser.uid), {
+          isStudyingUser: false,
+          activeSubjectId: "",
+          studyStartTimeMs: null,
+          studySecondsBaseline: 0
+        }, { merge: true }).catch(err => {
+          console.warn("Failed to clear active study session from cloud:", err);
+        });
+      }
+    }
+  }, [isStudyingUser, studyStartTime, studySecondsBaseline, activeSubjectId, timerType, currentUser]);
+
   // 2. Sync timer immediately when browser tab status changes or Chrome minimizes/restores
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -2807,8 +2891,37 @@ export default function App() {
   };
 
   const handleAddStudyMinutes = async (subjectId: string, minutes: number, customDate?: string) => {
+    let resolvedSubjectId = subjectId;
+    
+    // Fallback: If no subject ID provided, try to find the active subject that was started but not ended yet from Firestore
+    if (!resolvedSubjectId && currentUser) {
+      try {
+        const { doc, getDoc } = await import("firebase/firestore");
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          const userData = docSnap.data();
+          if (userData.activeSubjectId) {
+            resolvedSubjectId = userData.activeSubjectId;
+          }
+        }
+      } catch (err) {
+        console.warn("Firestore active subject lookup fallback failed:", err);
+      }
+    }
+
+    // Fallback to localStorage if still empty
+    if (!resolvedSubjectId) {
+      resolvedSubjectId = localStorage.getItem("study_active_subject_id") || "";
+    }
+
+    // Ultimate fallback: if still empty, use the first subject available so they never lose their minutes
+    if (!resolvedSubjectId && subjects.length > 0) {
+      resolvedSubjectId = subjects[0].id;
+    }
+
     const todayStr = customDate || getLocalDateString();
-    const targetSubject = subjects.find(s => s.id === subjectId);
+    const targetSubject = subjects.find(s => s.id === resolvedSubjectId);
     if (!targetSubject) return;
 
     // Calculate existing minutes logged on this date to verify goal achievements
@@ -2820,7 +2933,7 @@ export default function App() {
     const newLog: StudyLog = {
       id: `log-${Date.now()}`,
       date: todayStr,
-      subjectId,
+      subjectId: resolvedSubjectId,
       subjectName: targetSubject.name,
       durationMinutes: minutes,
       timestamp: new Date().toISOString()
@@ -3456,7 +3569,7 @@ export default function App() {
               "bg-[#08080c]/85 border-slate-900/40"
             )
       }`}>
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
+        <div className="max-w-[1720px] xl:max-w-[1850px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
           
           {/* Logo brand & streak info */}
           <div className="flex items-center gap-3">
@@ -3480,23 +3593,6 @@ export default function App() {
                 {formatStudyTimeExact(totalStudiedTodayMins)}
               </span>
             </div>
-
-            {/* cinema HUD layout toggle */}
-            <button
-              onClick={() => {
-                const updated = !isWideHud;
-                setIsWideHud(updated);
-                localStorage.setItem("f5_wide_hud", String(updated));
-              }}
-              className={`p-2 rounded-full cursor-pointer border transition-all bg-white/45 hover:bg-white/70 text-slate-600 ${currentThemeStyle.accentBorder} dark:bg-[#171717] dark:hover:bg-[#202020] dark:text-slate-400 dark:hover:text-white shadow-xs backdrop-blur-md flex items-center justify-center`}
-              title={isWideHud ? "Compact panel layout" : "Immersive widescreen HUD"}
-            >
-              {isWideHud ? (
-                <Minimize2 className="w-4 h-4 text-rose-500" />
-              ) : (
-                <Maximize2 className={`w-4 h-4 ${currentThemeStyle.accentText}`} />
-              )}
-            </button>
 
             {/* Chrome Fullscreen Toggle Button */}
             <button
@@ -3623,17 +3719,10 @@ export default function App() {
       </header>
 
       {/* Main Tab dashboard container constraint */}
-      <main className={`${
-        isWideHud 
-          ? "max-w-7xl px-4 md:px-6 lg:px-8" 
-          : "max-w-4xl px-4 md:px-6"
-      } w-full mx-auto flex-1 flex flex-col justify-start relative transition-all duration-300`}>
+      <main className="max-w-[1720px] xl:max-w-[1850px] px-4 md:px-6 xl:px-10 w-full mx-auto flex-1 flex flex-col justify-start relative transition-all duration-300">
         <div className="flex-1 flex flex-col pt-3 py-6" style={{ minHeight: "500px" }}>
           
-          <div className={`${isWideHud ? "grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full" : "flex flex-col w-full"}`}>
-            
-            {/* The main workspace page contents */}
-            <div className={`${isWideHud ? "lg:col-span-8 flex flex-col space-y-4 w-full" : "flex-1 flex flex-col w-full"}`}>
+          <div className="w-full flex flex-col space-y-3.5">
 
               {/* Dynamic Alerts & Sounds Quick Permission Granting Dashboard Banner */}
               {(notificationPermission !== "granted" || !audioAutoplayApproved) && !dismissedPermBanner && (
@@ -3663,7 +3752,8 @@ export default function App() {
                         localStorage.setItem("dismissed_perm_banner", "true");
                         setDismissedPermBanner(true);
                       }}
-                      className="px-3.5 py-2 bg-slate-950/60 hover:bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95"
+                      style={{ color: "#118d1b" }}
+                      className="px-3.5 py-2 bg-slate-950/60 hover:bg-slate-900/60 border border-slate-800 font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95"
                     >
                       Maybe Later
                     </button>
@@ -3742,6 +3832,22 @@ export default function App() {
                   onAddTask={handleAddTask}
                   onToggleTask={handleToggleTask}
                   onRemoveTask={handleRemoveTask}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === "beast" && (
+              <motion.div
+                key="beast"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                <BeastHub
+                  themePreset={themePreset}
+                  userXp={userXp}
+                  onAddXp={handleAddXp}
                 />
               </motion.div>
             )}
@@ -3890,170 +3996,7 @@ export default function App() {
             )}
           </AnimatePresence>
 
-            </div>
-
-            {/* The Ultimate Widescreen/Tablet Landscape Focus Sidepanel HUD */}
-            {isWideHud && (
-              <div className="hidden lg:flex lg:col-span-4 flex-col gap-5 sticky top-22 w-full pb-4">
-                
-                {/* 1. Exam Targets & GPA Radar Widget */}
-                <div id="target_roadmap_sidebar_widget" className="liquid-glass p-5 rounded-3xl border border-slate-205/50 dark:border-slate-900/60 text-left space-y-4 shadow-md backdrop-blur-xl bg-white/40 dark:bg-[#121212]/30">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] uppercase font-mono font-black tracking-widest flex items-center gap-1.5 bg-transparent" style={{ color: currentThemeStyle.primary }}>
-                      <Target className="w-4 h-4" style={{ color: currentThemeStyle.primary }} />
-                      Academic Radar
-                    </span>
-                    <span className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/40 px-2.5 py-0.5 rounded-full font-bold">
-                      Goal Roadmaps
-                    </span>
-                  </div>
-
-                  {(() => {
-                    let sideExams = [];
-                    try {
-                      const data = localStorage.getItem("study_target_exams");
-                      if (data) sideExams = JSON.parse(data);
-                    } catch(e) {}
-                    
-                    if (sideExams.length === 0) {
-                      return (
-                        <div className="flex flex-col items-center justify-center py-6 px-4 bg-slate-50/50 dark:bg-black/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center gap-2">
-                           <Target className="w-8 h-8 text-slate-300 dark:text-slate-700" />
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">No active exam roadmaps yet</p>
-                          <p className="text-[9px] text-slate-450 dark:text-slate-550 max-w-[180px]">Add your academic test dates and preparation list in the Targets tab!</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="space-y-3">
-                        {sideExams.slice(0, 3).map((ex, idx) => {
-                          const examDateObj = new Date(ex.examDate + "T23:59:59");
-                          const today = new Date();
-                          today.setHours(0,0,0,0);
-                          examDateObj.setHours(0,0,0,0);
-                          const daysLeft = Math.max(0, Math.ceil((examDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-                          
-                          return (
-                            <div 
-                              key={ex.id || idx} 
-                              onClick={() => setActiveTab("target-suite")}
-                              className="flex flex-col gap-2 bg-white/40 dark:bg-black/15 p-3 rounded-2xl border border-slate-150/60 dark:border-slate-900/55 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] hover:bg-slate-50/20 dark:hover:bg-slate-900/20 transition-all cursor-pointer group text-left"
-                              style={{ borderWidth: '1px' }}
-                            >
-                              <div className="flex items-start justify-between gap-1.5 min-w-0">
-                                <div className="min-w-0">
-                                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate group-hover:opacity-90 transition-colors font-sans" style={{ color: currentThemeStyle.primary }}>
-                                    {ex.title}
-                                  </h4>
-                                  <p className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                                    Target grade: <span className="font-bold" style={{ color: currentThemeStyle.primary }}>{ex.targetGrade}</span>
-                                  </p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded-lg" style={{ color: currentThemeStyle.primary, backgroundColor: `${currentThemeStyle.primary}18` }}>
-                                    {daysLeft}d left
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-[8px] font-mono text-slate-450 font-semibold">
-                                  <span>Preparation level</span>
-                                  <span>{ex.preparationLevel}%</span>
-                                </div>
-                                <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full rounded-full transition-all duration-500" 
-                                    style={{ 
-                                      width: `${ex.preparationLevel}%`,
-                                      backgroundImage: `linear-gradient(to right, ${currentThemeStyle.primary}, ${currentThemeStyle.primary}bf)`
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        <button 
-                          onClick={() => setActiveTab("target-suite")}
-                          className="w-full text-center py-2 border rounded-xl text-[10.5px] font-black tracking-wide hover:opacity-90 transition-all cursor-pointer uppercase font-mono"
-                          style={{
-                            backgroundColor: `${currentThemeStyle.primary}18`,
-                            borderColor: `${currentThemeStyle.primary}33`,
-                            color: currentThemeStyle.primary
-                          }}
-                        >
-                          Open Target Suite
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* 2. Topic Goals Distribution micro widget */}
-                <div className="liquid-glass p-5 rounded-3xl border border-slate-200/50 dark:border-slate-900/60 text-left space-y-3.5 shadow-md backdrop-blur-xl bg-white/40 dark:bg-[#121212]/30">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-widest">
-                      Distributions
-                    </span>
-                    <span className="text-[10.5px] font-mono font-black animate-pulse" style={{ color: currentThemeStyle.primary }}>
-                      Goal distribution
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 pt-1">
-                    {subjects.slice(0, 4).map((sub) => {
-                      const percent = Math.min(100, Math.round((sub.totalMinutes / (sub.goalMinutes || 120)) * 100));
-                      return (
-                        <div key={sub.id} className="space-y-1">
-                          <div className="flex justify-between items-center text-[10px]">
-                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[155px]">{sub.name}</span>
-                            <span className="font-mono font-extrabold" style={{ color: currentThemeStyle.primary }}>{percent}%</span>
-                          </div>
-                          <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full rounded-full transition-all duration-500" 
-                              style={{ 
-                                width: `${percent}%`,
-                                backgroundImage: `linear-gradient(to right, ${currentThemeStyle.primary}, ${currentThemeStyle.primary}bf)`
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3. Deep Breath Synchronizer Widget */}
-                <div className="liquid-glass p-5 rounded-3xl border border-slate-205/50 dark:border-slate-900/60 text-left space-y-3 shadow-md backdrop-blur-xl relative overflow-hidden bg-white/40 dark:bg-[#121212]/30">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] uppercase font-mono text-slate-450 dark:text-slate-450 font-black tracking-widest">
-                      Posture Breather
-                    </span>
-                    <span className="text-[9px] uppercase font-mono tracking-widest bg-emerald-500/10 border border-emerald-500/20 text-[#2e7d32] dark:text-emerald-400 px-2 py-0.5 rounded-full font-black animate-pulse">
-                      Posture Alert On
-                    </span>
-                  </div>
-
-                  <div className="py-2 flex items-center justify-center relative">
-                    <div className="w-16 h-16 rounded-full absolute animate-ping duration-3000" style={{ animationDuration: '4s', backgroundColor: `${currentThemeStyle.primary}1a` }} />
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white relative shadow-lg" style={{ backgroundColor: currentThemeStyle.primary, boxShadow: `0 4px 12px ${currentThemeStyle.primary}40` }}>
-                      <Sparkles className="w-4 h-4 animate-spin-slow" />
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-relaxed">
-                    Breathing rhythm synchronizing with focus cycles. Take a slow, deep breath and align your posture.
-                  </p>
-                </div>
-
-              </div>
-            )}
-
           </div>
-
         </div>
       </main>
 
@@ -4085,6 +4028,7 @@ export default function App() {
           {[
             { id: "focus", label: "Home", icon: Home },
             { id: "planner", label: "To-Do", icon: ClipboardCheck },
+            { id: "beast", label: "Beast Hub", icon: Sparkles },
             { id: "rewards", label: "Wishlist", icon: Award },
             { id: "calendar", label: "Calendar", icon: Calendar },
             { id: "target-suite", label: "Targets", icon: Target }
@@ -4116,7 +4060,7 @@ export default function App() {
         {/* Hover/Float companion separate circle indicator action button (Image 4 & 5) */}
         <button 
           onClick={() => {
-            if (activeTab === "focus" || activeTab === "planner" || activeTab === "calendar" || activeTab === "target-suite" || activeTab === "reminders" || activeTab === "rewards") {
+            if (activeTab === "focus" || activeTab === "planner" || activeTab === "beast" || activeTab === "calendar" || activeTab === "target-suite" || activeTab === "reminders" || activeTab === "rewards") {
               setIsSidebarOpen(!isSidebarOpen);
             }
           }}
@@ -4126,11 +4070,12 @@ export default function App() {
         >
           {activeTab === "focus" && <Layers className="w-5 h-5 animate-pulse" style={{ color: currentThemeStyle.primary }} />}
           {activeTab === "planner" && <Sparkles className="w-5 h-5 text-pink-500" />}
+          {activeTab === "beast" && <Sparkles className="w-5 h-5 text-amber-500 animate-spin-slow" />}
           {activeTab === "rewards" && <Award className="w-5 h-5 text-amber-500 animate-bounce" />}
           {activeTab === "calendar" && <TrendingUp className="w-5 h-5 text-emerald-500" />}
           {activeTab === "target-suite" && <Target className="w-5 h-5" style={{ color: currentThemeStyle.primary }} />}
           {activeTab === "reminders" && <Bell className="w-5 h-5 text-violet-500 animate-pulse" />}
-          {!["focus", "planner", "rewards", "calendar", "target-suite", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
+          {!["focus", "planner", "beast", "rewards", "calendar", "target-suite", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
         </button>
 
       </div>

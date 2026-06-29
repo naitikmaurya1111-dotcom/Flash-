@@ -244,7 +244,7 @@ export default function AnalyticsDashboard({
                       return (
                         <div className="bg-slate-900 text-white p-2.5 rounded-lg border border-slate-850 text-xs font-mono">
                           <p className="font-bold">{payload[0].payload.name}</p>
-                          <p className="text-emerald-400 mt-1">Total: {mins} minutes</p>
+                          <p className="text-emerald-400 mt-1">Total: {Number(mins.toFixed(2))} minutes</p>
                           <p className="text-slate-400">Hours: {(mins / 60).toFixed(1)} hrs</p>
                         </div>
                       );
@@ -376,7 +376,7 @@ export default function AnalyticsDashboard({
 
                 {/* Hover bubble helper */}
                 <div className="absolute bottom-11 scale-0 group-hover:scale-100 transition-all z-20 bg-slate-900 text-white p-2 rounded-lg font-mono text-[10px] leading-relaxed whitespace-nowrap shadow-md pointer-events-none">
-                  {block.month} {block.dayNum} • {block.minutes} mins studied
+                  {block.month} {block.dayNum} • {Number(block.minutes.toFixed(2))} mins studied
                 </div>
               </div>
             );

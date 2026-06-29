@@ -295,8 +295,8 @@ export default function RewardSystem({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
               <div className="bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800/80">
                 <span className="text-[9px] font-mono uppercase text-slate-400 block">Today Studied</span>
-                <span className="text-sm font-bold font-mono text-emerald-400">{totalStudiedTodayMins}m</span>
-                <span className="text-[8.5px] text-slate-500 block mt-0.5">+{totalStudiedTodayMins * 10} XP accumulated</span>
+                <span className="text-sm font-bold font-mono text-emerald-400">{Number(totalStudiedTodayMins.toFixed(2))}m</span>
+                <span className="text-[8.5px] text-slate-500 block mt-0.5">+{Number((totalStudiedTodayMins * 10).toFixed(2))} XP accumulated</span>
               </div>
               <div className="bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800/80">
                 <span className="text-[9px] font-mono uppercase text-slate-400 block">Tasks Completed</span>
@@ -403,7 +403,7 @@ export default function RewardSystem({
                 <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-800/50 space-y-2">
                   <div className="flex justify-between text-[9px] font-mono text-slate-450 dark:text-slate-500">
                     <span>Progress:</span>
-                    <span>{currentVal} / {targetVal} ({percentProgress}%)</span>
+                    <span>{Number(currentVal.toFixed(2))} / {targetVal} ({percentProgress}%)</span>
                   </div>
                   <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div 
