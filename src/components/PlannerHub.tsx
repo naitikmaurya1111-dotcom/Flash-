@@ -103,7 +103,7 @@ export default function PlannerHub({
   const taskProgressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
   return (
-    <div className="relative font-sans flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800/80 bg-white/75 dark:bg-[#0c0d10]/95 text-slate-850 dark:text-neutral-100 p-4 sm:p-5 md:p-6 shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-350" id="f5-planner-canvas">
+    <div className="liquid-glass relative font-sans flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden text-slate-850 dark:text-neutral-100 p-4 sm:p-5 md:p-6 shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-350 border" id="f5-planner-canvas">
       
       {/* Header Month Day Title */}
       <div className="flex items-center justify-between pb-3 sm:pb-4">

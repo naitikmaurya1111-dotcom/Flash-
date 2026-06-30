@@ -24,5 +24,13 @@ service cloud.firestore {
         allow update: if isOwner(userId);
       }
     }
+
+    match /unlockedAccounts/{email} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        request.auth.token.email == 'mauryanaitik9999@gmail.com' ||
+        request.auth.token.email == 'naitikmaurya1111@gmail.com'
+      );
+    }
   }
 }

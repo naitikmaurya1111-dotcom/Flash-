@@ -101,7 +101,153 @@ function getLocalDateString(d: Date = new Date()): string {
 
 
 // Full spectrum adaptive theme presets mapping for the ultimate visual "Aura"
-export const THEME_PRESET_STYLES: Record<string, {
+export const LIGHT_THEME_PRESET_STYLES: Record<string, {
+  name: string;
+  primary: string;
+  gradientText: string;
+  accentBg: string;
+  accentText: string;
+  accentBorder: string;
+  badge: string;
+  glowClass: string;
+  glowText: string;
+  gradient: string;
+  sideBg: string;
+  panelGlass: string;
+  interactiveBg: string;
+  auraRing: string;
+}> = {
+  "forest": {
+    name: "🌿 Dewy Forest & Sweet Mint",
+    primary: "#059669",
+    gradientText: "bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 bg-clip-text text-transparent",
+    accentBg: "bg-emerald-500",
+    accentText: "text-emerald-700",
+    accentBorder: "border-emerald-250/70",
+    badge: "bg-emerald-100/80 text-emerald-800 border-emerald-300/40",
+    glowClass: "shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20",
+    glowText: "text-emerald-600 [text-shadow:0_0_12px_rgba(16,185,129,0.3)]",
+    gradient: "from-emerald-400 via-teal-300 to-green-500",
+    sideBg: "bg-[#edf7f4]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-emerald-500/5",
+    interactiveBg: "hover:bg-emerald-50/55",
+    auraRing: "ring-2 ring-emerald-500/35 ring-offset-2 ring-offset-white"
+  },
+  "crimson": {
+    name: "🌸 Watermelon Spark & Peach Rose",
+    primary: "#db2777",
+    gradientText: "bg-gradient-to-r from-rose-600 via-pink-600 to-red-500 bg-clip-text text-transparent",
+    accentBg: "bg-rose-500",
+    accentText: "text-rose-700",
+    accentBorder: "border-rose-250/70",
+    badge: "bg-rose-100/80 text-rose-800 border-rose-300/40",
+    glowClass: "shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20",
+    glowText: "text-rose-600 [text-shadow:0_0_12px_rgba(244,63,94,0.3)]",
+    gradient: "from-rose-400 via-pink-300 to-red-400",
+    sideBg: "bg-[#fdf4f5]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-rose-500/5",
+    interactiveBg: "hover:bg-rose-50/55",
+    auraRing: "ring-2 ring-rose-500/35 ring-offset-2 ring-offset-white"
+  },
+  "honey": {
+    name: "🍯 Glazed Amber Honey & Orange Nectar",
+    primary: "#ea580c",
+    gradientText: "bg-gradient-to-r from-amber-600 via-orange-600 to-yellow-600 bg-clip-text text-transparent",
+    accentBg: "bg-amber-500",
+    accentText: "text-amber-700",
+    accentBorder: "border-amber-250/70",
+    badge: "bg-amber-100/80 text-amber-800 border-amber-300/40",
+    glowClass: "shadow-lg shadow-amber-500/10 hover:shadow-amber-500/20",
+    glowText: "text-amber-600 [text-shadow:0_0_12px_rgba(245,158,11,0.3)]",
+    gradient: "from-amber-400 via-orange-300 to-yellow-500",
+    sideBg: "bg-[#faf5ec]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-amber-500/5",
+    interactiveBg: "hover:bg-amber-50/55",
+    auraRing: "ring-2 ring-amber-500/35 ring-offset-2 ring-offset-white"
+  },
+  "amoled": {
+    name: "💎 Crystal Blue Sky & Sapphire",
+    primary: "#2563eb",
+    gradientText: "bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-600 bg-clip-text text-transparent",
+    accentBg: "bg-blue-500",
+    accentText: "text-blue-700",
+    accentBorder: "border-blue-250/70",
+    badge: "bg-blue-100/80 text-blue-800 border-blue-300/40",
+    glowClass: "shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20",
+    glowText: "text-blue-600 [text-shadow:0_0_12px_rgba(37,99,235,0.3)]",
+    gradient: "from-blue-400 via-sky-300 to-indigo-400",
+    sideBg: "bg-[#f0f5fc]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-blue-500/5",
+    interactiveBg: "hover:bg-blue-50/55",
+    auraRing: "ring-2 ring-blue-500/35 ring-offset-2 ring-offset-white"
+  },
+  "cosmic": {
+    name: "🌌 Lilac Orchid Mist & Radiant Violet",
+    primary: "#7c3aed",
+    gradientText: "bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-600 bg-clip-text text-transparent",
+    accentBg: "bg-violet-500",
+    accentText: "text-violet-700",
+    accentBorder: "border-violet-250/70",
+    badge: "bg-violet-100/80 text-violet-800 border-violet-300/40",
+    glowClass: "shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20",
+    glowText: "text-violet-600 [text-shadow:0_0_12px_rgba(124,58,237,0.3)]",
+    gradient: "from-violet-400 via-fuchsia-300 to-purple-500",
+    sideBg: "bg-[#f5f1fa]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-violet-500/5",
+    interactiveBg: "hover:bg-violet-50/55",
+    auraRing: "ring-2 ring-violet-500/35 ring-offset-2 ring-offset-white"
+  },
+  "cyberpunk": {
+    name: "🍭 Cotton Candy Pop & Bright Teal",
+    primary: "#ec4899",
+    gradientText: "bg-gradient-to-r from-pink-600 via-purple-505 to-cyan-505 bg-clip-text text-transparent",
+    accentBg: "bg-pink-500",
+    accentText: "text-pink-700",
+    accentBorder: "border-pink-250/70",
+    badge: "bg-pink-100/80 text-pink-800 border-pink-300/40",
+    glowClass: "shadow-lg shadow-pink-500/10 hover:shadow-pink-500/20",
+    glowText: "text-pink-600 [text-shadow:0_0_12px_rgba(236,72,153,0.3)]",
+    gradient: "from-pink-400 via-purple-300 to-cyan-400",
+    sideBg: "bg-[#fdf2f7]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-pink-500/5",
+    interactiveBg: "hover:bg-pink-50/55",
+    auraRing: "ring-2 ring-pink-500/35 ring-offset-2 ring-offset-white"
+  },
+  "nordic": {
+    name: "❄️ Glacier Ice & Mint Aurora",
+    primary: "#0284c7",
+    gradientText: "bg-gradient-to-r from-sky-600 via-cyan-600 to-teal-600 bg-clip-text text-transparent",
+    accentBg: "bg-sky-500",
+    accentText: "text-sky-700",
+    accentBorder: "border-sky-250/70",
+    badge: "bg-sky-100/80 text-sky-800 border-sky-300/40",
+    glowClass: "shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20",
+    glowText: "text-sky-600 [text-shadow:0_0_12px_rgba(2,132,199,0.3)]",
+    gradient: "from-sky-400 via-cyan-300 to-teal-400",
+    sideBg: "bg-[#f0f7f9]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-sky-500/5",
+    interactiveBg: "hover:bg-sky-50/55",
+    auraRing: "ring-2 ring-sky-500/35 ring-offset-2 ring-offset-white"
+  },
+  "dark-classic": {
+    name: "🍊 Luminous Amber & Sweet Peach",
+    primary: "#ea580c",
+    gradientText: "bg-gradient-to-r from-orange-600 via-red-500 to-amber-500 bg-clip-text text-transparent",
+    accentBg: "bg-orange-500",
+    accentText: "text-orange-700",
+    accentBorder: "border-orange-250/70",
+    badge: "bg-orange-100/80 text-orange-800 border-orange-300/40",
+    glowClass: "shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20",
+    glowText: "text-orange-600 [text-shadow:0_0_12px_rgba(234,88,12,0.3)]",
+    gradient: "from-orange-400 via-amber-300 to-red-400",
+    sideBg: "bg-[#faf3ee]",
+    panelGlass: "backdrop-blur-3xl border-white/80 bg-white/35 shadow-xl shadow-orange-500/5",
+    interactiveBg: "hover:bg-orange-50/55",
+    auraRing: "ring-2 ring-orange-500/35 ring-offset-2 ring-offset-white"
+  }
+};
+
+export const DARK_THEME_PRESET_STYLES: Record<string, {
   name: string;
   primary: string;
   gradientText: string;
@@ -120,132 +266,134 @@ export const THEME_PRESET_STYLES: Record<string, {
   "forest": {
     name: "Matcha Forest & Mint",
     primary: "#10b981",
-    gradientText: "bg-gradient-to-r from-emerald-600 via-teal-500 to-green-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-350 dark:to-green-400",
+    gradientText: "bg-gradient-to-r from-emerald-400 via-teal-350 to-green-400 bg-clip-text text-transparent",
     accentBg: "bg-[#10b981]",
     accentText: "text-[#10b981]",
-    accentBorder: "border-[#10b981]/25 dark:border-[#10b981]/40",
-    badge: "bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30",
-    glowClass: "shadow-lg shadow-emerald-500/10 dark:shadow-[#10b981]/15 hover:shadow-emerald-500/20",
-    glowText: "text-emerald-500 [text-shadow:0_0_8px_rgba(16,185,129,0.4)]",
+    accentBorder: "border-[#10b981]/50",
+    badge: "bg-[#10b981]/20 text-[#10b981] border-[#10b981]/40",
+    glowClass: "shadow-lg shadow-[#10b981]/15 hover:shadow-[#10b981]/25",
+    glowText: "text-[#10b981] [text-shadow:0_0_10px_rgba(16,185,129,0.5)]",
     gradient: "from-emerald-500 via-teal-400 to-green-600",
-    sideBg: "bg-[#05100c] dark:bg-[#040c09]",
-    panelGlass: "backdrop-blur-xl border-emerald-900/15 dark:border-emerald-950/45 bg-emerald-50/15 dark:bg-emerald-950/10",
-    interactiveBg: "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
-    auraRing: "ring-2 ring-emerald-500/30 ring-offset-2 ring-offset-emerald-950"
+    sideBg: "bg-[#040c09]",
+    panelGlass: "backdrop-blur-3xl border-[#10b981]/25 bg-emerald-950/15 shadow-2xl shadow-emerald-950/40",
+    interactiveBg: "hover:bg-emerald-950/30",
+    auraRing: "ring-2 ring-emerald-500/40 ring-offset-2 ring-offset-[#040c09]"
   },
   "crimson": {
     name: "Sunset Crimson & Cherry",
     primary: "#e11d48",
-    gradientText: "bg-gradient-to-r from-rose-600 via-red-500 to-pink-600 bg-clip-text text-transparent dark:from-rose-400 dark:via-red-400 dark:to-pink-400",
+    gradientText: "bg-gradient-to-r from-rose-400 via-red-400 to-pink-400 bg-clip-text text-transparent",
     accentBg: "bg-[#e11d48]",
     accentText: "text-[#e11d48]",
-    accentBorder: "border-[#e11d48]/25 dark:border-[#e11d48]/40",
-    badge: "bg-[#e11d48]/15 text-[#e11d48] border-[#e11d48]/30",
-    glowClass: "shadow-lg shadow-rose-500/10 dark:shadow-[#e11d48]/15 hover:shadow-rose-500/20",
-    glowText: "text-rose-500 [text-shadow:0_0_8px_rgba(225,29,72,0.4)]",
+    accentBorder: "border-[#e11d48]/50",
+    badge: "bg-[#e11d48]/20 text-[#e11d48] border-[#e11d48]/40",
+    glowClass: "shadow-lg shadow-[#e11d48]/15 hover:shadow-[#e11d48]/25",
+    glowText: "text-rose-450 [text-shadow:0_0_10px_rgba(225,29,72,0.5)]",
     gradient: "from-rose-500 via-red-400 to-pink-600",
-    sideBg: "bg-[#120102] dark:bg-[#0c0101]",
-    panelGlass: "backdrop-blur-xl border-rose-900/15 dark:border-rose-950/45 bg-rose-50/15 dark:bg-rose-950/10",
-    interactiveBg: "hover:bg-rose-50/40 dark:hover:bg-rose-950/20",
-    auraRing: "ring-2 ring-rose-500/30 ring-offset-2 ring-offset-rose-950"
+    sideBg: "bg-[#0c0101]",
+    panelGlass: "backdrop-blur-3xl border-[#e11d48]/25 bg-rose-950/15 shadow-2xl shadow-rose-950/40",
+    interactiveBg: "hover:bg-rose-950/30",
+    auraRing: "ring-2 ring-rose-500/40 ring-offset-2 ring-offset-[#0c0101]"
   },
   "honey": {
     name: "Amber Honey & Vanilla",
     primary: "#d97706",
-    gradientText: "bg-gradient-to-r from-amber-600 via-yellow-500 to-orange-600 bg-clip-text text-transparent dark:from-amber-400 dark:via-yellow-450 dark:to-orange-400",
+    gradientText: "bg-gradient-to-r from-amber-400 via-yellow-450 to-orange-400 bg-clip-text text-transparent",
     accentBg: "bg-[#d97706]",
     accentText: "text-[#d97706]",
-    accentBorder: "border-[#d97706]/25 dark:border-[#d97706]/40",
-    badge: "bg-[#d97706]/15 text-[#d97706] border-[#d97706]/30",
-    glowClass: "shadow-lg shadow-amber-500/10 dark:shadow-[#d97706]/15 hover:shadow-amber-500/20",
-    glowText: "text-amber-550 dark:text-amber-400 [text-shadow:0_0_8px_rgba(217,119,6,0.4)]",
+    accentBorder: "border-[#d97706]/50",
+    badge: "bg-[#d97706]/20 text-[#d97706] border-[#d97706]/40",
+    glowClass: "shadow-lg shadow-[#d97706]/15 hover:shadow-[#d97706]/25",
+    glowText: "text-amber-400 [text-shadow:0_0_10px_rgba(217,119,6,0.5)]",
     gradient: "from-amber-500 via-yellow-405 to-orange-600",
-    sideBg: "bg-[#160e02] dark:bg-[#0f0a01]",
-    panelGlass: "backdrop-blur-xl border-amber-900/15 dark:border-amber-950/45 bg-amber-50/15 dark:bg-amber-950/10",
-    interactiveBg: "hover:bg-amber-50/40 dark:hover:bg-amber-950/20",
-    auraRing: "ring-2 ring-amber-500/30 ring-offset-2 ring-offset-amber-950"
+    sideBg: "bg-[#0f0a01]",
+    panelGlass: "backdrop-blur-3xl border-[#d97706]/25 bg-amber-950/15 shadow-2xl shadow-amber-950/40",
+    interactiveBg: "hover:bg-amber-950/30",
+    auraRing: "ring-2 ring-amber-500/40 ring-offset-2 ring-offset-[#0f0a01]"
   },
   "amoled": {
     name: "Modern High Contrast / OLED",
     primary: "#6366f1",
-    gradientText: "bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400",
+    gradientText: "bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent",
     accentBg: "bg-[#6366f1]",
     accentText: "text-[#6366f1]",
-    accentBorder: "border-slate-200/90 dark:border-slate-800/90",
-    badge: "bg-[#6366f1]/15 text-[#6366f1] border-slate-350 dark:border-slate-805",
-    glowClass: "shadow-lg shadow-indigo-500/10 dark:shadow-[#6366f1]/15 hover:shadow-indigo-500/20",
-    glowText: "text-indigo-550 dark:text-indigo-400 [text-shadow:0_0_8px_rgba(99,102,241,0.4)]",
+    accentBorder: "border-slate-800/90",
+    badge: "bg-[#6366f1]/20 text-[#6366f1] border-slate-700/80",
+    glowClass: "shadow-lg shadow-[#6366f1]/15 hover:shadow-[#6366f1]/25",
+    glowText: "text-indigo-400 [text-shadow:0_0_10px_rgba(99,102,241,0.5)]",
     gradient: "from-blue-600 via-indigo-500 to-violet-650",
-    sideBg: "bg-black dark:bg-black",
-    panelGlass: "backdrop-blur-xl border-slate-200 dark:border-slate-900 bg-white dark:bg-[#020202]",
-    interactiveBg: "hover:bg-slate-50 dark:hover:bg-slate-950",
-    auraRing: "ring-2 ring-indigo-500/35 ring-offset-2 ring-offset-black"
+    sideBg: "bg-black",
+    panelGlass: "backdrop-blur-3xl border-slate-900 bg-[#020202]/90 shadow-2xl shadow-black",
+    interactiveBg: "hover:bg-slate-950",
+    auraRing: "ring-2 ring-indigo-500/45 ring-offset-2 ring-offset-black"
   },
   "cosmic": {
     name: "Cosmic Nebula & Obsidian",
     primary: "#8b5cf6",
-    gradientText: "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-600 bg-clip-text text-transparent dark:from-violet-400 dark:via-fuchsia-400 dark:to-indigo-405",
+    gradientText: "bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-405 bg-clip-text text-transparent",
     accentBg: "bg-[#8b5cf6]",
     accentText: "text-[#8b5cf6]",
-    accentBorder: "border-[#8b5cf6]/25 dark:border-[#8b5cf6]/40",
-    badge: "bg-[#8b5cf6]/15 text-[#8b5cf6] border-[#8b5cf6]/30",
-    glowClass: "shadow-lg shadow-violet-500/10 dark:shadow-[#8b5cf6]/20 hover:shadow-violet-500/25",
-    glowText: "text-violet-500 dark:text-violet-350 [text-shadow:0_0_10px_rgba(139,92,246,0.5)]",
+    accentBorder: "border-[#8b5cf6]/50",
+    badge: "bg-[#8b5cf6]/20 text-[#8b5cf6] border-[#8b5cf6]/40",
+    glowClass: "shadow-lg shadow-[#8b5cf6]/20 hover:shadow-[#8b5cf6]/30",
+    glowText: "text-violet-350 [text-shadow:0_0_12px_rgba(139,92,246,0.6)]",
     gradient: "from-violet-505 via-fuchsia-500 to-indigo-605",
-    sideBg: "bg-[#070512] dark:bg-[#04030a]",
-    panelGlass: "backdrop-blur-xl border-[#8b5cf6]/20 dark:border-[#3b0764]/40 bg-[#f5f3f9]/30 dark:bg-[#070512]/40",
-    interactiveBg: "hover:bg-[#8b5cf6]/10 dark:hover:bg-[#3b0764]/20",
-    auraRing: "ring-2 ring-violet-500/40 ring-offset-2 ring-offset-[#070512]"
+    sideBg: "bg-[#04030a]",
+    panelGlass: "backdrop-blur-3xl border-[#8b5cf6]/25 bg-purple-950/15 shadow-2xl shadow-[#04030a]",
+    interactiveBg: "hover:bg-[#3b0764]/35",
+    auraRing: "ring-2 ring-violet-500/45 ring-offset-2 ring-offset-[#04030a]"
   },
   "cyberpunk": {
     name: "Tokyo Cyberpunk Neon & Grid",
     primary: "#ec4899",
-    gradientText: "bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent dark:from-pink-400 dark:via-purple-400 dark:to-cyan-400",
+    gradientText: "bg-gradient-to-r from-pink-400 dark:via-purple-400 dark:to-cyan-400 bg-clip-text text-transparent",
     accentBg: "bg-[#ec4899]",
     accentText: "text-[#ec4899]",
-    accentBorder: "border-[#ec4899]/30 dark:border-[#ec4899]/40",
-    badge: "bg-[#ec4899]/15 text-[#ec4899] border-[#ec4899]/30",
-    glowClass: "shadow-lg shadow-pink-550/15 dark:shadow-[#ec4899]/25 hover:shadow-pink-550/30",
-    glowText: "text-pink-500 dark:text-pink-350 [text-shadow:0_0_12px_rgba(236,72,153,0.6)]",
+    accentBorder: "border-[#ec4899]/50",
+    badge: "bg-[#ec4899]/20 text-[#ec4899] border-[#ec4899]/40",
+    glowClass: "shadow-lg shadow-[#ec4899]/25 hover:shadow-[#ec4899]/35",
+    glowText: "text-pink-350 [text-shadow:0_0_14px_rgba(236,72,153,0.7)]",
     gradient: "from-pink-500 via-purple-500 to-cyan-500",
-    sideBg: "bg-[#09050d] dark:bg-[#050308]",
-    panelGlass: "backdrop-blur-xl border-pink-500/20 dark:border-[#4a044e]/40 bg-[#faf5fa]/30 dark:bg-[#09050d]/40",
-    interactiveBg: "hover:bg-pink-500/10 dark:hover:bg-[#4a044e]/20",
-    auraRing: "ring-2 ring-pink-500/45 ring-offset-2 ring-offset-[#09050d]"
+    sideBg: "bg-[#050308]",
+    panelGlass: "backdrop-blur-3xl border-[#ec4899]/25 bg-pink-950/15 shadow-2xl shadow-black",
+    interactiveBg: "hover:bg-[#4a044e]/35",
+    auraRing: "ring-2 ring-pink-500/50 ring-offset-2 ring-offset-[#050308]"
   },
   "nordic": {
     name: "Nordic Frost & Aurora Blue",
     primary: "#0284c7",
-    gradientText: "bg-gradient-to-r from-[#0284c7] via-cyan-500 to-emerald-500 bg-clip-text text-transparent dark:from-[#38bdf8] dark:via-cyan-400 dark:to-emerald-400",
+    gradientText: "bg-gradient-to-r from-[#38bdf8] via-cyan-400 to-emerald-400 bg-clip-text text-transparent",
     accentBg: "bg-[#0284c7]",
     accentText: "text-[#0284c7]",
-    accentBorder: "border-[#0284c7]/25 dark:border-[#0284c7]/40",
-    badge: "bg-[#0284c7]/15 text-[#0284c7] border-[#0284c7]/30",
-    glowClass: "shadow-lg shadow-sky-500/10 dark:shadow-[#0284c7]/15 hover:shadow-sky-500/20",
-    glowText: "text-sky-500 dark:text-sky-350 [text-shadow:0_0_8px_rgba(2,132,199,0.4)]",
+    accentBorder: "border-[#0284c7]/50",
+    badge: "bg-[#0284c7]/20 text-[#0284c7] border-[#0284c7]/40",
+    glowClass: "shadow-lg shadow-[#0284c7]/15 hover:shadow-[#0284c7]/25",
+    glowText: "text-sky-350 [text-shadow:0_0_10px_rgba(2,132,199,0.5)]",
     gradient: "from-[#0284c7] via-cyan-400 to-emerald-500",
-    sideBg: "bg-[#0b1016] dark:bg-[#070b0f]",
-    panelGlass: "backdrop-blur-xl border-[#0284c7]/20 dark:border-[#1e293b]/40 bg-[#f0f4f8]/30 dark:bg-[#0b1016]/40",
-    interactiveBg: "hover:bg-sky-50/40 dark:hover:bg-slate-900/40",
-    auraRing: "ring-2 ring-[#0284c7]/30 ring-offset-2 ring-offset-[#0b1016]"
+    sideBg: "bg-[#070b0f]",
+    panelGlass: "backdrop-blur-3xl border-[#0284c7]/25 bg-sky-950/15 shadow-2xl shadow-black",
+    interactiveBg: "hover:bg-slate-900/50",
+    auraRing: "ring-2 ring-[#0284c7]/40 ring-offset-2 ring-offset-[#070b0f]"
   },
   "dark-classic": {
     name: "Classic Steel & Amber",
     primary: "#f26419",
-    gradientText: "bg-gradient-to-r from-[#f26419] via-[#f34825] to-[#ff9f43] bg-clip-text text-transparent dark:from-[#ff7a2e] dark:via-[#f34825] dark:to-[#ffb26b]",
+    gradientText: "bg-gradient-to-r from-[#ff7a2e] via-[#f34825] to-[#ffb26b] bg-clip-text text-transparent",
     accentBg: "bg-[#f26419]",
     accentText: "text-[#f26419]",
-    accentBorder: "border-[#f26419]/25 dark:border-[#f26419]/40",
-    badge: "bg-[#f26419]/15 text-[#f26419] border-[#f26419]/30",
-    glowClass: "shadow-lg shadow-orange-550/10 dark:shadow-[#f26419]/15 hover:shadow-orange-550/20",
-    glowText: "text-[#f26419] [text-shadow:0_0_8px_rgba(242,100,25,0.4)]",
+    accentBorder: "border-[#f26419]/50",
+    badge: "bg-[#f26419]/20 text-[#f26419] border-[#f26419]/40",
+    glowClass: "shadow-lg shadow-[#f26419]/15 hover:shadow-[#f26419]/25",
+    glowText: "text-[#ff7a2e] [text-shadow:0_0_10px_rgba(242,100,25,0.5)]",
     gradient: "from-[#f26419] via-[#f34825] to-[#ff9f43]",
-    sideBg: "bg-[#08080c] dark:bg-[#040406]",
-    panelGlass: "backdrop-blur-xl border-slate-200/50 dark:border-slate-800/80 bg-white/70 dark:bg-[#0c0d10]/95",
-    interactiveBg: "hover:bg-slate-100/55 dark:hover:bg-slate-900/40",
-    auraRing: "ring-2 ring-[#f26419]/30 ring-offset-2 ring-offset-[#08080c]"
+    sideBg: "bg-[#040406]",
+    panelGlass: "backdrop-blur-3xl border-[#f26419]/25 bg-[#0c0d10]/95 shadow-2xl shadow-[#040406]",
+    interactiveBg: "hover:bg-slate-900/50",
+    auraRing: "ring-2 ring-[#f26419]/40 ring-offset-2 ring-offset-[#040406]"
   }
 };
+
+export const THEME_PRESET_STYLES = DARK_THEME_PRESET_STYLES;
 
 export default function App() {
   // Synchronous Day Rollover Check on Page Mount / Init
@@ -264,6 +412,71 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<"focus" | "target-suite" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // States for theme trial & permanent unlock
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [ownerEmail, setOwnerEmail] = useState<string>("mauryanaitik9999@gmail.com");
+  const [unlockedAccounts, setUnlockedAccounts] = useState<{ email: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/app-config")
+      .then(res => res.json())
+      .then(data => {
+        if (data.ownerEmail) {
+          setOwnerEmail(data.ownerEmail);
+        }
+      })
+      .catch(err => console.error("Failed to load app config:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setUnlockedAccounts([]);
+      return;
+    }
+    const unsub = onSnapshot(collection(db, "unlockedAccounts"), (snap) => {
+      const list: { email: string }[] = [];
+      snap.forEach(d => {
+        list.push({ email: d.id });
+      });
+      setUnlockedAccounts(list);
+    }, err => {
+      console.warn("Error loading unlocked accounts:", err);
+    });
+    return () => unsub();
+  }, [currentUser]);
+
+  const [trialStartDate, setTrialStartDate] = useState(() => {
+    const local = localStorage.getItem("f5_trial_start_time");
+    if (local) return parseInt(local);
+    const now = Date.now();
+    localStorage.setItem("f5_trial_start_time", String(now));
+    return now;
+  });
+
+  const { isTrialActive, trialDaysRemaining } = useMemo(() => {
+    const elapsedMs = Date.now() - trialStartDate;
+    const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
+    const remaining = Math.max(0, 7 - elapsedDays);
+    return {
+      isTrialActive: remaining > 0,
+      trialDaysRemaining: Math.max(1, Math.ceil(remaining))
+    };
+  }, [trialStartDate]);
+
+  const handleResetTrial = () => {
+    const now = Date.now();
+    localStorage.setItem("f5_trial_start_time", String(now));
+    setTrialStartDate(now);
+  };
+
+  const isPermanentlyUnlocked = useMemo(() => {
+    if (!currentUser || !currentUser.email) return false;
+    const email = currentUser.email.toLowerCase();
+    if (email === ownerEmail.toLowerCase()) return true;
+    if (email === "mauryanaitik9999@gmail.com") return true;
+    return unlockedAccounts.some(acc => acc.email.toLowerCase() === email);
+  }, [currentUser, ownerEmail, unlockedAccounts]);
 
   // Flash5tudy configuration overlays
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -314,105 +527,106 @@ export default function App() {
       case "forest":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-emerald-200/25 to-teal-200/25 opacity-80"
+            ? "bg-gradient-to-tr from-emerald-400/40 to-teal-300/40 opacity-90"
             : "bg-gradient-to-tr from-emerald-950/30 to-teal-900/30 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-lime-200/20 to-emerald-250/20 opacity-70"
+            ? "bg-gradient-to-br from-lime-300/40 to-emerald-400/35 opacity-90"
             : "bg-gradient-to-br from-emerald-900/25 to-zinc-900/25 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-amber-150/30 to-emerald-200/35 opacity-70"
+            ? "bg-gradient-to-tl from-teal-300/35 to-emerald-400/40 opacity-90"
             : "bg-gradient-to-tl from-emerald-950/20 to-teal-950/20 opacity-100"
         };
       case "crimson":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-rose-200/25 to-red-200/25 opacity-80"
+            ? "bg-gradient-to-tr from-rose-400/40 to-red-300/40 opacity-90"
             : "bg-gradient-to-tr from-red-950/25 to-rose-950/25 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-amber-100/30 to-rose-200/30 opacity-70"
+            ? "bg-gradient-to-br from-orange-300/35 to-rose-450/40 opacity-90"
             : "bg-gradient-to-br from-rose-950/25 to-red-950/25 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-orange-200/25 to-red-100/35 opacity-70"
+            ? "bg-gradient-to-tl from-pink-300/40 to-red-400/35 opacity-90"
             : "bg-gradient-to-tl from-rose-900/20 to-orange-950/20 opacity-100"
         };
       case "honey":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-amber-200/35 to-yellow-250/30 opacity-80"
+            ? "bg-gradient-to-tr from-amber-400/45 to-yellow-300/40 opacity-90"
             : "bg-gradient-to-tr from-amber-950/35 to-yellow-950/30 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-orange-100/30 to-amber-200/30 opacity-70"
+            ? "bg-gradient-to-br from-orange-300/40 to-amber-450/40 opacity-90"
             : "bg-gradient-to-br from-amber-950/25 to-neutral-900/25 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-yellow-100/40 to-amber-200/35 opacity-80"
+            ? "bg-gradient-to-tl from-yellow-300/45 to-orange-400/40 opacity-90"
             : "bg-gradient-to-tl from-amber-900/25 to-stone-900/25 opacity-100"
         };
       case "amoled":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-zinc-200/30 to-slate-200/30 opacity-80"
+            ? "bg-gradient-to-tr from-sky-400/45 to-indigo-300/40 opacity-95"
             : "bg-gradient-to-tr from-zinc-900/45 to-neutral-800/45 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-slate-100/35 to-zinc-200/35 opacity-75"
+            ? "bg-gradient-to-br from-blue-400/40 to-cyan-300/40 opacity-95"
             : "bg-gradient-to-br from-neutral-950/50 to-zinc-950/50 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-zinc-100/40 to-slate-100/40 opacity-85"
+            ? "bg-gradient-to-tl from-indigo-300/45 to-sky-400/45 opacity-95"
             : "bg-gradient-to-tl from-neutral-900/30 to-zinc-950/30 opacity-100"
         };
       case "cosmic":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-violet-205/35 to-indigo-205/35 opacity-80"
+            ? "bg-gradient-to-tr from-violet-400/45 to-indigo-400/45 opacity-95"
             : "bg-gradient-to-tr from-violet-950/40 to-indigo-900/40 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-fuchsia-200/25 to-blue-200/35 opacity-70"
+            ? "bg-gradient-to-br from-fuchsia-400/40 to-purple-400/45 opacity-95"
             : "bg-gradient-to-br from-fuchsia-950/25 to-indigo-950/30 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-purple-200/45 to-indigo-200/40 opacity-80"
+            ? "bg-gradient-to-tl from-purple-400/45 to-violet-350/45 opacity-95"
             : "bg-gradient-to-tl from-[#7c3aed]/15 to-purple-950/25 opacity-100"
         };
       case "cyberpunk":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-pink-200/30 to-cyan-200/30 opacity-80"
+            ? "bg-gradient-to-tr from-pink-400/45 to-cyan-300/45 opacity-95"
             : "bg-gradient-to-tr from-fuchsia-950/45 to-cyan-950/45 opacity-105",
           blob2: isLight
-            ? "bg-gradient-to-br from-fuchsia-200/35 to-teal-200/35 opacity-80"
+            ? "bg-gradient-to-br from-fuchsia-400/40 to-teal-300/40 opacity-95"
             : "bg-gradient-to-br from-purple-950/45 to-emerald-950/30 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-cyan-100/45 to-pink-200/45 opacity-85"
+            ? "bg-gradient-to-tl from-cyan-300/45 to-pink-400/45 opacity-95"
             : "bg-gradient-to-tl from-[#e879f9]/20 to-teal-950/25 opacity-100"
         };
       case "nordic":
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-[#93c5fd]/35 to-[#a5f3fc]/30 opacity-80"
+            ? "bg-gradient-to-tr from-[#60a5fa]/45 to-[#22d3ee]/40 opacity-95"
             : "bg-gradient-to-tr from-[#1e3a8a]/25 to-[#155e75]/25 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-[#e0f2fe]/40 to-[#e0f7fa]/35 opacity-80"
+            ? "bg-gradient-to-br from-[#93c5fd]/45 to-sky-300/45 opacity-95"
             : "bg-gradient-to-br from-[#0f172a]/45 to-[#0e4429]/20 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-[#93c5fd]/25 to-[#99f6e4]/30 opacity-80"
+            ? "bg-gradient-to-tl from-cyan-300/45 to-[#60a5fa]/45 opacity-95"
             : "bg-gradient-to-tl from-[#1e40af]/15 to-[#134e5e]/25 opacity-100"
         };
       default: // dark-classic / steel secondary slate
         return {
           blob1: isLight
-            ? "bg-gradient-to-tr from-orange-200/20 to-rose-200/20 opacity-70"
+            ? "bg-gradient-to-tr from-orange-400/40 to-rose-450/40 opacity-95"
             : "bg-gradient-to-tr from-[#f26419]/15 to-[#e73c7e]/15 opacity-100",
           blob2: isLight
-            ? "bg-gradient-to-br from-indigo-200/15 to-purple-200/15 opacity-60"
+            ? "bg-gradient-to-br from-indigo-200/35 to-purple-200/35 opacity-95"
             : "bg-gradient-to-br from-indigo-950/20 to-purple-950/25 opacity-100",
           blob3: isLight
-            ? "bg-gradient-to-tl from-emerald-200/20 to-teal-200/20 opacity-65"
+            ? "bg-gradient-to-tl from-emerald-200/40 to-teal-200/40 opacity-95"
             : "bg-gradient-to-tl from-emerald-950/15 to-teal-950/20 opacity-100"
         };
     }
   }, [themePreset, activeTheme]);
 
   const currentThemeStyle = useMemo(() => {
-    return THEME_PRESET_STYLES[themePreset] || THEME_PRESET_STYLES["dark-classic"];
-  }, [themePreset]);
+    const themeSet = activeTheme === "light" ? LIGHT_THEME_PRESET_STYLES : DARK_THEME_PRESET_STYLES;
+    return themeSet[themePreset] || themeSet["dark-classic"];
+  }, [themePreset, activeTheme]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
@@ -652,7 +866,7 @@ export default function App() {
     return 25 * 60; // Default to 25 mins Focus
   });
 
-  // Sync Pomodoro/Timer Configuration
+  // Sync Pomodoro/Timer Configuration (infrequently updated static settings)
   useEffect(() => {
     localStorage.setItem("study_timer_type", timerType);
     localStorage.setItem("study_pomo_state", pomoState);
@@ -660,10 +874,17 @@ export default function App() {
     localStorage.setItem("study_pomo_focus_duration", pomoFocusDuration.toString());
     localStorage.setItem("study_pomo_short_duration", pomoShortBreakDuration.toString());
     localStorage.setItem("study_pomo_long_duration", pomoLongBreakDuration.toString());
-    localStorage.setItem("study_pomo_seconds_left", pomoSecondsLeft.toString());
     localStorage.setItem("study_is_studying", isStudyingUser.toString());
-    localStorage.setItem("study_active_seconds_user", activeSecondsUser.toString());
-  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, pomoSecondsLeft, isStudyingUser, activeSecondsUser]);
+  }, [timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, isStudyingUser]);
+
+  // Sync rapidly ticking seconds with throttled write operations (saves 80% disk access)
+  useEffect(() => {
+    const shouldWrite = !isStudyingUser || (activeSecondsUser % 5 === 0) || (pomoSecondsLeft % 5 === 0);
+    if (shouldWrite) {
+      localStorage.setItem("study_pomo_seconds_left", pomoSecondsLeft.toString());
+      localStorage.setItem("study_active_seconds_user", activeSecondsUser.toString());
+    }
+  }, [pomoSecondsLeft, activeSecondsUser, isStudyingUser]);
 
   // Sync Master Config adjustments to cloud only once upon authentic adjustments
   useEffect(() => {
@@ -1220,6 +1441,14 @@ export default function App() {
             if (userData.themeMode) {
               setThemeMode(userData.themeMode);
             }
+            if (userData.createdAt) {
+              setCreatedAt(userData.createdAt);
+            } else {
+              const nowStr = new Date().toISOString();
+              setCreatedAt(nowStr);
+              setDoc(userDocRef, { createdAt: nowStr }, { merge: true })
+                .catch(e => console.warn("Failed to set missing createdAt:", e));
+            }
             if (userData.timerType) {
               setTimerType(userData.timerType);
             }
@@ -1268,6 +1497,8 @@ export default function App() {
             }
           } else {
             // Register Student configuration profile (asynchronous background write)
+            const nowStr = new Date().toISOString();
+            setCreatedAt(nowStr);
             setDoc(userDocRef, {
               userId: user.uid,
               email: user.email || "",
@@ -1283,7 +1514,8 @@ export default function App() {
               timerType,
               pomoFocusDuration,
               pomoShortBreakDuration,
-              pomoLongBreakDuration
+              pomoLongBreakDuration,
+              createdAt: nowStr
             }).catch(e => console.warn("Background user registration failed:", e));
           }
 
@@ -1460,6 +1692,9 @@ export default function App() {
               }
               if (userData.themeMode !== undefined) {
                 setThemeMode(userData.themeMode);
+              }
+              if (userData.createdAt !== undefined) {
+                setCreatedAt(userData.createdAt);
               }
               if (userData.timerType !== undefined) {
                 setTimerType(userData.timerType);
@@ -1764,6 +1999,13 @@ export default function App() {
     };
   }, []);
 
+  // Auto-prompt unauthenticated new users to sign in with Google on entry to secure their progress
+  useEffect(() => {
+    if (initSyncComplete && !currentUser) {
+      setShowAuthModal(true);
+    }
+  }, [initSyncComplete, currentUser]);
+
   // Listen to cross-tab storage changes to prevent multi-tab bypass/double-claim issues in real-time
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
@@ -1952,16 +2194,10 @@ export default function App() {
     }
   }, [joinedRoomId]);
 
-  // Reminders saving
+  // Reminders saving (local persistence only, avoiding infinite network write loops)
   useEffect(() => {
     secureStorage.setItem("study_reminders", JSON.stringify(reminders));
-    if (currentUser) {
-      reminders.forEach(rem => {
-        setDoc(doc(db, "users", currentUser.uid, "reminders", rem.id), rem)
-          .catch(e => console.warn("Failed syncing individual reminder:", e));
-      });
-    }
-  }, [reminders, currentUser]);
+  }, [reminders]);
 
   // Alert triggers system callbacks
   const handleAddReminder = (newRem: Omit<Reminder, "id" | "isCompleted" | "triggeredAt">) => {
@@ -1971,10 +2207,22 @@ export default function App() {
       isCompleted: false
     };
     setReminders(prev => [...prev, fresh]);
+    if (currentUser) {
+      setDoc(doc(db, "users", currentUser.uid, "reminders", fresh.id), fresh)
+        .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${currentUser.uid}/reminders/${fresh.id}`));
+    }
   };
 
   const handleToggleReminder = (remId: string) => {
-    setReminders(prev => prev.map(r => r.id === remId ? { ...r, isActive: !r.isActive } : r));
+    const rToToggle = reminders.find(rem => rem.id === remId);
+    if (rToToggle) {
+      const updated = { ...rToToggle, isActive: !rToToggle.isActive };
+      setReminders(prev => prev.map(r => r.id === remId ? updated : r));
+      if (currentUser) {
+        setDoc(doc(db, "users", currentUser.uid, "reminders", remId), updated)
+          .catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}/reminders/${remId}`));
+      }
+    }
   };
 
   const handleRemoveReminder = (remId: string) => {
@@ -2018,10 +2266,18 @@ export default function App() {
               requireInteraction: true
             } as any);
           }).catch(() => {
-            new Notification(title, { body, icon: "/favicon.ico" });
+            try {
+              new Notification(title, { body, icon: "/favicon.ico" });
+            } catch (fallbackErr) {
+              console.warn("Direct Notification constructor failed inside SW fallback:", fallbackErr);
+            }
           });
         } else {
-          new Notification(title, { body, icon: "/favicon.ico" });
+          try {
+            new Notification(title, { body, icon: "/favicon.ico" });
+          } catch (err) {
+            console.warn("Direct Notification constructor failed in non-SW path:", err);
+          }
         }
       } catch (err) {
         console.warn("System notification presentation failed, trying direct fallback:", err);
@@ -2401,7 +2657,7 @@ export default function App() {
               if (timerId) clearInterval(timerId);
               timerId = setInterval(() => {
                 self.postMessage("tick");
-              }, 500);
+              }, 1000);
             } else if (e.data === "stop") {
               if (timerId) {
                 clearInterval(timerId);
@@ -2420,7 +2676,7 @@ export default function App() {
         worker.postMessage("start");
       } catch (err) {
         console.warn("Web Worker background ticking generation failed, fallback to standard main thread loop:", err);
-        fallbackInterval = setInterval(tick, 250);
+        fallbackInterval = setInterval(tick, 1000);
       }
     }
     
@@ -3354,32 +3610,39 @@ export default function App() {
     <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between pb-24 transition-all duration-500 relative select-none ${
       activeTheme === "light"
         ? (
-            themePreset === "forest" ? "bg-[#f3f7f4] text-[#1e3d2a]" :
-            themePreset === "crimson" ? "bg-[#fdf5f5] text-[#701e23]" :
-            themePreset === "honey" ? "bg-[#fbf7f0] text-[#5e4115]" :
-            themePreset === "amoled" ? "bg-[#ffffff] text-[#0f172a]" :
-            themePreset === "cosmic" ? "bg-[#f5f3f9] text-[#2e1065]" :
-            themePreset === "cyberpunk" ? "bg-[#faf5fa] text-[#581c87]" :
-            themePreset === "nordic" ? "bg-[#f0f4f8] text-[#0f2d4a]" :
-            "bg-[#f8fafc] text-slate-900"
+            themePreset === "forest" ? "bg-gradient-to-br from-[#f2faf7] via-[#e6f5ef] to-[#d4efe4] text-[#065f46]" :
+            themePreset === "crimson" ? "bg-gradient-to-br from-[#fff6f7] via-[#ffecf0] to-[#ffdce2] text-[#9d174d]" :
+            themePreset === "honey" ? "bg-gradient-to-br from-[#fffdf5] via-[#fdf7e3] to-[#fbf1cc] text-[#9a3412]" :
+            themePreset === "amoled" ? "bg-gradient-to-br from-[#f5f9ff] via-[#e9f2ff] to-[#dae8fc] text-[#1e40af]" :
+            themePreset === "cosmic" ? "bg-gradient-to-br from-[#faf8ff] via-[#f1ebff] to-[#e4daff] text-[#5b21b6]" :
+            themePreset === "cyberpunk" ? "bg-gradient-to-br from-[#fff7fb] via-[#fde9f4] to-[#fcd5ec] text-[#86198f]" :
+            themePreset === "nordic" ? "bg-gradient-to-br from-[#f4fafc] via-[#e6f4f7] to-[#d2edf2] text-[#115e59]" :
+            "bg-gradient-to-br from-[#fafbfc] via-[#f1f4f8] to-[#e4e9f0] text-[#c2410c]"
           )
         : (
-            themePreset === "amoled" ? "bg-black text-white" :
-            themePreset === "forest" ? "bg-[#05100c] text-[#d1e7dd]" :
-            themePreset === "crimson" ? "bg-[#120102] text-[#f8d7da]" :
-            themePreset === "honey" ? "bg-[#160e02] text-[#fbebd4]" :
-            themePreset === "cosmic" ? "bg-[#070512] text-[#e9d5ff]" :
-            themePreset === "cyberpunk" ? "bg-[#09050d] text-[#f7b7f9]" :
-            themePreset === "nordic" ? "bg-[#0b1016] text-[#e0f2fe]" :
-            "bg-[#08080c] text-white"
+            themePreset === "amoled" ? "bg-gradient-to-b from-[#000000] via-[#020205] to-[#000000] text-[#f1f5f9]" :
+            themePreset === "forest" ? "bg-gradient-to-br from-[#010704] via-[#04110b] to-[#010403] text-[#ecfdf5]" :
+            themePreset === "crimson" ? "bg-gradient-to-br from-[#080102] via-[#140205] to-[#060001] text-[#fff1f2]" :
+            themePreset === "honey" ? "bg-gradient-to-br from-[#060301] via-[#100802] to-[#040200] text-[#fffbeb]" :
+            themePreset === "cosmic" ? "bg-gradient-to-br from-[#020108] via-[#090518] to-[#020106] text-[#faf5ff]" :
+            themePreset === "cyberpunk" ? "bg-gradient-to-br from-[#04010a] via-[#0e031a] to-[#020005] text-[#fdf2f8]" :
+            themePreset === "nordic" ? "bg-gradient-to-br from-[#010408] via-[#05111b] to-[#010306] text-[#f0f9ff]" :
+            "bg-gradient-to-br from-[#040406] via-[#090b12] to-[#030305] text-[#f8fafc]"
           )
     }`} id="f5-immersive-viewport-root">
       
-      {/* Liquid Glass Background Drifting Blobs */}
+      {/* Liquid Glass Background Drifting Blobs & Textured Grids */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        {/* Dynamic auroral glass blobs */}
         <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${dynamicBlobs.blob1}`}></div>
         <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${dynamicBlobs.blob2}`}></div>
         <div className={`absolute top-[45%] right-[22%] w-60 h-60 sm:w-85 sm:h-85 rounded-full blur-[55px] sm:blur-[85px] animate-blob-3 transition-all duration-1000 ${dynamicBlobs.blob3}`}></div>
+        
+        {/* Futuristic technical digital glass grid lines */}
+        <div className="absolute inset-0 glass-grid opacity-60"></div>
+        
+        {/* Premium analog organic frosted noise texture */}
+        <div className="absolute inset-0 noise-overlay opacity-[0.4] mix-blend-overlay"></div>
       </div>
 
       {/* Floating active alarm overlay banner */}
@@ -3814,6 +4077,12 @@ export default function App() {
                   showSystemNotification={showSystemNotification}
                   setFiredNotification={setFiredNotification}
                   notificationSettings={notificationSettings}
+                  ownerEmail={ownerEmail}
+                  currentUser={currentUser}
+                  isTrialActive={isTrialActive}
+                  trialDaysRemaining={trialDaysRemaining}
+                  isPermanentlyUnlocked={isPermanentlyUnlocked}
+                  onResetTrial={handleResetTrial}
                 />
               </motion.div>
             )}
@@ -4018,17 +4287,23 @@ export default function App() {
         studentPrepTarget={studentPrepTarget}
         onUpdateProfile={handleUpdateProfile}
         isFirebaseConnected={isFirebaseConnected}
+        themePreset={themePreset}
+        currentThemeStyle={currentThemeStyle}
+        isTrialActive={isTrialActive}
+        trialDaysRemaining={trialDaysRemaining}
+        isPermanentlyUnlocked={isPermanentlyUnlocked}
+        onResetTrial={handleResetTrial}
       />
 
       {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}
       <div className="fixed bottom-6 left-0 right-0 flex justify-center items-center gap-2.5 sm:gap-3 z-40 px-3 sm:px-4">
         
         {/* Navigation dock bar */}
-        <div className="bg-white/85 dark:bg-[#121212]/90 backdrop-blur-md px-3 sm:px-5 py-1.5 sm:py-2.5 border border-slate-200/70 dark:border-slate-900/40 rounded-full flex items-center justify-center gap-1.5 xs:gap-2.5 sm:gap-5 md:gap-6 shadow-2xl">
+        <div className="liquid-glass px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-full flex items-center justify-center gap-1.5 xs:gap-2.5 sm:gap-5 md:gap-6 shadow-2xl border">
           {[
             { id: "focus", label: "Home", icon: Home },
             { id: "planner", label: "To-Do", icon: ClipboardCheck },
-            { id: "beast", label: "Beast Hub", icon: Sparkles },
+            { id: "beast", label: "Focus Citadel", icon: Sparkles },
             { id: "rewards", label: "Wishlist", icon: Award },
             { id: "calendar", label: "Calendar", icon: Calendar },
             { id: "target-suite", label: "Targets", icon: Target }
@@ -4064,7 +4339,7 @@ export default function App() {
               setIsSidebarOpen(!isSidebarOpen);
             }
           }}
-          className="w-11 h-11 sm:w-13 sm:h-13 bg-white/85 dark:bg-[#18181c]/90 active:scale-95 rounded-full flex items-center justify-center shadow-xl border border-slate-200/90 dark:border-slate-800/80 cursor-pointer hover:scale-105 transition-all backdrop-blur-md shrink-0"
+          className="w-11 h-11 sm:w-13 sm:h-13 liquid-glass active:scale-95 rounded-full flex items-center justify-center shadow-xl cursor-pointer hover:scale-105 transition-all shrink-0 border"
           style={{ color: currentThemeStyle.primary }}
           title="Flash5tudy Menu & Settings"
         >
@@ -4085,155 +4360,153 @@ export default function App() {
         <p>© 2026 Flash5tudy. Built for consistent habit builders.</p>
       </footer>
 
-      {/* Modern, Adaptive multi-method Authentication Hub Modal */}
       {showAuthModal && (
         <div 
           id="auth-modal-overlay"
-          className="fixed inset-0 bg-[#0a0a0ade]/95 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-fade-in"
+          className="fixed inset-0 bg-[#060814d9]/95 backdrop-blur-md flex justify-center items-start md:items-center p-3 sm:p-6 z-[100] overflow-y-auto animate-fade-in"
           onClick={() => {
             if (!authLoading) {
               setShowAuthModal(false);
               setAuthError(null);
               setAuthSuccessMsg(null);
-              setAuthStep(1);
             }
           }}
         >
           <div 
             id="auth-modal-card"
-            className="w-full max-w-[420px] bg-white dark:bg-[#151515] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-2xl relative text-left animate-slide-in overflow-hidden"
+            className="w-full max-w-[380px] sm:max-w-[420px] md:max-w-[850px] liquid-glass rounded-3xl border shadow-2xl relative text-left animate-modal-zoom-in flex flex-col md:flex-row md:h-[450px] my-auto overflow-hidden max-h-[calc(100vh-2rem)] overflow-y-auto md:overflow-hidden md:max-h-none"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Google-Style Top Multi-Colored Accent Line */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 flex rounded-t-3xl overflow-hidden">
-              <div className="bg-[#4285F4] flex-1"></div>
-              <div className="bg-[#EA4335] flex-1"></div>
-              <div className="bg-[#FBBC05] flex-1"></div>
-              <div className="bg-[#34A853] flex-1"></div>
+            {/* Left Info Column: Feature Value List (Only shown on Desktop/Tablets) */}
+            <div className="hidden md:flex md:w-[46%] bg-white/30 dark:bg-black/10 backdrop-blur-md p-6 md:p-8 flex-col justify-between border-r border-slate-200/40 dark:border-white/5 relative overflow-hidden select-none shadow-inner">
+              {/* Soft decorative background glows */}
+              <div className="absolute top-[-20%] left-[-20%] w-[150px] h-[150px] rounded-full bg-blue-500/5 blur-2xl pointer-events-none"></div>
+              <div className="absolute bottom-[-20%] right-[-20%] w-[150px] h-[150px] rounded-full bg-orange-500/5 blur-2xl pointer-events-none"></div>
+
+              <div>
+                <div className="flex items-center gap-1.5 font-sans text-2xl font-black tracking-tight mb-4 md:mb-6">
+                  <span style={{ color: currentThemeStyle.primary }}>F</span>
+                  <span className="text-[#4285F4]">l</span>
+                  <span className="text-[#EA4335]">a</span>
+                  <span className="text-[#FBBC05]">s</span>
+                  <span className="text-[#34A853]">h</span>
+                  <span style={{ color: currentThemeStyle.primary }}>5</span>
+                  <span className="text-slate-800 dark:text-slate-100 font-extrabold">tudy</span>
+                </div>
+
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex items-start gap-2.5 p-2.5 md:p-3 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-slate-200/40 dark:border-slate-800/40 backdrop-blur-xs">
+                    <div className="w-8 h-8 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center text-orange-500 shrink-0">
+                      <Flame className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Study Progress &amp; Streaks</h4>
+                      <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 leading-normal">
+                        Secure your continuous streak, study timer intervals, and custom study notes.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-2.5 md:p-3 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-slate-200/40 dark:border-slate-800/40 backdrop-blur-xs">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Ranks &amp; XP Milestones</h4>
+                      <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 leading-normal">
+                        Protect your earned experience points, level tiers, and custom reward achievements.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-2.5 md:p-3 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-slate-200/40 dark:border-slate-800/40 backdrop-blur-xs">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
+                      <CloudLightning className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Seamless Cloud Syncing</h4>
+                      <p className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 leading-normal">
+                        Synchronize your custom tasks, study boards, and exam targets across any browser.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-tight flex items-center gap-1 mt-4 md:mt-0">
+                <span>⚡</span> Powered by Google Firebase Syncing
+              </div>
             </div>
 
-            {/* Close Button */}
-            <button 
-              id="auth-modal-close-btn"
-              onClick={() => {
-                setShowAuthModal(false);
-                setAuthError(null);
-                setAuthSuccessMsg(null);
-                setAuthStep(1);
-              }}
-              disabled={authLoading}
-              className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100 rounded-full cursor-pointer transition-colors disabled:opacity-50"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Brand Logo Wrapper */}
-            <div className="mb-5 flex flex-col items-start select-none">
-              <div className="flex items-center gap-1 font-sans text-2xl font-black tracking-tight mb-1">
-                <span style={{ color: currentThemeStyle.primary }}>F</span>
-                <span className="text-[#4285F4]">l</span>
-                <span className="text-[#EA4335]">a</span>
-                <span className="text-[#FBBC05]">s</span>
-                <span className="text-[#34A853]">h</span>
-                <span style={{ color: currentThemeStyle.primary }}>5</span>
-                <span className="text-slate-800 dark:text-slate-100 font-extrabold">tudy</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold tracking-wider uppercase ml-2 border" style={{ color: currentThemeStyle.primary, backgroundColor: `${currentThemeStyle.primary}18`, borderColor: `${currentThemeStyle.primary}33` }}>Cloud Synchronized</span>
+            {/* Right Form Column */}
+            <div className="w-full md:w-[54%] p-5 sm:p-6 md:p-8 flex flex-col justify-between relative bg-white/10 dark:bg-[#0c0e17]/40 backdrop-blur-md">
+              {/* Google-Style Top Multi-Colored Accent Line (Only on mobile as visual decoration) */}
+              <div className="absolute top-0 left-0 right-0 h-1 md:hidden flex overflow-hidden">
+                <div className="bg-[#4285F4] flex-1"></div>
+                <div className="bg-[#EA4335] flex-1"></div>
+                <div className="bg-[#FBBC05] flex-1"></div>
+                <div className="bg-[#34A853] flex-1"></div>
               </div>
-              
-              {authMode === "forgot" ? (
-                <>
-                  <h3 className="text-base font-black tracking-tight text-slate-900 dark:text-slate-100 mt-2">
-                    Account Recovery
+
+              {/* Close Button */}
+              <button 
+                id="auth-modal-close-btn"
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthError(null);
+                  setAuthSuccessMsg(null);
+                }}
+                disabled={authLoading}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer transition-colors disabled:opacity-50 z-10"
+                title="Continue as Guest"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="my-auto space-y-4 md:space-y-6">
+                {/* Brand Logo for Mobile only (hidden on desktop because left side has it) */}
+                <div className="flex flex-col items-center text-center select-none md:hidden">
+                  <div className="flex items-center gap-1 font-sans text-2xl font-black tracking-tight mb-1">
+                    <span style={{ color: currentThemeStyle.primary }}>F</span>
+                    <span className="text-[#4285F4]">l</span>
+                    <span className="text-[#EA4335]">a</span>
+                    <span className="text-[#FBBC05]">s</span>
+                    <span className="text-[#34A853]">h</span>
+                    <span style={{ color: currentThemeStyle.primary }}>5</span>
+                    <span className="text-slate-800 dark:text-slate-100 font-extrabold">tudy</span>
+                  </div>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold tracking-wider uppercase border border-blue-500/20 text-blue-500 bg-blue-500/5 dark:bg-blue-500/10">
+                    Cloud Synced Account
+                  </span>
+                </div>
+
+                {/* Main Visual Heading Panel */}
+                <div className="text-center md:text-left">
+                  <h3 className="text-base sm:text-lg md:text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100 font-sans leading-snug">
+                    Save Your Every Progress! ✨
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Enter your verified email address to receive a secure recovery link.
+                  <p className="text-[11px] md:text-xs text-slate-550 dark:text-slate-450 mt-1 md:mt-2 leading-relaxed">
+                    Connect your Google Account to automatically sync and protect your complete study dashboard across all your devices.
                   </p>
-                </>
-              ) : (
-                <>
-                  {/* High usability: State explicitly to the user they are creating or accessing their personal workspace */}
-                  <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-200 mt-2">
-                    {authMode === "signup" ? "✨ Create Your study profile first" : "🔑 Sign in to your account"}
-                  </h3>
-                  <p className="text-xs text-slate-550 dark:text-slate-400 mt-1 leading-relaxed">
-                    {authMode === "signup" 
-                      ? "First-time here? Create your free study profile in Flash5tudy to sync exam targets, focus stats, and your AI study logs!" 
-                      : "Welcome back! Access your customized study tracking dashboard with your credentials."}
-                  </p>
-                </>
-              )}
-            </div>
+                </div>
 
-            {/* Smart, Friendly Selector Tabs so the User Knows Exactly what to do */}
-            {authMode !== "forgot" && authStep === 1 && (
-              <div className="flex bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl mb-4.5 border border-slate-200/50 dark:border-slate-800/60 select-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthError(null);
-                  }}
-                  className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
-                    authMode === "signup"
-                      ? "bg-white dark:bg-[#1e1e1e] text-orange-500 shadow-sm font-black scale-102"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <span className="text-[11px] animate-pulse">✨</span> 1. Create Free Account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("signin");
-                    setAuthError(null);
-                  }}
-                  className={`flex-1 py-2 text-center text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 ${
-                    authMode === "signin"
-                      ? "bg-white dark:bg-[#1e1e1e] text-[#4285F4] shadow-sm font-black scale-102"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <span>🔑</span> 2. Sign In Instead
-                </button>
-              </div>
-            )}
-
-            {/* Educational Alert Banner reminding them to create an account first */}
-            {authMode === "signup" && authStep === 1 && (
-              <div className="mb-4 p-3 bg-gradient-to-r from-orange-500/5 to-amber-500/5 border border-orange-500/10 rounded-xl text-[10.5px] text-orange-600 dark:text-orange-400/90 leading-relaxed font-sans">
-                💡 <span className="font-bold">First Time in Flash5tudy?</span> You need to create an account first. Enter your email address below, click <span className="font-bold font-mono">Next</span> to choose a name and password, or log in instantly using the Google button!
-              </div>
-            )}
-
-            {/* Render Stepped Layout */}
-            {authMode === "forgot" ? (
-              /* ================= forgot password layout ================= */
-              <form onSubmit={handleForgotPasswordAction} className="space-y-4">
-                <div className="space-y-1">
-                  <label htmlFor="recovery-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                      <Mail className="w-3.5 h-3.5" />
-                    </span>
-                    <input 
-                      id="recovery-email-input"
-                      type="email"
-                      placeholder="name@gmail.com"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      disabled={authLoading}
-                      required
-                      className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-850 dark:text-slate-100 transition-all font-sans"
-                    />
+                {/* Value Cards on mobile only for concise preview (compact list) */}
+                <div className="space-y-1.5 md:hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+                    <Flame className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-750 dark:text-slate-300">Study Progress, Streaks &amp; Notes</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+                    <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-750 dark:text-slate-300">XP Milestones, Rewards &amp; Tasks</span>
                   </div>
                 </div>
 
+                {/* Error or Success notification overlays */}
                 {authError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
                     <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>{authError}</span>
+                    <span className="leading-relaxed">{authError}</span>
                   </div>
                 )}
 
@@ -4244,379 +4517,81 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between gap-3 pt-2">
+                {/* Google Federated Sign In Button */}
+                <div className="space-y-3 pt-1">
                   <button
+                    id="auth-google-auth-btn-beautiful"
                     type="button"
                     disabled={authLoading}
+                    onClick={async () => {
+                      setAuthLoading(true);
+                      setAuthError(null);
+                      setAuthSuccessMsg(null);
+                      try {
+                        const res = await googleSignIn(false);
+                        if (res) {
+                          setCurrentUser(res.user);
+                          setAuthSuccessMsg("Signed in with Google!");
+                          setTimeout(() => {
+                            setShowAuthModal(false);
+                            setAuthSuccessMsg(null);
+                          }, 1000);
+                        }
+                      } catch (err: any) {
+                        const errStr = String(err?.message || err);
+                        if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
+                          console.warn("Google authentication warning (popup closed or cancelled):", err);
+                        } else {
+                          console.error("Google authentication error:", err);
+                        }
+                        let errMsg = err?.message || String(err);
+                        if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
+                          errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
+                        } else {
+                          errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
+                        }
+                        setAuthError(errMsg);
+                      } finally {
+                        setAuthLoading(false);
+                      }
+                    }}
+                    className="w-full py-3.5 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-2xl cursor-pointer select-none transition-all flex items-center justify-center gap-3 hover:scale-[101%] active:scale-[99%] disabled:opacity-50 disabled:pointer-events-none shadow-lg shadow-blue-500/10 dark:shadow-blue-900/10 border border-blue-400/20"
+                  >
+                    {authLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>Connecting Securely...</span>
+                      </span>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="currentColor"
+                            d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
+                          />
+                        </svg>
+                        <span className="font-bold tracking-tight text-[13px]">Sign In with Google</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
-                      setAuthMode("signin");
-                      setAuthStep(1);
+                      setShowAuthModal(false);
                       setAuthError(null);
                       setAuthSuccessMsg(null);
                     }}
-                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-250 cursor-pointer font-bold select-none py-2"
+                    className="w-full py-2.5 text-center text-xs font-semibold text-slate-550 hover:text-slate-800 dark:hover:text-slate-350 cursor-pointer transition-all hover:underline"
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                    Back to Sign In
+                    Continue as Guest (Offline Mode)
                   </button>
-
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="px-5 py-2.5 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5 shadow-lg"
-                  >
-                    {authLoading ? "Sending..." : "Send link"}
-                  </button>
-                </div>
-              </form>
-            ) : authStep === 1 ? (
-              /* ================= step 1 layout ================= */
-              <div className="space-y-4">
-                {/* Primary Google Login Button */}
-                <button
-                  id="auth-google-auth-btn-top"
-                  type="button"
-                  disabled={authLoading}
-                  onClick={async () => {
-                    setAuthLoading(true);
-                    setAuthError(null);
-                    setAuthSuccessMsg(null);
-                    try {
-                      const res = await googleSignIn(false);
-                      if (res) {
-                        setCurrentUser(res.user);
-                        setAuthSuccessMsg("Signed in with Google!");
-                        setTimeout(() => {
-                          setShowAuthModal(false);
-                          setAuthSuccessMsg(null);
-                        }, 1000);
-                      }
-                    } catch (err: any) {
-                      const errStr = String(err?.message || err);
-                      if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
-                        console.warn("Google authentication warning (popup closed or cancelled):", err);
-                      } else {
-                        console.error("Google authentication error:", err);
-                      }
-                      let errMsg = err?.message || String(err);
-                      if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
-                        errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
-                      } else {
-                        errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
-                      }
-                      setAuthError(errMsg);
-                    } finally {
-                      setAuthLoading(false);
-                    }
-                  }}
-                  className="w-full py-3 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2.5 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none shadow-md"
-                >
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
-                    />
-                  </svg>
-                  <span>Sign In with Google</span>
-                </button>
-
-                <div className="flex items-center justify-center gap-3 select-none py-1.5">
-                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800/80"></span>
-                  <span className="text-[9px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via email</span>
-                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800/80"></span>
-                </div>
-
-                <form onSubmit={handleEmailNext} className="space-y-4">
-                  <div className="space-y-1">
-                    <label htmlFor="auth-email-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                        <Mail className="w-3.5 h-3.5" />
-                      </span>
-                      <input 
-                        id="auth-email-input"
-                        type="email"
-                        placeholder="name@gmail.com"
-                        value={authEmail}
-                        onChange={(e) => setAuthEmail(e.target.value)}
-                        disabled={authLoading}
-                        required
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  {authError && (
-                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
-                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>{authError}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-3 pt-2">
-                    <button
-                      type="button"
-                      disabled={authLoading}
-                      onClick={() => {
-                        setAuthMode(authMode === "signin" ? "signup" : "signin");
-                        setAuthError(null);
-                      }}
-                      className="text-xs text-[#4285F4] hover:text-[#357ae8] hover:underline cursor-pointer font-bold select-none py-2"
-                    >
-                      {authMode === "signin" ? "Create account" : "Sign in instead"}
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={authLoading}
-                      className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5"
-                    >
-                      <span>Next</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            ) : (
-              /* ================= step 2 layout ================= */
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                {/* Email Display Pill */}
-                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-250 dark:border-slate-800 rounded-full px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 w-fit select-none shadow-xs">
-                  <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 flex items-center justify-center text-[9px] font-black uppercase">
-                    {authEmail.charAt(0)}
-                  </div>
-                  <span className="truncate max-w-[200px] font-medium">{authEmail}</span>
-                  <button
-                    type="button"
-                    onClick={() => setAuthStep(1)}
-                    className="p-0.5 text-[#4285F4] hover:text-[#357ae8] rounded-full hover:bg-blue-500/10 transition-colors ml-1 cursor-pointer"
-                    title="Change email"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                    </svg>
-                  </button>
-                </div>
-
-                {authMode === "signup" && (
-                  <div className="space-y-1">
-                    <label htmlFor="auth-display-name-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                      Display Name
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                        <UserIcon className="w-3.5 h-3.5" />
-                      </span>
-                      <input 
-                        id="auth-display-name-input"
-                        type="text"
-                        placeholder="e.g. Marie Curie"
-                        value={authDisplayName}
-                        onChange={(e) => setAuthDisplayName(e.target.value)}
-                        disabled={authLoading}
-                        required
-                        className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label htmlFor="auth-password-input" className="block text-[10px] uppercase tracking-wider font-mono font-bold text-slate-500 dark:text-slate-400">
-                      Password
-                    </label>
-                    {authMode === "signin" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthMode("forgot");
-                          setAuthError(null);
-                        }}
-                        className="text-[10px] text-[#4285F4] hover:underline cursor-pointer"
-                      >
-                        Forgot password?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                      <Lock className="w-3.5 h-3.5" />
-                    </span>
-                    <input 
-                      id="auth-password-input"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      disabled={authLoading}
-                      required
-                      className="w-full pl-9 pr-10 py-2 text-xs bg-slate-50 dark:bg-[#1d1d1d] border border-slate-200 dark:border-slate-800 rounded-xl focus:border-[#4285F4] focus:outline-none focus:ring-1 focus:ring-[#4285F4]/30 text-slate-800 dark:text-slate-100 transition-all font-sans"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                      title={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Password Strength Meter */}
-                {authPassword && (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1.5 transition-all">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">Strength:</span>
-                      <span className={`text-[10px] font-black ${passwordStrength.textColor}`}>{passwordStrength.text}</span>
-                    </div>
-                    {/* Multi-segmented strength bar */}
-                    <div className="h-1 flex gap-1 rounded-full overflow-hidden bg-slate-250 dark:bg-slate-800">
-                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 1 ? passwordStrength.color : ""}`}></div>
-                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 2 ? passwordStrength.color : ""}`}></div>
-                      <div className={`h-full flex-1 transition-all duration-300 ${passwordStrength.score >= 3 ? passwordStrength.color : ""}`}></div>
-                    </div>
-                    {/* Live Criteria Feedback */}
-                    <div className="grid grid-cols-3 gap-2 pt-1 text-[9px] text-slate-500 select-none">
-                      <span className={`flex items-center gap-1 ${authPassword.length >= 6 ? "text-emerald-500 font-bold" : ""}`}>
-                        {authPassword.length >= 6 ? "✓" : "○"} 6+ chars
-                      </span>
-                      <span className={`flex items-center gap-1 ${(/[a-z]/.test(authPassword) && /[A-Z]/.test(authPassword)) ? "text-emerald-500 font-bold" : ""}`}>
-                        {(/[a-z]/.test(authPassword) && /[A-Z]/.test(authPassword)) ? "✓" : "○"} Aa mixed
-                      </span>
-                      <span className={`flex items-center gap-1 ${(/[0-9]/.test(authPassword) || /[^a-zA-Z0-9]/.test(authPassword)) ? "text-emerald-500 font-bold" : ""}`}>
-                        {(/[0-9]/.test(authPassword) || /[^a-zA-Z0-9]/.test(authPassword)) ? "✓" : "○"} Num/Symbol
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {authError && (
-                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-rose-500 text-[10.5px]">
-                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>{authError}</span>
-                  </div>
-                )}
-
-                {authSuccessMsg && (
-                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-500 text-[10.5px] font-bold">
-                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-500 animate-pulse" />
-                    <span>{authSuccessMsg}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <button
-                    type="button"
-                    disabled={authLoading}
-                    onClick={() => setAuthStep(1)}
-                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 cursor-pointer font-bold select-none py-2"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                    <span>Back</span>
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="px-6 py-2.5 bg-[#4285F4] hover:bg-[#357ae8] text-white text-xs font-black rounded-xl cursor-pointer select-none transition-all active:scale-[98%] disabled:opacity-60 flex items-center gap-1.5 shadow-lg"
-                  >
-                    {authLoading ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        Loading
-                      </span>
-                    ) : (
-                      <span>{authMode === "signin" ? "Sign In" : "Register"}</span>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Subtle Divider */}
-            {authMode !== "forgot" && (
-              <>
-                <div className="my-5 flex items-center justify-center gap-3 select-none">
-                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
-                  <span className="text-[10px] font-mono tracking-widest text-slate-400 font-bold uppercase">or connect via</span>
-                  <span className="h-[1px] flex-1 bg-slate-200 dark:bg-slate-800"></span>
-                </div>
-
-                {/* Google Federated Sign In */}
-                <button
-                  id="auth-google-auth-btn"
-                  type="button"
-                  disabled={authLoading}
-                  onClick={async () => {
-                    setAuthLoading(true);
-                    setAuthError(null);
-                    setAuthSuccessMsg(null);
-                    try {
-                      const res = await googleSignIn(false);
-                      if (res) {
-                        setCurrentUser(res.user);
-                        setAuthSuccessMsg("Signed in with Google!");
-                        setTimeout(() => {
-                          setShowAuthModal(false);
-                          setAuthSuccessMsg(null);
-                        }, 1000);
-                      }
-                    } catch (err: any) {
-                      const errStr = String(err?.message || err);
-                      if (errStr.includes("popup-closed-by-user") || errStr.includes("Pending promise")) {
-                        console.warn("Google authentication warning (popup closed or cancelled):", err);
-                      } else {
-                        console.error("Google authentication error:", err);
-                      }
-                      let errMsg = err?.message || String(err);
-                      if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
-                        errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
-                      } else {
-                        errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
-                      }
-                      setAuthError(errMsg);
-                    } finally {
-                      setAuthLoading(false);
-                    }
-                  }}
-                  className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-xs font-black rounded-xl cursor-pointer select-none transition-all flex items-center justify-center gap-2 active:scale-[98%] disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.859-3.579-7.859-8s3.529-8 7.859-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C18.155 2.153 15.463 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c6.34 0 10.564-4.437 10.564-10.75 0-.726-.077-1.282-.175-1.965H12.24Z"
-                    />
-                  </svg>
-                  <span>Google Account</span>
-                </button>
-              </>
-            )}
-
-            {/* Interactive Firebase Console Diagnostic Footnote Info Box */}
-            <div 
-              id="auth-config-guideline-box"
-              className="mt-5 p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col gap-2"
-            >
-              <div className="flex items-start gap-2.5">
-                <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                <div className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-350">
-                  <strong className="text-slate-800 dark:text-slate-200 font-bold font-sans">Google Login &amp; Domain Setup:</strong>
-                  <p className="mt-0.5">
-                    For real Google Login, please ensure Google Auth is enabled in your Firebase Console. You must also add the dynamic testing domains below to your authorized domains settings:
-                  </p>
                 </div>
               </div>
-              <div className="p-2 bg-slate-100 dark:bg-slate-950 rounded-xl space-y-1 text-[9px] font-mono text-slate-500 border border-slate-200/40 select-text">
-                <div className="flex justify-between items-center gap-2">
-                  <span className="truncate selection:bg-blue-500 selection:text-white">{window.location.hostname}</span>
-                  <span className="text-[8px] bg-blue-500/10 text-blue-500 px-1 rounded uppercase font-black shrink-0">Current</span>
-                </div>
-                <div className="text-slate-400 text-[8px] leading-normal pt-1">
-                  👉 Go to <strong>Firebase Console &gt; Authentication &gt; Settings</strong> (last tab) &gt; <strong>Authorized domains</strong>, and click "Add domain" to paste it!
-                </div>
+
+              {/* Secure badge details */}
+              <div className="text-[9.5px] text-center md:text-left text-slate-400 dark:text-slate-500 font-sans mt-4">
+                🔒 Google Federated authentication securely verifies identity without sharing password credentials.
               </div>
             </div>
 

@@ -15,50 +15,42 @@ interface BeastHubProps {
 }
 
 export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
-  const [activeBeastTab, setActiveBeastTab] = useState<"workspace" | "acoustics" | "planners" | "analytics" | "quick">("workspace");
+  const [activeBeastTab, setActiveBeastTab] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  const [focusAura, setFocusAura] = useState<"hyper" | "zen" | "scholar">(() => {
+    return (localStorage.getItem("f5_apex_focus_aura") as "hyper" | "zen" | "scholar") || "hyper";
+  });
 
   const triggerStatus = (msg: string) => {
     setStatusMsg(msg);
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  // ==========================================
-  // --- 1. TACTILE DRAW WORKSPACE & SCRATCHPAD ---
-  // ==========================================
-  const whiteboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [wbColor, setWbColor] = useState("#f26419");
-  const [wbSize, setWbSize] = useState(4);
-  const [wbTool, setWbTool] = useState<"pencil" | "highlighter" | "eraser" | "line" | "arrow" | "rect" | "circle" | "text" | "hand">("pencil");
-  const [isWbDrawing, setIsWbDrawing] = useState(false);
-  const [isWbFullScreen, setIsWbFullScreen] = useState(false);
-  const [wbBgPattern, setWbBgPattern] = useState<"plain" | "dotted" | "lined" | "feynman">("plain");
-  const [undoStack, setUndoStack] = useState<HTMLCanvasElement[]>([]);
-  const [redoStack, setRedoStack] = useState<HTMLCanvasElement[]>([]);
-  const [wbTextInput, setWbTextInput] = useState<{ x: number; y: number; text: string } | null>(null);
-  const [wbHeight, setWbHeight] = useState(() => {
-    return parseInt(localStorage.getItem("f5_beast_board_height") || "1000", 10);
-  });
-  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-  const lastMidPointRef = useRef<{ x: number; y: number } | null>(null);
-  const startPointRef = useRef<{ x: number; y: number } | null>(null);
-  const snapshotRef = useRef<ImageData | null>(null);
-  const needsExpansionRef = useRef<boolean>(false);
-  const isPanningRef = useRef(false);
-  const startScrollTopRef = useRef(0);
-  const startScrollLeftRef = useRef(0);
-  const startPanCoordsRef = useRef<{ x: number; y: number } | null>(null);
-  const canvasScale = 2.5; // High-resolution scale factor for Retina/high-DPI sharp drawings
-  const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const canvasBoundingRectRef = useRef<DOMRect | null>(null);
-  
-  
-  const [scratchpadText, setScratchpadText] = useState(() => {
-    return localStorage.getItem("f5_beast_scratchpad") || "Draft formulas, key ideas, or exam reminders here...";
-  });
+  const changeFocusAura = (aura: "hyper" | "zen" | "scholar") => {
+    setFocusAura(aura);
+    localStorage.setItem("f5_apex_focus_aura", aura);
+    playKeyboardClack();
+    if (aura === "hyper") {
+      setNoiseType("brown");
+      setBinauralActive(true);
+      setBinBeat(14); // Beta wave for high focus
+      triggerStatus("Apex Grind Mode Engaged: High-Intensity focus active.");
+    } else if (aura === "zen") {
+      setNoiseType("pink");
+      setBinauralActive(true);
+      setBinBeat(8); // Theta wave for flow/calm
+      triggerStatus("Zen Mind Mode Engaged: Flow state active.");
+    } else {
+      setNoiseType("white");
+      setBinauralActive(true);
+      setBinBeat(10); // Alpha wave for cognitive planning
+      triggerStatus("Scholastic Intellect Engaged: Strategic study active.");
+    }
+  };
 
   // ==========================================
-  // --- 2. ACOUSTICS & LIVE SYNTH ENGINE ---
+  // --- ACOUSTICS & LIVE SYNTH ENGINE ---
   // ==========================================
   const audioCtxRef = useRef<AudioContext | null>(null);
   const binLeftOscRef = useRef<OscillatorNode | null>(null);
@@ -414,10 +406,6 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
   // --- SAVING AND INITIAL SYNC SYSTEM ---
   // ==========================================
   useEffect(() => {
-    localStorage.setItem("f5_beast_scratchpad", scratchpadText);
-  }, [scratchpadText]);
-
-  useEffect(() => {
     localStorage.setItem("f5_beast_syllabus", JSON.stringify(syllabusItems));
   }, [syllabusItems]);
 
@@ -735,543 +723,6 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
   };
 
   // ==========================================
-  // --- WHITEBOARD & INTERACTIVE SKETCHING (BOARD) ---
-  // ==========================================
-  const cloneCanvas = (src: HTMLCanvasElement): HTMLCanvasElement => {
-    const dst = document.createElement("canvas");
-    dst.width = src.width;
-    dst.height = src.height;
-    const ctx = dst.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(src, 0, 0);
-    }
-    return dst;
-  };
-
-  const debouncedSaveToStorage = () => {
-    if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
-    }
-    autosaveTimeoutRef.current = setTimeout(() => {
-      const canvas = whiteboardCanvasRef.current;
-      if (canvas) {
-        localStorage.setItem("f5_beast_whiteboard_autosave", canvas.toDataURL());
-      }
-    }, 1000);
-  };
-
-  const resizeCanvasWithBackup = (forceLoadFromStorage = false) => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const parent = canvas.parentElement;
-    if (!parent) return;
-    
-    let tempCanvas: HTMLCanvasElement | null = null;
-    let dataUrl = "";
-    
-    if (forceLoadFromStorage) {
-      dataUrl = localStorage.getItem("f5_beast_whiteboard_autosave") || "";
-    } else {
-      tempCanvas = cloneCanvas(canvas);
-    }
-    
-    const rect = parent.getBoundingClientRect();
-    const width = rect.width || 800;
-    const height = wbHeight;
-    
-    canvas.width = width * canvasScale;
-    canvas.height = height * canvasScale;
-    
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      if (forceLoadFromStorage && dataUrl) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-          ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-        };
-        img.src = dataUrl;
-      } else if (tempCanvas) {
-        ctx.drawImage(tempCanvas, 0, 0);
-        ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-      } else {
-        ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-      }
-    }
-  };
-
-  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return null;
-    
-    if (!canvasBoundingRectRef.current) {
-      canvasBoundingRectRef.current = canvas.getBoundingClientRect();
-    }
-    const rect = canvasBoundingRectRef.current;
-    
-    let clientX = 0;
-    let clientY = 0;
-    
-    if ("touches" in e) {
-      if (e.touches.length === 0) return null;
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
-  };
-
-  const startDrawing = (coords: { x: number; y: number }, e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-
-    if (wbTool === "hand") {
-      if (canvas.parentElement) {
-        isPanningRef.current = true;
-        startScrollTopRef.current = canvas.parentElement.scrollTop;
-        startScrollLeftRef.current = canvas.parentElement.scrollLeft;
-        
-        let clientX = 0;
-        let clientY = 0;
-        if ("touches" in e) {
-          if (e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-          }
-        } else {
-          clientX = e.clientX;
-          clientY = e.clientY;
-        }
-        startPanCoordsRef.current = { x: clientX, y: clientY };
-      }
-      return;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    if (wbTool === "text") {
-      setWbTextInput({ x: coords.x, y: coords.y, text: "" });
-      return;
-    }
-
-    // Save state for undo, clear redo with ultra-fast cloning
-    const currentSnapshot = cloneCanvas(canvas);
-    setUndoStack((prev) => [currentSnapshot, ...prev].slice(0, 30));
-    setRedoStack([]);
-
-    setIsWbDrawing(true);
-    startPointRef.current = coords;
-    lastPointRef.current = coords;
-    lastMidPointRef.current = coords;
-    needsExpansionRef.current = false;
-
-    // Capture snapshot of canvas for clean shape preview
-    snapshotRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    ctx.beginPath();
-    ctx.moveTo(coords.x, coords.y);
-
-    // Dynamic stroke styles based on active tool
-    ctx.strokeStyle = wbColor;
-    ctx.lineWidth = wbSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = "source-over";
-
-    if (wbTool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = wbSize * 3;
-    } else if (wbTool === "highlighter") {
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = wbSize * 3.5;
-    }
-
-    if (wbTool === "pencil" || wbTool === "highlighter" || wbTool === "eraser") {
-      ctx.lineTo(coords.x + 0.1, coords.y + 0.1);
-      ctx.stroke();
-    }
-  };
-
-  const draw = (coords: { x: number; y: number }, e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-
-    if (wbTool === "hand") {
-      if (isPanningRef.current && startPanCoordsRef.current && canvas.parentElement) {
-        let clientX = 0;
-        let clientY = 0;
-        if ("touches" in e) {
-          if (e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-          }
-        } else {
-          clientX = e.clientX;
-          clientY = e.clientY;
-        }
-        const dx = clientX - startPanCoordsRef.current.x;
-        const dy = clientY - startPanCoordsRef.current.y;
-        
-        canvas.parentElement.scrollTop = startScrollTopRef.current - dy;
-        canvas.parentElement.scrollLeft = startScrollLeftRef.current - dx;
-      }
-      return;
-    }
-
-    if (!isWbDrawing) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const start = startPointRef.current;
-    const last = lastPointRef.current;
-    const lastMid = lastMidPointRef.current;
-    if (!start || !last || !lastMid) return;
-
-    // Set trigger flag if user draws near bottom boundary
-    if (coords.y > wbHeight - 120) {
-      needsExpansionRef.current = true;
-    }
-
-    // Prepare context styles
-    ctx.strokeStyle = wbColor;
-    ctx.lineWidth = wbSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = "source-over";
-
-    if (wbTool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = wbSize * 3;
-    } else if (wbTool === "highlighter") {
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = wbSize * 3.5;
-    }
-
-    if (wbTool === "pencil" || wbTool === "highlighter" || wbTool === "eraser") {
-      const midPoint = {
-        x: (last.x + coords.x) / 2,
-        y: (last.y + coords.y) / 2
-      };
-
-      ctx.beginPath();
-      ctx.moveTo(lastMid.x, lastMid.y);
-      ctx.quadraticCurveTo(last.x, last.y, midPoint.x, midPoint.y);
-      ctx.stroke();
-
-      lastPointRef.current = coords;
-      lastMidPointRef.current = midPoint;
-    } else {
-      // Shape drawing with clean vector live preview using the captured snapshot
-      if (snapshotRef.current) {
-        ctx.putImageData(snapshotRef.current, 0, 0);
-      }
-
-      ctx.beginPath();
-      if (wbTool === "line") {
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-      } else if (wbTool === "arrow") {
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-
-        // Arrow head calculations
-        const angle = Math.atan2(coords.y - start.y, coords.x - start.x);
-        const headLength = Math.max(12, wbSize * 3);
-        ctx.beginPath();
-        ctx.moveTo(coords.x, coords.y);
-        ctx.lineTo(
-          coords.x - headLength * Math.cos(angle - Math.PI / 6),
-          coords.y - headLength * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.lineTo(
-          coords.x - headLength * Math.cos(angle + Math.PI / 6),
-          coords.y - headLength * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.closePath();
-        ctx.fillStyle = wbColor;
-        ctx.globalAlpha = 1.0;
-        ctx.fill();
-      } else if (wbTool === "rect") {
-        ctx.strokeRect(start.x, start.y, coords.x - start.x, coords.y - start.y);
-      } else if (wbTool === "circle") {
-        const radius = Math.sqrt((coords.x - start.x) ** 2 + (coords.y - start.y) ** 2);
-        ctx.arc(start.x, start.y, radius, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-    }
-  };
-
-  const stopDrawing = () => {
-    canvasBoundingRectRef.current = null;
-    if (wbTool === "hand") {
-      isPanningRef.current = false;
-      startPanCoordsRef.current = null;
-      return;
-    }
-
-    if (!isWbDrawing) return;
-    setIsWbDrawing(false);
-    lastPointRef.current = null;
-    lastMidPointRef.current = null;
-    startPointRef.current = null;
-    snapshotRef.current = null;
-
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.globalAlpha = 1.0;
-      ctx.globalCompositeOperation = "source-over";
-    }
-
-    debouncedSaveToStorage();
-
-    // Execute deferred height expansion seamlessly at stroke lift-up
-    if (needsExpansionRef.current) {
-      const newHeight = wbHeight + 800;
-      setWbHeight(newHeight);
-      localStorage.setItem("f5_beast_board_height", newHeight.toString());
-      needsExpansionRef.current = false;
-      triggerStatus("Board automatically expanded downwards.");
-    }
-  };
-
-  const handleWbMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getCoordinates(e);
-    if (coords) startDrawing(coords, e);
-  };
-
-  const handleWbMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getCoordinates(e);
-    if (coords) draw(coords, e);
-  };
-
-  const handleWbMouseUp = () => {
-    stopDrawing();
-  };
-
-  const handleWbTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    const coords = getCoordinates(e);
-    if (coords) {
-      if (wbTool !== "hand") {
-        // Prevent scrolling while drawing on the board
-        e.preventDefault();
-      }
-      startDrawing(coords, e);
-    }
-  };
-
-  const handleWbTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    const coords = getCoordinates(e);
-    if (coords) {
-      if (wbTool !== "hand") {
-        e.preventDefault();
-      }
-      draw(coords, e);
-    }
-  };
-
-  const drawTextInputOnCanvas = () => {
-    if (!wbTextInput || !wbTextInput.text.trim()) {
-      setWbTextInput(null);
-      return;
-    }
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      // Save state for undo, clear redo
-      const currentSnapshot = cloneCanvas(canvas);
-      setUndoStack((prev) => [currentSnapshot, ...prev].slice(0, 30));
-      setRedoStack([]);
-
-      ctx.fillStyle = wbColor;
-      const fontSize = Math.max(14, wbSize * 3.5);
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.fillText(wbTextInput.text, wbTextInput.x, wbTextInput.y);
-      
-      debouncedSaveToStorage();
-    }
-    setWbTextInput(null);
-    playGameSound("click");
-    triggerStatus("Text added to Board.");
-  };
-
-  const triggerUndo = () => {
-    if (undoStack.length === 0) return;
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      // Save current as redo snapshot
-      const currentSnapshot = cloneCanvas(canvas);
-      setRedoStack((prev) => [currentSnapshot, ...prev].slice(0, 30));
-
-      const lastStateCanvas = undoStack[0];
-      setUndoStack((prev) => prev.slice(1));
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(lastStateCanvas, 0, 0);
-      ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-      
-      debouncedSaveToStorage();
-      triggerStatus("Action undone.");
-    }
-  };
-
-  const triggerRedo = () => {
-    if (redoStack.length === 0) return;
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      const nextStateCanvas = redoStack[0];
-      setRedoStack((prev) => prev.slice(1));
-
-      // Push current onto undo stack
-      const currentSnapshot = cloneCanvas(canvas);
-      setUndoStack((prev) => [currentSnapshot, ...prev].slice(0, 30));
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(nextStateCanvas, 0, 0);
-      ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-
-      debouncedSaveToStorage();
-      triggerStatus("Action redone.");
-    }
-  };
-
-  const expandCanvasManually = () => {
-    const newHeight = wbHeight + 800;
-    setWbHeight(newHeight);
-    localStorage.setItem("f5_beast_board_height", newHeight.toString());
-    triggerStatus("Board height increased by 800px.");
-    playGameSound("click");
-  };
-
-  const downloadCanvas = () => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = `BeastBoard-Notes-${Date.now()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    triggerStatus("Board notes exported as high-res PNG.");
-    playGameSound("click");
-  };
-
-  const clearCanvas = () => {
-    const canvas = whiteboardCanvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const currentSnapshot = cloneCanvas(canvas);
-        setUndoStack((prev) => [currentSnapshot, ...prev].slice(0, 30));
-        setRedoStack([]);
-
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-        
-        if (autosaveTimeoutRef.current) {
-          clearTimeout(autosaveTimeoutRef.current);
-        }
-        localStorage.removeItem("f5_beast_whiteboard_autosave");
-        triggerStatus("Board cleared.");
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (activeBeastTab === "workspace") {
-      // First mount / tab switch: force load from storage with a slight layout delay
-      const timer = setTimeout(() => {
-        resizeCanvasWithBackup(true);
-      }, 100);
-
-      const handleResize = () => {
-        resizeCanvasWithBackup(false);
-      };
-
-      window.addEventListener("resize", handleResize);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener("resize", handleResize);
-      };
-    }
-  }, [activeBeastTab, isWbFullScreen]);
-
-  // Handle height changes separately to adjust canvas backing resolution smoothly
-  useEffect(() => {
-    if (activeBeastTab === "workspace") {
-      resizeCanvasWithBackup(false);
-    }
-  }, [wbHeight]);
-
-  // Feynman guide canvas lines overlay
-  const renderFeynmanGrid = () => {
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    setUndoStack([cloneCanvas(canvas)]);
-    
-    const w = canvas.width / canvasScale;
-    const h = canvas.height / canvasScale;
-    
-    ctx.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    
-    ctx.strokeStyle = "#475569";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 6]);
-
-    // Draw horizontal split
-    ctx.beginPath();
-    ctx.moveTo(0, h / 2);
-    ctx.lineTo(w, h / 2);
-    ctx.stroke();
-
-    // Draw vertical split
-    ctx.beginPath();
-    ctx.moveTo(w / 2, 0);
-    ctx.lineTo(w / 2, h);
-    ctx.stroke();
-
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText("1. CONCEPT NAME & CORE IDEA", 25, 35);
-    ctx.fillText("2. EXPLAIN LIKE TO A CHILD", w / 2 + 25, 35);
-    ctx.fillText("3. IDENTIFY GAPS & CORRECTIONS", 25, h / 2 + 35);
-    ctx.fillText("4. ANALOGIES & SIMPLE METAPHORS", w / 2 + 25, h / 2 + 35);
-    triggerStatus("Feynman technique workspace initialized on Board!");
-  };
-
-  // ==========================================
   // --- DEEP BREATHING COACH ---
   // ==========================================
   const speakText = (text: string) => {
@@ -1498,49 +949,108 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
   return (
     <div className="w-full text-slate-800 dark:text-slate-100 flex flex-col space-y-6 select-none font-sans antialiased">
       
-      {/* 🚀 ULTIMATE EDITION HEADER */}
-      <div className="relative p-6 sm:p-7 bg-white dark:bg-[#121212] rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-4 overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 dark:bg-orange-500/[0.02] rounded-full blur-3xl" />
-        <div className="flex items-center gap-4 text-left relative z-10">
-          <div className="p-3 bg-gradient-to-tr from-orange-500 to-amber-500 text-white rounded-2xl shadow-md shadow-orange-500/10 shrink-0">
+      {/* 🚀 APEX FOCUS CITADEL HEADER */}
+      <div className="liquid-glass relative p-6 sm:p-7 rounded-3xl flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5 overflow-hidden">
+        {/* Dynamic aura glowing backgrounds */}
+        {focusAura === "hyper" && (
+          <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl transition-all duration-700 pointer-events-none animate-pulse" />
+        )}
+        {focusAura === "zen" && (
+          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl transition-all duration-700 pointer-events-none animate-pulse" />
+        )}
+        {focusAura === "scholar" && (
+          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl transition-all duration-700 pointer-events-none animate-pulse" />
+        )}
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-left relative z-10">
+          <div className={`p-3 text-white rounded-2xl shadow-md transition-all duration-500 shrink-0 ${
+            focusAura === "hyper" 
+              ? "bg-gradient-to-tr from-orange-500 to-amber-500 shadow-orange-500/20" 
+              : focusAura === "zen"
+                ? "bg-gradient-to-tr from-emerald-500 to-teal-400 shadow-emerald-500/20"
+                : "bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-indigo-500/20"
+          }`}>
             <Zap className="w-6 h-6 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display font-black text-xl tracking-tight text-slate-900 dark:text-white">
-                Beast Study Utility Hub
+              <h1 className="font-display font-black text-xl tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                Apex Focus Citadel
               </h1>
-              <span className="text-[9px] uppercase font-mono font-black tracking-widest bg-orange-500/15 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/10">
-                ULTIMATE EDITION
+              <span className={`text-[9px] uppercase font-mono font-black tracking-widest px-2 py-0.5 rounded-full border transition-all duration-500 ${
+                focusAura === "hyper"
+                  ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/10"
+                  : focusAura === "zen"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/10"
+                    : "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/10"
+              }`}>
+                {focusAura === "hyper" ? "APEX GRIND MODE" : focusAura === "zen" ? "ZEN STATE FLOW" : "SCHOLASTIC HUB"}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
-              Harness separate left/right binaural brainwaves, sketch concepts freehand, models exam percentages in real-time, and warm up cognitive speed.
+            <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+              {focusAura === "hyper" && "Hyper-Focus active: latency-minimized digital canvas, brown noise waves, and cognitive speed metrics engaged."}
+              {focusAura === "zen" && "Zen Vibe active: low-alpha binaural synth, responsive writing canvas, hydration metrics, and breath guides."}
+              {focusAura === "scholar" && "Scholastic Vibe active: strategic academic planning, syllabus trackers, flashcard repetitions, and active recall."}
             </p>
           </div>
         </div>
 
-        {/* Global Gamified Currencies */}
-        <div className="flex items-center gap-2.5 relative z-10 shrink-0 self-start md:self-auto">
-          <div className="bg-amber-500/10 border border-amber-500/15 px-3.5 py-1.5 rounded-xl text-left">
-            <span className="text-[9px] font-mono uppercase text-amber-600 dark:text-amber-400 block font-black">Study Coins</span>
-            <span className="text-xs font-black font-mono text-amber-500 flex items-center gap-1 mt-0.5">
-              🪙 {studyCoins}
-            </span>
+        {/* Dynamic Focus Aura Selector */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative z-10 shrink-0">
+          <div className="bg-slate-50 dark:bg-[#18181b] p-1 rounded-2xl border border-slate-150 dark:border-slate-800 flex gap-1">
+            <button
+              onClick={() => changeFocusAura("hyper")}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                focusAura === "hyper"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" /> Apex Grind
+            </button>
+            <button
+              onClick={() => changeFocusAura("zen")}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                focusAura === "zen"
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+            >
+              <Wind className="w-3.5 h-3.5" /> Zen Mind
+            </button>
+            <button
+              onClick={() => changeFocusAura("scholar")}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                focusAura === "scholar"
+                  ? "bg-indigo-500 text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" /> Scholar
+            </button>
           </div>
-          <div className="bg-indigo-500/10 border border-indigo-500/15 px-3.5 py-1.5 rounded-xl text-left">
-            <span className="text-[9px] font-mono uppercase text-indigo-600 dark:text-indigo-400 block font-black">Water Cup</span>
-            <span className="text-xs font-black font-mono text-indigo-500 flex items-center gap-1 mt-0.5">
-              💧 {waterCups} Cups
-            </span>
+
+          {/* Currencies */}
+          <div className="flex items-center gap-2">
+            <div className="bg-amber-500/10 border border-amber-500/15 px-3 py-1 rounded-xl text-left min-w-[65px]">
+              <span className="text-[8px] font-mono uppercase text-amber-600 dark:text-amber-400 block font-black">Coins</span>
+              <span className="text-xs font-black font-mono text-amber-500 flex items-center gap-1">
+                🪙 {studyCoins}
+              </span>
+            </div>
+            <div className="bg-indigo-500/10 border border-indigo-500/15 px-3 py-1 rounded-xl text-left min-w-[65px]">
+              <span className="text-[8px] font-mono uppercase text-indigo-600 dark:text-indigo-400 block font-black">Water</span>
+              <span className="text-xs font-black font-mono text-indigo-500 flex items-center gap-1">
+                💧 {waterCups}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* TABS SELECTOR */}
-      <div className="flex gap-1.5 border-b border-slate-200/50 dark:border-slate-800 pb-2.5 overflow-x-auto no-scrollbar font-sans shrink-0">
+      <div className="liquid-glass p-1.5 rounded-2xl flex gap-1.5 overflow-x-auto no-scrollbar font-sans shrink-0 border shadow-sm">
         {[
-          { id: "workspace", label: "Draw Work", icon: PenTool, color: "text-orange-500" },
           { id: "acoustics", label: "Sound Synth", icon: Volume2, color: "text-rose-500" },
           { id: "planners", label: "Study Planner", icon: Layers, color: "text-indigo-500" },
           { id: "analytics", label: "Grade Target", icon: BarChart2, color: "text-emerald-500" },
@@ -1552,14 +1062,14 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             <button
               key={tab.id}
               onClick={() => { setActiveBeastTab(tab.id as any); playKeyboardClack(); }}
-              className={`py-2 px-4.5 rounded-xl flex items-center gap-2 text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              className={`py-2.5 px-5 rounded-xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 shrink-0 cursor-pointer active:scale-95 ${
                 isActive 
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm font-black scale-102" 
-                  : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/60 dark:bg-[#121212] dark:border-slate-800 dark:hover:bg-[#161616] dark:text-slate-400"
+                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-md font-black scale-[1.02]" 
+                  : "hover:bg-slate-550/10 text-slate-600 dark:text-slate-400 dark:hover:bg-white/5"
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? "" : tab.color}`} />
-              {tab.label}
+              <Icon className={`w-3.5 h-3.5 transition-transform duration-300 ${isActive ? "scale-110" : ""} ${tab.color}`} />
+              <span>{tab.label}</span>
             </button>
           );
         })}
@@ -1581,320 +1091,12 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
 
       <div className="space-y-6">
 
-        {/* TAB 1: DRAW WORKSPACE */}
-        {activeBeastTab === "workspace" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div 
-              className={isWbFullScreen 
-                ? "fixed inset-0 z-[150] p-5 flex flex-col space-y-4 text-left overflow-hidden h-screen w-screen"
-                : "lg:col-span-2 bg-white dark:bg-[#121212] p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left"
-              }
-              style={isWbFullScreen ? { backgroundColor: document.documentElement.classList.contains("dark") ? "#0c0a09" : "#f8fafc", opacity: 1, zIndex: 150 } : {}}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-                <div className="space-y-0.5">
-                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-150 flex items-center gap-1.5">
-                    <PenTool className="w-4 h-4 text-orange-500" />
-                    Digital Drawing Board
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Sketch freehand with brushes, insert clean shapes/arrows, type vector text, and expand your canvas infinitely down.</p>
-                </div>
-                <div className="flex gap-1.5 flex-wrap items-center">
-                  {wbBgPattern === "feynman" ? (
-                    <button 
-                      onClick={renderFeynmanGrid} 
-                      className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-350 rounded-lg transition-colors"
-                    >
-                      Reset Template
-                    </button>
-                  ) : (
-                    <>
-                      <button 
-                        onClick={triggerUndo} 
-                        disabled={undoStack.length === 0} 
-                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-350 rounded-lg disabled:opacity-40 flex items-center gap-1 transition-colors"
-                        title="Undo"
-                      >
-                        <Undo2 className="w-3.5 h-3.5" /> Undo
-                      </button>
-                      <button 
-                        onClick={triggerRedo} 
-                        disabled={redoStack.length === 0} 
-                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-350 rounded-lg disabled:opacity-40 flex items-center gap-1 transition-colors"
-                        title="Redo"
-                      >
-                        <Redo2 className="w-3.5 h-3.5" /> Redo
-                      </button>
-                    </>
-                  )}
-                  <button 
-                    onClick={expandCanvasManually} 
-                    className="px-2.5 py-1 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/70 text-[10px] font-bold rounded-lg flex items-center gap-1 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Expand Height
-                  </button>
-                  <button 
-                    onClick={downloadCanvas} 
-                    className="px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 text-[10px] font-bold rounded-lg flex items-center gap-1 transition-colors"
-                  >
-                    <Download className="w-3 h-3" /> Export PNG
-                  </button>
-                  <button 
-                    onClick={clearCanvas} 
-                    className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-lg transition-colors"
-                  >
-                    Clear All
-                  </button>
-                  <button 
-                    onClick={() => { setIsWbFullScreen(!isWbFullScreen); playGameSound("click"); }} 
-                    className="px-2.5 py-1 bg-indigo-600 text-white hover:bg-indigo-700 text-[10px] font-bold rounded-lg flex items-center gap-1 transition-colors"
-                  >
-                    {isWbFullScreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />} 
-                    {isWbFullScreen ? "Exit Full" : "Full Screen"}
-                  </button>
-                </div>
-              </div>
- 
-              {/* Dynamic Toolbar Dock */}
-              <div className="flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-[#18181b] p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 text-[11px]">
-                {/* Brush Colors with Custom Hex Color Picker */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-400">Colors:</span>
-                  <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800">
-                    {["#f26419", "#3b82f6", "#10b981", "#ef4444", "#a855f7", "#ffffff"].map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => { setWbColor(c); setWbTool("pencil"); playGameSound("click"); }}
-                        className={`w-4.5 h-4.5 rounded-full border border-slate-300/30 cursor-pointer transition-all ${wbColor === c ? "ring-2 ring-orange-500 scale-110" : "hover:scale-105"}`}
-                        style={{ backgroundColor: c }}
-                        title={c === "#ffffff" ? "White / Eraser Line" : `Color ${c}`}
-                      />
-                    ))}
-                    
-                    {/* Beautiful Absolute Hex Color Picker Container */}
-                    <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-1 shrink-0" />
-                    <div 
-                      className="relative w-4.5 h-4.5 rounded-full border border-slate-300/30 flex items-center justify-center cursor-pointer hover:scale-110 bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 overflow-hidden shadow-sm shrink-0"
-                      title="Custom Color Picker"
-                    >
-                      <input 
-                        type="color" 
-                        value={wbColor} 
-                        onChange={(e) => { setWbColor(e.target.value); playGameSound("click"); }}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                      <Palette className="w-2.5 h-2.5 text-white pointer-events-none" />
-                    </div>
-                  </div>
-                </div>
- 
-                {/* Integrated Digital Board Tool Dock */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-400 font-medium">Tools:</span>
-                  <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800 flex-wrap gap-0.5">
-                    {[
-                      { id: "hand", label: "Scroll / Pan", icon: "✋" },
-                      { id: "pencil", label: "Pen", icon: "✏️" },
-                      { id: "highlighter", label: "Highlighter", icon: "🖌️" },
-                      { id: "eraser", label: "Eraser", icon: "🧹" },
-                      { id: "line", label: "Line", icon: "➖" },
-                      { id: "arrow", label: "Arrow", icon: "↗️" },
-                      { id: "rect", label: "Rect", icon: "⬜" },
-                      { id: "circle", label: "Circle", icon: "⚪" },
-                      { id: "text", label: "Text", icon: "🔤" }
-                    ].map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => { setWbTool(t.id as any); playGameSound("click"); }}
-                        className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1 ${
-                          wbTool === t.id 
-                            ? "bg-slate-100 dark:bg-slate-800 text-orange-500 shadow-sm" 
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                        }`}
-                      >
-                        <span>{t.icon}</span>
-                        <span>{t.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
- 
-                {/* Grid Background Selection */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-400">Background:</span>
-                  <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800 flex-wrap gap-0.5">
-                    {[
-                      { id: "plain", label: "Solid" },
-                      { id: "dotted", label: "Dotted" },
-                      { id: "lined", label: "Lined" },
-                      { id: "feynman", label: "Feynman" }
-                    ].map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setWbBgPattern(p.id as any);
-                          playGameSound("click");
-                          if (p.id === "feynman") setTimeout(renderFeynmanGrid, 100);
-                        }}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${wbBgPattern === p.id ? "bg-slate-100 dark:bg-slate-800 text-orange-500" : "text-slate-500 dark:text-slate-400"}`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
- 
-                {/* Brush Thickness & Live Visual Thickness Preview */}
-                <div className="flex items-center gap-2 flex-1 min-w-[140px]">
-                  <span className="font-mono text-slate-400 whitespace-nowrap">Size: {wbSize}px</span>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="25" 
-                    value={wbSize} 
-                    onChange={(e) => setWbSize(parseInt(e.target.value))} 
-                    className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded cursor-pointer accent-orange-500" 
-                  />
-                  <div className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/40 dark:border-slate-800 flex items-center justify-center shrink-0">
-                    <div 
-                      className="rounded-full shrink-0" 
-                      style={{ 
-                        width: `${Math.max(1, Math.min(24, wbSize))}px`, 
-                        height: `${Math.max(1, Math.min(24, wbSize))}px`, 
-                        backgroundColor: wbColor,
-                        opacity: wbTool === "highlighter" ? 0.35 : 1
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
- 
-              {/* Live Canvas stage wrapper with custom absolute positioned overlays */}
-              <div 
-                className={`relative border border-slate-200 dark:border-slate-800 rounded-2xl overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-[#0c0a09] ${isWbFullScreen ? "flex-1" : "h-[500px]"}`}
-                style={{ backgroundColor: document.documentElement.classList.contains("dark") ? "#0c0a09" : "#f8fafc", opacity: 1 }}
-              >
-                {/* Premium Inline Absolute Text Typing Tool overlay */}
-                {wbTextInput && (
-                  <div 
-                    className="absolute z-10 p-1 bg-white dark:bg-slate-900 border border-indigo-500 rounded-xl shadow-xl flex items-center gap-1.5"
-                    style={{ 
-                      left: `${wbTextInput.x}px`, 
-                      top: `${wbTextInput.y}px`,
-                      transform: 'translate(-5px, -15px)'
-                    }}
-                  >
-                    <input
-                      type="text"
-                      autoFocus
-                      value={wbTextInput.text}
-                      onChange={(e) => setWbTextInput({ ...wbTextInput, text: e.target.value })}
-                      placeholder="Type notes..."
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          drawTextInputOnCanvas();
-                        } else if (e.key === "Escape") {
-                          setWbTextInput(null);
-                        }
-                      }}
-                      className="px-2 py-1 text-xs text-slate-800 dark:text-slate-100 bg-transparent border-none outline-none min-w-[130px] font-sans"
-                    />
-                    <button 
-                      onClick={drawTextInputOnCanvas}
-                      className="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold shrink-0 transition-colors"
-                    >
-                      Apply
-                    </button>
-                    <button 
-                      onClick={() => setWbTextInput(null)}
-                      className="px-1 py-1 text-slate-400 hover:text-slate-600 text-[10px] shrink-0"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-
-                <canvas
-                  ref={whiteboardCanvasRef}
-                  onMouseDown={handleWbMouseDown}
-                  onMouseMove={handleWbMouseMove}
-                  onMouseUp={handleWbMouseUp}
-                  onMouseLeave={handleWbMouseUp}
-                  onTouchStart={handleWbTouchStart}
-                  onTouchMove={handleWbTouchMove}
-                  onTouchEnd={handleWbMouseUp}
-                  style={{ 
-                    height: `${wbHeight}px`, 
-                    width: "100%", 
-                    backgroundColor: "transparent", 
-                    opacity: 1 
-                  }}
-                  className={`${
-                    wbTool === "hand" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
-                  } bg-transparent touch-none select-none ${
-                    wbBgPattern === "dotted" 
-                      ? "[background-image:radial-gradient(#cbd5e1_1.2px,transparent_1.2px)] dark:[background-image:radial-gradient(#292524_1.4px,transparent_1.4px)] [background-size:24px_24px]" 
-                      : wbBgPattern === "lined" 
-                        ? "[background-image:linear-gradient(#e2e8f0_1px,transparent_1px)] dark:[background-image:linear-gradient(#1e293b_1px,transparent_1px)] [background-size:100%_28px]" 
-                        : ""
-                  }`}
-                />
-              </div>
-            </div>
- 
-            {/* Side note workspace */}
-            <div className="bg-white dark:bg-[#121212] p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm text-left flex flex-col justify-between">
-              <div className="space-y-1">
-                <span className="text-xs font-bold uppercase text-indigo-500 flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5" /> Study Scratchpad
-                </span>
-                <p className="text-[11px] text-slate-400 leading-tight">Drafting essays, equations, or mock questions. Auto-saved locally.</p>
-              </div>
- 
-              <textarea
-                value={scratchpadText}
-                onChange={(e) => { setScratchpadText(e.target.value); playKeyboardClack(); }}
-                className="w-full flex-1 bg-slate-50 dark:bg-[#161619] text-slate-800 dark:text-slate-100 p-3 rounded-2xl text-xs border border-slate-200/50 dark:border-slate-800 focus:outline-none focus:border-orange-500 mt-2 min-h-[200px]"
-              />
- 
-              <div className="bg-slate-50 dark:bg-[#18181b] p-3 rounded-2xl border border-slate-150/50 dark:border-slate-800/80 mt-3 space-y-2">
-                <div className="flex flex-col gap-1.5 text-xs text-left">
-                  <span className="font-bold text-[11px] text-slate-500 dark:text-slate-400">Typing Preset: <span className="text-orange-500 uppercase font-black">{keyboardPreset}</span></span>
-                  <div className="flex bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 flex-wrap gap-0.5">
-                    {[
-                      { id: "brown", label: "Tactile" },
-                      { id: "blue", label: "Clicky" },
-                      { id: "linear", label: "Linear" },
-                      { id: "buckling", label: "Model-M" }
-                    ].map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => { setKeyboardPreset(p.id as any); playGameSound("click"); }}
-                        className={`flex-1 px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${keyboardPreset === p.id ? "bg-white dark:bg-slate-900 text-orange-500 shadow-sm" : "text-slate-500 dark:text-slate-400"}`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] pt-1">
-                  <span>Sound volume: {Math.round(ambientVolume.keyboard * 100)}%</span>
-                  <input type="range" min="0" max="1" step="0.05" value={ambientVolume.keyboard} onChange={(e) => setAmbientVolume(p=>({...p, keyboard: parseFloat(e.target.value)}))} className="w-24 cursor-pointer" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SOUND SYNTH */}
+        {/* TAB 1: SOUND SYNTH */}
         {activeBeastTab === "acoustics" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Binaural Generator */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3.5 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3.5 text-left">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-rose-500 block">Neuroacoustic waves</span>
@@ -1937,7 +1139,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Acoustic Masking */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3 text-left">
               <div>
                 <span className="text-[10px] font-bold uppercase text-indigo-500 block">Sound Masking</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5">
@@ -1970,7 +1172,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Live Visual Oscilloscope & Sleep countdown */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3.5 text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3.5 text-left flex flex-col justify-between">
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Synth Oscilloscope</span>
@@ -2006,7 +1208,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Eisenhower Quad Priority Grid */}
-            <div className="lg:col-span-2 bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left">
+            <div className="lg:col-span-2 liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400">Priority Engine</span>
@@ -2049,10 +1251,10 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
               {/* 4 Quadrants */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {[
-                  { q: 1, title: "🔴 Q1: Do First", bg: "bg-red-500/[0.03] border-red-500/15 text-red-650" },
+                  { q: 1, title: "🔴 Q1: Do First", bg: "bg-red-500/[0.03] border-red-500/15 text-red-600" },
                   { q: 2, title: "🟠 Q2: Plan/Schedule", bg: "bg-orange-500/[0.03] border-orange-500/15 text-orange-600" },
-                  { q: 3, title: "🔵 Q3: Delegate", bg: "bg-blue-500/[0.03] border-blue-500/15 text-blue-650" },
-                  { q: 4, title: "⚪ Q4: Postpone/Eliminate", bg: "bg-slate-500/[0.03] border-slate-500/15 text-slate-650" }
+                  { q: 3, title: "🔵 Q3: Delegate", bg: "bg-blue-500/[0.03] border-blue-500/15 text-blue-600" },
+                  { q: 4, title: "⚪ Q4: Postpone/Eliminate", bg: "bg-slate-500/[0.03] border-slate-500/15 text-slate-600" }
                 ].map((quad) => (
                   <div key={quad.q} className={`p-3 rounded-2xl border ${quad.bg}`}>
                     <h4 className="text-[11px] font-black uppercase mb-2">{quad.title}</h4>
@@ -2089,7 +1291,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* 3D Spaced Repetition Flashcard */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm text-left flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400">Leitner Engine</span>
@@ -2233,7 +1435,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* GPA modeling required final exam grades */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Target GPA Modeler</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white">Exam Required Score Calculator</h3>
@@ -2298,7 +1500,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Study Cycle & Reading Estimate */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3.5 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3.5 text-left">
               <div>
                 <span className="text-[10px] font-bold uppercase text-indigo-500">Resource Estimator</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white">Study Reading Cycle Estimator</h3>
@@ -2334,7 +1536,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Course Syllabus Checklist nested topics */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm text-left flex flex-col justify-between">
               <div className="space-y-3.5">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400">Chapters Master</span>
@@ -2503,7 +1705,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Mindful Portal Breath Coach */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3.5 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3.5 text-left">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400">Pranayama Portal</span>
@@ -2538,7 +1740,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Hydration sloshing water bottle SVG */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase text-indigo-500">Wellness Intake</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white">Sloshing Hydration Logger</h3>
@@ -2584,7 +1786,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Cognitive math speed arcade game */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Cognitive warm-up</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white">Mental Agility Speed Sprints</h3>
@@ -2626,7 +1828,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* EXPENSE STUDY BUDGET TRACKER */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Desk Setup Budget</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1"><DollarSign className="w-4 h-4 text-emerald-500" /> Setup & Study Budgeting</h3>
@@ -2678,7 +1880,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* MOTIVATIONAL VISION STICKER BOARD PINBOARD */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3 text-left">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-3 text-left">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Vision Board</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1"><ShoppingBag className="w-4 h-4 text-orange-500" /> Sticker Vision Pinboard</h3>
@@ -2739,7 +1941,7 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
             </div>
 
             {/* Exam Milestone tracker */}
-            <div className="bg-white dark:bg-[#121212] p-5.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4 text-left flex flex-col justify-between">
+            <div className="liquid-glass p-5.5 rounded-3xl border shadow-sm space-y-4 text-left flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400">Target Countdown</span>
                 <h3 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1"><Calendar className="w-4 h-4 text-indigo-500" /> Milestone Target Exam</h3>

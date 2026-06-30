@@ -29,7 +29,8 @@ import {
 } from "lucide-react";
 import { Subject, StudyLog, ALL_STUDENT_LEVELS, calculateStudentLevel, formatStudyTimeExact, NotificationSettings } from "../types";
 import { playChime } from "./RemindersHub";
-import { Info, X, Target, Lock, History } from "lucide-react"; // Import Info, X, Target, Lock, History icon specifically
+import { Info, X, Target, Lock, History, Settings, ShieldAlert, Trash2, PlusCircle, UserCheck, Crown, CloudRain, Waves, Radio } from "lucide-react"; // Import Info, X, Target, Lock, History icon specifically
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
 function getLocalDateString(d: Date = new Date()): string {
   const year = d.getFullYear();
@@ -78,6 +79,151 @@ interface TimelineViewProps {
   showSystemNotification?: (title: string, body: string) => void;
   setFiredNotification?: (message: string | null) => void;
   notificationSettings?: NotificationSettings;
+  ownerEmail?: string;
+  currentUser?: any;
+  isTrialActive?: boolean;
+  trialDaysRemaining?: number;
+  isPermanentlyUnlocked?: boolean;
+  onResetTrial?: () => void;
+}
+
+function AdminThemeAccessPanel() {
+  const [emails, setEmails] = useState<{ id: string; email: string }[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    const db = getFirestore();
+    const unsub = onSnapshot(collection(db, "unlockedAccounts"), (snap) => {
+      const list: { id: string; email: string }[] = [];
+      snap.forEach(d => {
+        list.push({ id: d.id, email: d.data().email || d.id });
+      });
+      setEmails(list);
+    }, err => {
+      console.error("AdminThemeAccessPanel snapshot error:", err);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetEmail = newEmail.trim().toLowerCase();
+    if (!targetEmail) return;
+    
+    // Simple email validation regex
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const db = getFirestore();
+      await setDoc(doc(db, "unlockedAccounts", targetEmail), {
+        email: targetEmail,
+        addedAt: new Date().toISOString()
+      });
+      setNewEmail("");
+      setSuccess(`Successfully unlocked ${targetEmail}!`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to grant access. Verify database permissions.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveEmail = async (emailId: string) => {
+    if (!window.confirm(`Are you sure you want to revoke permanent theme access for ${emailId}?`)) {
+      return;
+    }
+    setError("");
+    setSuccess("");
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, "unlockedAccounts", emailId));
+      setSuccess(`Access revoked for ${emailId}.`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to revoke access.");
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4.5 bg-indigo-950/20 rounded-3xl border border-indigo-500/10 space-y-3.5 text-left">
+      <div className="flex items-center gap-2">
+        <Crown className="w-4 h-4 text-indigo-400" />
+        <span className="text-[10px] uppercase font-mono text-indigo-300 font-black tracking-widest block">
+          🔑 Admin: Permanent Theme Access Management
+        </span>
+      </div>
+
+      <p className="text-[9px] text-slate-400 leading-normal">
+        As the app owner, you can manage who gets permanent access to all visual styles. Enter their Gmail below to permanently unlock all theme presets for their account.
+      </p>
+
+      <form onSubmit={handleAddEmail} className="flex gap-2">
+        <input
+          type="email"
+          placeholder="student@gmail.com"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+          disabled={isLoading}
+          className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10.5px] font-medium placeholder-slate-400 focus:outline-none focus:border-indigo-500/50"
+        />
+        <button
+          type="submit"
+          disabled={isLoading || !newEmail.trim()}
+          className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-650 text-white rounded-xl text-[10.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+        >
+          {isLoading ? "Adding..." : "Grant"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="text-[9.5px] text-rose-400 font-semibold">{error}</p>
+      )}
+      {success && (
+        <p className="text-[9.5px] text-emerald-400 font-semibold">{success}</p>
+      )}
+
+      {emails.length > 0 ? (
+        <div className="space-y-1.5 pt-1">
+          <span className="text-[8.5px] uppercase font-mono text-slate-400 font-bold block">
+            Permanently Unlocked Users ({emails.length})
+          </span>
+          <div className="max-h-32 overflow-y-auto space-y-1 border border-slate-200/50 dark:border-slate-800/50 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-950/20">
+            {emails.map((acc) => (
+              <div key={acc.id} className="flex items-center justify-between text-[10px] py-1 border-b border-slate-100 dark:border-slate-900/40 last:border-0">
+                <div className="flex items-center gap-1.5 truncate">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="font-semibold text-slate-700 dark:text-slate-350 truncate">{acc.email}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveEmail(acc.id)}
+                  className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer rounded-lg transition-all"
+                  title="Revoke access"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-[9px] text-slate-500 italic">No additional accounts have been permanently unlocked yet.</p>
+      )}
+    </div>
+  );
 }
 
 export default function TimelineView({
@@ -118,9 +264,16 @@ export default function TimelineView({
   showSystemNotification,
   setFiredNotification,
   notificationSettings,
+  ownerEmail = "mauryanaitik9999@gmail.com",
+  currentUser,
+  isTrialActive = false,
+  trialDaysRemaining = 0,
+  isPermanentlyUnlocked = false,
+  onResetTrial,
 }: TimelineViewProps) {
   // Navigation inside the Focus subtab
   const [subView, setSubView] = useState<"timer" | "timeline" | "atmosphere">("timer");
+  // renderChronoOrb is defined as a clean helper function below
   const [showLevelGuide, setShowLevelGuide] = useState(false);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(() => localStorage.getItem("f5_launchpad_open") !== "false");
   
@@ -393,6 +546,61 @@ export default function TimelineView({
   const [isEditingSubjectsList, setIsEditingSubjectsList] = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectColor, setNewSubjectColor] = useState("bg-emerald-500");
+  const [newSubjectGoal, setNewSubjectGoal] = useState(120);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [editSubjectName, setEditSubjectName] = useState("");
+  const [editSubjectColor, setEditSubjectColor] = useState("bg-emerald-500");
+  const [editSubjectGoal, setEditSubjectGoal] = useState(120);
+
+  const handleUpdateSubjectDetails = async (id: string, updatedName: string, updatedGoal: number, updatedColor: string) => {
+    setSubjects(prev => {
+      const next = prev.map(s => {
+        if (s.id === id) {
+          const updatedColorStyle = colorOptions.find(c => c.bg === updatedColor)?.fromTo || s.color;
+          return {
+            ...s,
+            name: updatedName,
+            goalMinutes: updatedGoal,
+            color: updatedColorStyle
+          };
+        }
+        return s;
+      });
+      try {
+        const { secureStorage } = require("../lib/crypto");
+        secureStorage.setItem("study_subjects", JSON.stringify(next));
+      } catch (err) {
+        localStorage.setItem("study_subjects", JSON.stringify(next));
+      }
+      
+      // Sync to Firestore in the background
+      try {
+        import("firebase/auth").then(({ getAuth }) => {
+          const auth = getAuth();
+          if (auth.currentUser) {
+            import("firebase/firestore").then(({ getFirestore, doc, setDoc }) => {
+              const db = getFirestore();
+              const targetSubject = next.find(sub => sub.id === id);
+              if (targetSubject) {
+                const subRef = doc(db, "users", auth.currentUser.uid, "subjects", id);
+                setDoc(subRef, targetSubject, { merge: true }).catch(err => console.warn("Firestore edit subject sync failed:", err));
+              }
+            });
+          }
+        });
+      } catch (err) {
+        console.warn("Firestore sync failed on subject edit:", err);
+      }
+
+      return next;
+    });
+
+    setToast({
+      message: "Academic discipline updated successfully! ✨",
+      type: "success"
+    });
+  };
+
   const [allDayEvents, setAllDayEvents] = useState<string[]>(["Google I/O event", "Diary 📓 Fill"]);
 
   // Audio ambient synthesizers states
@@ -599,6 +807,7 @@ export default function TimelineView({
 
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const volumeCapsuleRef = useRef<HTMLDivElement>(null);
 
   // Clear stale activeSubjectId if it does not exist in the loaded subject lists
   useEffect(() => {
@@ -669,6 +878,61 @@ export default function TimelineView({
       gainNodeRef.current.gain.setValueAtTime(volume, audioCtxRef.current.currentTime);
     }
   }, [volume]);
+
+  const handleCapsuleClickOrDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement> | MouseEvent | TouchEvent) => {
+    if (!volumeCapsuleRef.current) return;
+    const rect = volumeCapsuleRef.current.getBoundingClientRect();
+    
+    let clientY = 0;
+    if ("touches" in e) {
+      if (e.touches && e.touches.length > 0) {
+        clientY = e.touches[0].clientY;
+      } else if ("changedTouches" in e && e.changedTouches && e.changedTouches.length > 0) {
+        clientY = e.changedTouches[0].clientY;
+      } else {
+        return;
+      }
+    } else {
+      clientY = e.clientY;
+    }
+    
+    const relativeY = clientY - rect.top;
+    const percentage = 1 - Math.max(0, Math.min(1, relativeY / rect.height)); // 0 = bottom, 1 = top
+    const newVol = parseFloat((percentage * 0.5).toFixed(3)); // map to 0 - 0.5 range
+    setVolume(newVol);
+  };
+
+  const handleCapsuleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    handleCapsuleClickOrDrag(e);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      handleCapsuleClickOrDrag(moveEvent);
+    };
+    
+    const handleMouseUp = () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleCapsuleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    handleCapsuleClickOrDrag(e);
+    
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      handleCapsuleClickOrDrag(moveEvent);
+    };
+    
+    const handleTouchEnd = () => {
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+    
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+  };
 
   const startAmbientSynth = (type: "brown" | "rain" | "waves" | "fire" | "binaural") => {
     try {
@@ -1153,8 +1417,9 @@ export default function TimelineView({
   const handleCreateSubject = async () => {
     if (!newSubjectName.trim()) return;
     const matchedColor = colorOptions.find(c => c.bg === newSubjectColor) || colorOptions[0];
-    await onAddSubject(newSubjectName, 120, matchedColor.fromTo);
+    await onAddSubject(newSubjectName, newSubjectGoal, matchedColor.fromTo);
     setNewSubjectName("");
+    setNewSubjectGoal(120);
     setIsEditingSubjectsList(false);
   };
 
@@ -1178,8 +1443,397 @@ export default function TimelineView({
     return Math.min(100, Math.round((liveSecondsToday / activeGoalSeconds) * 100));
   };
 
+  const renderChronoOrb = () => {
+    const currentPercent = (() => {
+      if (timerType === "pomodoro") {
+        const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
+                         pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
+                         pomoLongBreakDuration * 60;
+        return Math.min(100, Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100));
+      } else if (timerType === "custom") {
+        return Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100));
+      } else {
+        return getProgressRingPercent();
+      }
+    })();
+
+    // Calculate the indicator dot position on the 112px radius orbit path
+    const orbitAngleRad = (currentPercent / 100) * 2 * Math.PI - Math.PI / 2;
+    const orbDotX = 128 + 112 * Math.cos(orbitAngleRad);
+    const orbDotY = 128 + 112 * Math.sin(orbitAngleRad);
+
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-6 rounded-[32px] glass-card-inner relative space-y-5 overflow-hidden group transition-all duration-500 hover:shadow-orange-500/10 hover:border-white/95">
+        {/* Glowing Ambient Mesh backing */}
+        <div 
+          className="absolute -top-12 -left-12 w-28 h-28 rounded-full filter blur-[35px] opacity-20 dark:opacity-35 transition-all duration-1000 group-hover:scale-150" 
+          style={{ backgroundColor: themeHexAccent }}
+        />
+        <div 
+          className="absolute -bottom-12 -right-12 w-28 h-28 rounded-full filter blur-[35px] opacity-10 dark:opacity-20 transition-all duration-1000 group-hover:scale-150" 
+          style={{ backgroundColor: gradientStops.end }}
+        />
+
+        <div className="w-full flex items-center justify-between px-1 relative z-10">
+          <span 
+            className="text-[9px] font-mono tracking-widest uppercase font-black px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all duration-300"
+            style={{ 
+              backgroundColor: themeHexAccent + "15", 
+              borderColor: themeHexAccent + "30",
+              color: themeHexAccent 
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
+            Chrono Orb
+          </span>
+          <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            Precision Focus
+          </span>
+        </div>
+
+        <div className="relative w-48 h-48 xs:w-52 xs:h-52 sm:w-56 sm:h-56 md:w-60 md:h-60 lg:w-64 lg:h-64 xl:w-72 xl:h-72 flex items-center justify-center relative z-10">
+          {/* Breathing Ripples when Breathing Coach is active */}
+          {showBreathingCoach && isStudying && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
+              <div 
+                className="absolute rounded-full transition-all duration-[4000ms] ease-in-out"
+                style={{ 
+                  borderColor: themeHexAccent + "25", 
+                  backgroundColor: themeHexAccent + "09",
+                  animation: "breatheExpand 8s ease-in-out infinite",
+                  inset: breathState === "inhale" ? "0.25rem" : breathState === "hold" ? "0.1rem" : "1.5rem"
+                }}
+              />
+            </div>
+          )}
+
+          {/* Outer Rotating Dotted Border Halo */}
+          {isStudying && (
+            <div 
+              className="absolute inset-0 rounded-full border border-dashed opacity-40 animate-spin" 
+              style={{ animationDuration: '45s', borderColor: themeHexAccent + "55" }} 
+            />
+          )}
+
+          <svg viewBox="0 0 256 256" className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
+            <defs>
+              <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={gradientStops.start} />
+                <stop offset="50%" stopColor={gradientStops.mid} />
+                <stop offset="100%" stopColor={gradientStops.end} />
+              </linearGradient>
+              <radialGradient id="ringBackground" cx="50%" cy="50%" r="50%">
+                <stop offset="70%" stopColor="transparent" />
+                <stop offset="100%" stopColor={`${gradientStops.start}0c`} />
+              </radialGradient>
+            </defs>
+            
+            {/* Outer shadow ring */}
+            <circle 
+              cx="128" 
+              cy="128" 
+              r="110" 
+              fill="url(#ringBackground)" 
+              className="stroke-slate-100/40 dark:stroke-white/[0.04]" 
+              strokeWidth="1"
+            />
+            
+            {/* Light Tick markers around the dial */}
+            <circle 
+              cx="128" 
+              cy="128" 
+              r="105" 
+              stroke="rgba(148, 163, 184, 0.15)" 
+              strokeWidth="3" 
+              strokeDasharray="2 6"
+              fill="none"
+            />
+
+            {/* Master Background Orbit */}
+            <circle 
+              cx="128" 
+              cy="128" 
+              r="112" 
+              className="stroke-slate-200/30 dark:stroke-white/[0.03]" 
+              strokeWidth="6" 
+              fill="none" 
+            />
+
+            {/* Active Ticking Path */}
+            <circle 
+              cx="128" 
+              cy="128" 
+              r="112" 
+              stroke={timerType === "pomodoro" && pomoState !== "focus" ? "rgba(16, 185, 129, 0.85)" : "url(#timerSunsetGrad)"}
+              className="progress-glow transition-all duration-300"
+              strokeWidth="7" 
+              fill="none" 
+              strokeDasharray={`${(703.7 * currentPercent) / 100} 703.7`}
+              strokeDashoffset={0}
+              strokeLinecap="round"
+            />
+
+            {/* Orbiting indicator node */}
+            {currentPercent > 0 && (
+              <circle
+                cx={orbDotX}
+                cy={orbDotY}
+                r="6"
+                fill="#ffffff"
+                stroke={gradientStops.start}
+                strokeWidth="2.5"
+                className="shadow-md transition-all duration-100"
+                style={{ filter: "drop-shadow(0 0 6px " + themeHexAccent + ")" }}
+              />
+            )}
+          </svg>
+
+          {/* Holographic readout inside the glass crystal */}
+          <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10">
+            {activeSubject ? (
+              <div className="flex flex-col items-center max-w-[210px] mb-1.5">
+                <span className="text-[10px] md:text-xs font-sans font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[170px]">
+                  {activeSubject.name}
+                </span>
+                <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-mono font-black mt-1" style={{ color: themeHexAccent }}>
+                  <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
+                  <span className="opacity-40">•</span>
+                  <span className="bg-white/50 dark:bg-white/5 px-1.5 py-0.5 rounded-md">
+                    {currentPercent}%
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Study Focus</span>
+            )}
+
+            <span 
+              className="text-4xl xs:text-5xl lg:text-5xl xl:text-5xl font-mono font-extrabold tracking-tight text-slate-800 dark:text-white tabular-nums leading-none"
+              style={{ textShadow: isStudying ? `0 0 24px ${themeHexAccent}30` : "none" }}
+            >
+              {timerType === "custom" 
+                ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
+                : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
+              }
+            </span>
+
+            <div className="mt-3.5 flex flex-col items-center gap-1.5">
+              <div 
+                className={`text-[9px] uppercase tracking-widest font-mono px-3.5 py-1 rounded-full border transition-all duration-300 font-extrabold shadow-sm ${
+                  isStudying 
+                    ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
+                      ? "animate-pulse" 
+                      : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
+                    : "bg-slate-100 dark:bg-black/40 border-transparent text-slate-500"
+                  }`}
+                style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
+                  backgroundColor: themeHexAccent + "1a",
+                  borderColor: themeHexAccent + "40",
+                  color: themeHexAccent
+                } : {}}
+              >
+                {timerType === "custom" ? (
+                  isStudying ? "Countdown Active" : "Target Paused"
+                ) : timerType === "stopwatch" ? (
+                  isStudying ? "Focus Flowing" : "Stopwatch Paused"
+                ) : (
+                  pomoState === "focus" ? (
+                    isStudying ? "Focus Period" : "Pomo Standby"
+                  ) : (
+                    pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
+                  )
+                )}
+              </div>
+
+              {showBreathingCoach && isStudying && (
+                <div 
+                  className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-full border backdrop-blur-md shadow-inner"
+                  style={{
+                    backgroundColor: themeHexAccent + "14",
+                    borderColor: themeHexAccent + "26"
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
+                  <span 
+                    className="text-[8px] font-sans font-black uppercase tracking-widest leading-none"
+                    style={{ color: themeHexAccent }}
+                  >
+                    {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Ultimate Play Circle Button just down of the watch */}
+        <div className="flex justify-center items-center relative z-20 mt-1 mb-2">
+          <button
+            type="button"
+            id="f5-play-circle-button"
+            onClick={async () => {
+              if (subjects.length === 0) {
+                setToast({
+                  message: "⚠️ Please enroll a Subject or Topic first using the '+' button!",
+                  type: "warning"
+                });
+                setShowSubjectsModal(true);
+                setIsEditingSubjectsList(true);
+                return;
+              }
+              if (isStudying) {
+                handleStopAndSave();
+                return;
+              }
+
+              // Smart Unended Session Recovery
+              const localIsStudying = localStorage.getItem("study_is_studying") === "true";
+              const localActiveSubjectId = localStorage.getItem("study_active_subject_id") || activeSubjectId;
+              
+              let dbIsStudying = false;
+              let dbActiveSubjectId = "";
+              try {
+                const { getAuth } = await import("firebase/auth");
+                const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+                const auth = getAuth();
+                if (auth.currentUser) {
+                  const db = getFirestore();
+                  const userDocRef = doc(db, "users", auth.currentUser.uid);
+                  const docSnap = await getDoc(userDocRef);
+                  if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    if (userData.isStudyingUser) {
+                      dbIsStudying = true;
+                      dbActiveSubjectId = userData.activeSubjectId || "";
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn("Firestore active study check failed on play circle button click:", err);
+              }
+
+              const resolvedActiveSubjectId = dbActiveSubjectId || localActiveSubjectId;
+              const hasRunningSession = dbIsStudying || localIsStudying;
+
+              if (hasRunningSession && resolvedActiveSubjectId) {
+                setActiveSubjectId(resolvedActiveSubjectId);
+                setIsStudying(true);
+                setToast({
+                  message: "⏱️ Auto-restoring and saving active study session...",
+                  type: "info"
+                });
+                setTimeout(() => {
+                  handleStopAndSave();
+                }, 350);
+                return;
+              }
+
+              const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
+              if (verifiedSubject) {
+                setIsStudying(true);
+                setToast({
+                  message: `Study session started for: "${verifiedSubject.name}" ⚡`,
+                  type: "info"
+                });
+              } else {
+                setToast({
+                  message: "⚠️ Please select an active Subject/Topic from the disciplines list below first!",
+                  type: "warning"
+                });
+              }
+            }}
+            className="w-16 h-16 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 group/play shadow-xl border focus:outline-none"
+            style={{
+              backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : themeHexAccent + "1a",
+              borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : themeHexAccent + "40",
+              boxShadow: isStudying ? "0 0 20px rgba(245, 158, 11, 0.15)" : `0 0 24px ${themeHexAccent}20`
+            }}
+            title={isStudying ? "Stop & Save Study Session" : "Start Focus Session"}
+          >
+            <span className="absolute inset-0 rounded-full scale-[0.85] border border-dashed opacity-45 group-hover/play:scale-100 transition-all duration-500" style={{ borderColor: isStudying ? "#f59e0b" : themeHexAccent }} />
+            {isStudying ? (
+              <Pause className="w-6 h-6 text-amber-500 fill-amber-500/20 stroke-[3.5] transform group-hover/play:scale-110 transition-transform" />
+            ) : (
+              <Play className="w-6 h-6 text-emerald-500 fill-emerald-500/20 stroke-[3.5] ml-1 transform group-hover/play:scale-110 transition-transform animate-pulse" style={{ color: themeHexAccent, fill: `${themeHexAccent}20` }} />
+            )}
+          </button>
+        </div>
+
+        {/* Pomodoro Rounds Progress Indicator */}
+        {timerType === "pomodoro" && (
+          <div className="flex flex-col items-center gap-2 mt-2 w-full max-w-[220px] bg-white/40 dark:bg-black/10 border border-slate-200/30 dark:border-white/5 px-4 py-3 rounded-2xl relative z-10 shadow-inner">
+            <span className="text-[9px] font-mono font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Pomo Rounds</span>
+            <div className="flex items-center gap-2.5 mt-0.5">
+              {[1, 2, 3, 4].map(r => {
+                const isActive = pomoRound === r && pomoState === "focus";
+                const isDone = pomoRound > r || (pomoRound === r && pomoState !== "focus");
+                return (
+                  <div 
+                    key={r}
+                    className={`w-6 h-6 rounded-xl flex items-center justify-center text-[10px] font-mono font-black transition-all ${
+                      isActive 
+                        ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30 animate-pulse scale-110 border border-white/20" 
+                        : isDone 
+                        ? "bg-emerald-500 text-white border border-white/20" 
+                        : "bg-slate-200/60 dark:bg-white/5 text-slate-455 dark:text-slate-500 border border-transparent"
+                    }`}
+                  >
+                    {isDone ? "✓" : r}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
+        <div className="flex items-center gap-3.5 mt-4 w-full relative z-10 px-2">
+          {(timerType === "stopwatch" || timerType === "custom") ? (
+            activeSeconds > 0 && (
+              <>
+                <button
+                  onClick={handleStopAndSave}
+                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-105 text-white font-extrabold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2 active:scale-95 border border-white/10"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" /> Finish & Save
+                </button>
+                <button
+                  onClick={handleDiscardProgress}
+                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    showDiscardConfirm 
+                      ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse w-full text-xs font-black" 
+                      : "bg-white/50 hover:bg-white dark:bg-black/30 dark:hover:bg-black/50 border-slate-200/40 dark:border-white/5 text-slate-500 dark:text-slate-400"
+                  }`}
+                >
+                  {showDiscardConfirm ? "Reset?" : <RotateCcw className="w-4 h-4" />}
+                </button>
+              </>
+            )
+          ) : (
+            <>
+              <button
+                onClick={handleResetPomo}
+                className="flex-1 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-black text-xs py-2.5 rounded-xl border bg-white/45 hover:bg-white dark:bg-black/20 dark:hover:bg-black/35 border-slate-200/40 dark:border-white/5 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                title="Reset Pomodoro"
+              >
+                <RotateCw className="w-3.5 h-3.5" /> Reset
+              </button>
+              <button
+                onClick={handleSkipPomo}
+                className="flex-1 text-[#f26419] font-black text-xs py-2.5 rounded-xl border bg-orange-500/10 dark:bg-orange-500/5 border-[#f26419]/25 hover:bg-orange-500/15 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                title="Skip period"
+              >
+                <SkipForward className="w-3.5 h-3.5" /> Skip
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div id="f5-active-focus-pane" className="relative flex flex-col h-full rounded-3xl overflow-hidden border border-slate-200/50 dark:border-slate-800 bg-white/70 dark:bg-[#0c0d10]/95 backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-350">
+    <div id="f5-active-focus-pane" className="liquid-glass relative flex flex-col h-full rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-350 border">
       {/* Dynamic Toast / Premium Study notification banner */}
       {toast && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900/90 dark:bg-slate-50/95 text-white dark:text-slate-900 border border-slate-700/30 dark:border-slate-200/50 shadow-2xl backdrop-blur-md transition-all duration-300">
@@ -1190,37 +1844,38 @@ export default function TimelineView({
         </div>
       )}
       {/* Dynamic layout tabs control bar */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between px-6 pt-5 pb-3.5 border-b border-slate-100 dark:border-slate-900/60">
-        <div className="flex items-center gap-1 font-sans bg-slate-100/80 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/30 dark:border-slate-900 flex-wrap w-full sm:w-auto justify-center sm:justify-start">
+      {/* Dynamic layout tabs control bar */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between px-6 pt-5 pb-3.5 border-b border-slate-100/60 dark:border-slate-900/40 relative z-10">
+        <div className="flex items-center gap-1 font-sans liquid-glass-inset p-1.5 rounded-2xl flex-wrap w-full sm:w-auto justify-center sm:justify-start">
           <button 
             onClick={() => setSubView("timer")}
-            className={`px-4.5 py-2 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+            className={`px-4.5 py-2.5 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
               subView === "timer" 
-                ? "bg-white dark:bg-[#15161d] text-[#f26419] shadow-sm font-black border border-slate-200/60 dark:border-slate-800 scale-[1.02]" 
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-white/80 dark:bg-white/10 text-[#f26419] dark:text-white shadow-lg shadow-orange-500/10 dark:shadow-none border border-white dark:border-white/10 scale-[1.02] backdrop-blur-md" 
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
             }`}
           >
             <Clock className="w-3.5 h-3.5" /> Study Timer
           </button>
           <button 
             onClick={() => setSubView("timeline")}
-            className={`px-4.5 py-2 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+            className={`px-4.5 py-2.5 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
               subView === "timeline" 
-                ? "bg-white dark:bg-[#15161d] text-[#f26419] shadow-sm font-black border border-slate-200/60 dark:border-slate-800 scale-[1.02]" 
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-white/80 dark:bg-white/10 text-[#f26419] dark:text-white shadow-lg shadow-orange-500/10 dark:shadow-none border border-white dark:border-white/10 scale-[1.02] backdrop-blur-md" 
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
             }`}
           >
             <Calendar className="w-3.5 h-3.5" /> Hour Timeline
           </button>
           <button 
             onClick={() => setSubView("atmosphere")}
-            className={`px-4.5 py-2 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+            className={`px-4.5 py-2.5 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
               subView === "atmosphere" 
-                ? "bg-white dark:bg-[#15161d] text-indigo-500 shadow-sm font-black border border-slate-200/60 dark:border-slate-800 scale-[1.02]" 
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-white/80 dark:bg-white/10 text-indigo-600 dark:text-indigo-300 shadow-lg shadow-indigo-500/10 dark:shadow-none border border-white dark:border-indigo-500/20 scale-[1.02] backdrop-blur-md" 
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
             }`}
           >
-            <Heart className="w-3.5 h-3.5 text-indigo-500" /> Zen Space 🧘
+            <Heart className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Zen Space 🧘
           </button>
         </div>
 
@@ -1228,7 +1883,7 @@ export default function TimelineView({
           <button 
             type="button"
             onClick={() => setShowLevelGuide(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 dark:border-amber-500/30 rounded-xl transition-all duration-300 text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 cursor-pointer hover-lift shadow-sm shadow-amber-500/5 active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 dark:border-amber-500/30 rounded-xl transition-all duration-300 text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 cursor-pointer hover-lift shadow-sm shadow-amber-500/5 active:scale-95"
             title="View Level Milestones & Unlockable Rewards Guide"
           >
             <span className="flex items-center gap-1">🏆 Lvl {calculateStudentLevel(userXp).level}</span>
@@ -1237,13 +1892,13 @@ export default function TimelineView({
             <Info className="w-3.5 h-3.5 ml-0.5 text-amber-500" />
           </button>
 
-          <span className="text-[10px] font-mono font-black uppercase text-slate-500 bg-slate-100/80 dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200/20 dark:border-slate-900">
+          <span className="text-[10px] font-mono font-black uppercase text-slate-500 dark:text-slate-400 px-3.5 py-2.5 rounded-xl liquid-glass-inset">
             {currentDateString || "Today"}
           </span>
           <button 
             type="button" 
             onClick={onToggleSidebar} 
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 dark:border-indigo-500/35 rounded-xl transition-all duration-300 text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 cursor-pointer hover-lift shadow-sm shadow-indigo-500/5 active:scale-95" 
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/20 dark:border-indigo-500/35 rounded-xl transition-all duration-300 text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 cursor-pointer hover-lift shadow-sm shadow-indigo-500/5 active:scale-95" 
             title="Open Companion Tools: Music, block filters, custom books & reminders"
           >
             <Grid className="w-3.5 h-3.5 text-indigo-500 stroke-[2.5]" />
@@ -1258,46 +1913,23 @@ export default function TimelineView({
         /* ==================== SCREEN A: PREMIUM STUDY CHROMOPHORE TIMER & POMODORO ==================== */
         <div className="flex-1 p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 flex flex-col justify-between overflow-y-auto no-scrollbar relative">
           
-          <style dangerouslySetInnerHTML={{__html: `
-            @keyframes equalizerPulse {
-              0% { height: 12%; opacity: 0.4; }
-              100% { height: 100%; opacity: 1; }
-            }
-            @keyframes flowRipple {
-              0% { transform: scale(0.95); opacity: 0.5; }
-              100% { transform: scale(1.15); opacity: 0; }
-            }
-            .progress-glow {
-              filter: drop-shadow(0 0 10px rgba(242, 100, 25, 0.4));
-            }
-            .dark .progress-glow {
-              filter: drop-shadow(0 0 16px rgba(242, 100, 25, 0.6));
-            }
-            .interactive-card {
-              transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            }
-            .interactive-card:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 12px 20px -8px rgba(242, 100, 25, 0.15);
-            }
-          `}} />
-
           {/* Stopwatch vs Pomodoro vs Custom Countdown Segmented Controls */}
-          <div className="flex justify-center mb-2">
-            <div className="bg-slate-100/60 dark:bg-slate-950 p-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200/40 dark:border-slate-850 flex-wrap justify-center shadow-inner">
+          <div className="flex justify-center mb-4">
+            <div className="liquid-glass-inset p-1.5 rounded-[22px] flex items-center gap-2 flex-wrap justify-center">
               <button
                 type="button"
                 onClick={() => {
                   setTimerType("stopwatch");
                   setIsStudying(false); // Pause studying safely on flip
                 }}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
+                style={{ "--neon-color": "rgba(242, 100, 25, 0.4)" } as React.CSSProperties}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 ${
                   timerType === "stopwatch"
-                    ? "bg-white dark:bg-[#181920] text-[#f26419] shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-[#181920] text-[#f26419] shadow-lg font-extrabold border border-slate-200/60 dark:border-slate-800 scale-[1.03] shadow-orange-500/10"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/45 dark:hover:bg-white/5"
                 }`}
               >
-                <Clock className="w-3.5 h-3.5 text-[#f26419]" /> Stopwatch
+                <Clock className={`w-3.5 h-3.5 transition-transform ${timerType === "stopwatch" ? "scale-110 rotate-12" : ""}`} style={{ color: "#f26419" }} /> Stopwatch
               </button>
               <button
                 type="button"
@@ -1305,13 +1937,14 @@ export default function TimelineView({
                   setTimerType("pomodoro");
                   setIsStudying(false); // Pause safely on flip
                 }}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
+                style={{ "--neon-color": "rgba(244, 63, 94, 0.4)" } as React.CSSProperties}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 ${
                   timerType === "pomodoro"
-                    ? "bg-white dark:bg-[#181920] text-rose-500 shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-[#181920] text-rose-500 shadow-lg font-extrabold border border-slate-200/60 dark:border-slate-800 scale-[1.03] shadow-rose-500/10"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/45 dark:hover:bg-white/5"
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-rose-500 fill-rose-500/10" /> Pomodoro
+                <Sparkles className={`w-3.5 h-3.5 transition-transform ${timerType === "pomodoro" ? "scale-110 animate-bounce" : ""}`} style={{ color: "#ec4899" }} /> Pomodoro
               </button>
               <button
                 type="button"
@@ -1319,13 +1952,14 @@ export default function TimelineView({
                   setTimerType("custom");
                   setIsStudying(false); // Pause safely on flip
                 }}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 hover-lift ${
+                style={{ "--neon-color": "rgba(16, 185, 129, 0.4)" } as React.CSSProperties}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 ${
                   timerType === "custom"
-                    ? "bg-white dark:bg-[#181920] text-emerald-500 shadow-sm font-extrabold border border-slate-200/60 dark:border-slate-850 scale-[1.03]"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-[#181920] text-emerald-500 shadow-lg font-extrabold border border-slate-200/60 dark:border-slate-800 scale-[1.03] shadow-emerald-500/10"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/45 dark:hover:bg-white/5"
                 }`}
               >
-                <Target className="w-3.5 h-3.5 text-emerald-500" /> Custom Target
+                <Target className={`w-3.5 h-3.5 transition-transform ${timerType === "custom" ? "scale-110 rotate-45" : ""}`} style={{ color: "#10b981" }} /> Custom Target
               </button>
             </div>
           </div>
@@ -1333,333 +1967,238 @@ export default function TimelineView({
 
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4.5 items-start flex-1 w-full">
-            
-            {/* Left side: Premium Circular progress ring (customizes based on stopwatch vs pomodoro) */}
-            <div className="lg:col-span-4 col-span-12 flex flex-col items-center justify-center p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-slate-50/45 dark:bg-[#0c0d12]/80 border border-slate-200/50 dark:border-slate-[#13141a] shadow-md relative space-y-3 sm:space-y-3.5">
-              
-              <div className="w-full flex items-center justify-between px-1">
-                <span className="text-[9.5px] font-mono tracking-widest uppercase font-black text-[#f26419] bg-orange-500/10 px-2.5 py-0.5 rounded-full">
-                  ⏱️ Chrono Orb
-                </span>
-                <span className="text-[9.5px] font-mono font-bold text-slate-455 dark:text-slate-500">
-                  Precision Focus Gauge
-                </span>
-              </div>
+            {/* Subject Selection (Visualized on the Right Side using order-2 / lg:order-2) */}
+            <div className="lg:col-span-4 col-span-12 order-2 lg:order-2 flex flex-col h-full min-h-[550px]">
+              {/* Assign Chrono Orb Render Function (Deactivated in favor of component-level definition) */}
+              {false && (() => {
+                const dummyRenderChronoOrb = () => {
+                  const currentPercent = (() => {
+                  if (timerType === "pomodoro") {
+                    const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
+                                     pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
+                                     pomoLongBreakDuration * 60;
+                    return Math.min(100, Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100));
+                  } else if (timerType === "custom") {
+                    return Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100));
+                  } else {
+                    return getProgressRingPercent();
+                  }
+                })();
 
-              <div className="relative w-44 h-44 xs:w-48 xs:h-48 sm:w-52 sm:h-52 md:w-56 md:h-56 lg:w-60 lg:h-60 xl:w-68 xl:h-68 2xl:w-76 2xl:h-76 flex items-center justify-center">
-                
-                {/* Multi-layered Pulsing Halo Outer Rings */}
-                {isStudying && (
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 border-dashed animate-spin" 
-                    style={{ animationDuration: '30s', borderColor: themeHexAccent + "33" }} 
-                  />
-                )}
-                {isStudying && (
-                  <div 
-                    className="absolute -inset-1.5 rounded-full border border-solid animate-ping opacity-40" 
-                    style={{ animationDuration: '3s', borderColor: themeHexAccent + "1a" }} 
-                  />
-                )}
+                // Calculate the indicator dot position on the 112px radius orbit path
+                const orbitAngleRad = (currentPercent / 100) * 2 * Math.PI - Math.PI / 2;
+                const orbDotX = 128 + 112 * Math.cos(orbitAngleRad);
+                const orbDotY = 128 + 112 * Math.sin(orbitAngleRad);
 
-                {/* Mindful Breathing Animated Anchor Overlays */}
-                {showBreathingCoach && isStudying && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
-                    <div 
-                      className={`absolute rounded-full transition-all duration-[4000ms] ease-in-out ${
-                        breathState === "inhale" ? "inset-2 opacity-75 scale-110"
-                        : breathState === "hold" ? "inset-1.5 opacity-90 blur-[1px] scale-115 animate-pulse"
-                        : "inset-6 opacity-30 scale-95"
-                      }`}
+                return (
+                  <div className="w-full flex flex-col items-center justify-center p-6 rounded-[32px] bg-white/20 dark:bg-[#0c0d12]/55 border border-white/50 dark:border-white/[0.08] shadow-2xl backdrop-blur-xl relative space-y-5 overflow-hidden group transition-all duration-500 hover:shadow-orange-500/5 hover:border-white/80">
+                  {/* Glowing Ambient Mesh backing */}
+                  <div 
+                    className="absolute -top-12 -left-12 w-28 h-28 rounded-full filter blur-[35px] opacity-20 dark:opacity-35 transition-all duration-1000 group-hover:scale-150" 
+                    style={{ backgroundColor: themeHexAccent }}
+                  />
+                  <div 
+                    className="absolute -bottom-12 -right-12 w-28 h-28 rounded-full filter blur-[35px] opacity-10 dark:opacity-20 transition-all duration-1000 group-hover:scale-150" 
+                    style={{ backgroundColor: gradientStops.end }}
+                  />
+
+                  <div className="w-full flex items-center justify-between px-1 relative z-10">
+                    <span 
+                      className="text-[9px] font-mono tracking-widest uppercase font-black px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all duration-300"
                       style={{ 
-                        borderColor: themeHexAccent + "33", 
-                        backgroundColor: themeHexAccent + "0d" 
+                        backgroundColor: themeHexAccent + "15", 
+                        borderColor: themeHexAccent + "30",
+                        color: themeHexAccent 
                       }}
-                    />
-                  </div>
-                )}
-
-                <svg viewBox="0 0 256 256" className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
-                  <defs>
-                    <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={gradientStops.start} />
-                      <stop offset="50%" stopColor={gradientStops.mid} />
-                      <stop offset="100%" stopColor={gradientStops.end} />
-                    </linearGradient>
-                    <radialGradient id="ringBackground" cx="50%" cy="50%" r="50%">
-                      <stop offset="70%" stopColor="transparent" />
-                      <stop offset="100%" stopColor={`${gradientStops.start}08`} />
-                    </radialGradient>
-                  </defs>
-                  
-                  {/* Outer shadow ring */}
-                  <circle 
-                    cx="128" 
-                    cy="128" 
-                    r="110" 
-                    fill="url(#ringBackground)" 
-                    className="stroke-slate-100/80 dark:stroke-slate-900/40" 
-                    strokeWidth="1.5"
-                  />
-                  
-                  {/* Light Tick markers around the dial */}
-                  <circle 
-                    cx="128" 
-                    cy="128" 
-                    r="105" 
-                    stroke="rgba(148, 163, 184, 0.12)" 
-                    strokeWidth="4" 
-                    strokeDasharray="1.5 8"
-                    fill="none"
-                  />
-
-                  {/* Master Background Orbit */}
-                  <circle 
-                    cx="128" 
-                    cy="128" 
-                    r="112" 
-                    className="stroke-slate-200/40 dark:stroke-[#18181c]" 
-                    strokeWidth="7" 
-                    fill="none" 
-                  />
-
-                  {/* Active Ticking Path */}
-                  {timerType === "pomodoro" ? (
-                    <circle 
-                      cx="128" 
-                      cy="128" 
-                      r="112" 
-                      stroke={pomoState === "focus" ? "url(#timerSunsetGrad)" : "rgba(16, 185, 129, 0.85)"}
-                      className="progress-glow transition-all duration-300"
-                      strokeWidth="8" 
-                      fill="none" 
-                      strokeDasharray={`${
-                        (703.7 * (
-                          () => {
-                            const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
-                                             pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
-                                             pomoLongBreakDuration * 60;
-                            return Math.min(100, Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100));
-                          }
-                        )()) / 100
-                      } 703.7`}
-                      strokeDashoffset={0}
-                      strokeLinecap="round"
-                    />
-                  ) : timerType === "custom" ? (
-                    <circle 
-                      cx="128" 
-                      cy="128" 
-                      r="112" 
-                      stroke="url(#timerSunsetGrad)"
-                      className="progress-glow transition-all duration-300"
-                      strokeWidth="8" 
-                      fill="none" 
-                      strokeDasharray={`${(703.7 * Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100))) / 100} 703.7`}
-                      strokeDashoffset={0}
-                      strokeLinecap="round"
-                    />
-                  ) : (
-                    <circle 
-                      cx="128" 
-                      cy="128" 
-                      r="112" 
-                      stroke="url(#timerSunsetGrad)"
-                      className="progress-glow transition-all duration-300"
-                      strokeWidth="8" 
-                      fill="none" 
-                      strokeDasharray={`${(703.7 * getProgressRingPercent()) / 100} 703.7`}
-                      strokeDashoffset={0}
-                      strokeLinecap="round"
-                    />
-                  )}
-                </svg>
-
-                {/* Digital readout inside the glass crystal (Swapped/Repositioned for balanced, clean UX) */}
-                <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10 scale-[0.8] xs:scale-[0.88] lg:scale-95 xl:scale-100 2xl:scale-105">
-                  {activeSubject ? (
-                    <div className="flex flex-col items-center max-w-[210px] mb-1">
-                      <span className="text-[10px] md:text-xs font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[170px]">
-                        {activeSubject.name}
-                      </span>
-                      <div className="flex items-center gap-1 text-[9px] md:text-[10px] font-mono font-black mt-0.5" style={{ color: themeHexAccent }}>
-                        <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
-                        <span className="opacity-40">•</span>
-                        <span>
-                          {timerType === "custom" ? (
-                            `${Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100))}%`
-                          ) : timerType === "stopwatch" ? (
-                            `${getProgressRingPercent()}%`
-                          ) : (
-                            (() => {
-                              const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
-                                               pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
-                                               pomoLongBreakDuration * 60;
-                              return `${Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100)}%`;
-                            })()
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Study Focus</span>
-                  )}
-
-                  <span className="text-3xl xs:text-4xl lg:text-4xl xl:text-[44px] 2xl:text-[50px] font-mono font-black tracking-tight text-slate-800 dark:text-neutral-50 my-1 antialiased tabular-nums leading-none">
-                    {timerType === "custom" 
-                      ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
-                      : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
-                    }
-                  </span>
-
-                  <div className="mt-2.5 flex flex-col items-center gap-1.5">
-                    <div 
-                      className={`text-[9px] uppercase tracking-wider font-mono px-3 py-1 rounded-full border transition-all duration-300 font-extrabold ${
-                        isStudying 
-                          ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
-                            ? "animate-pulse" 
-                            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
-                          : "bg-slate-100 dark:bg-slate-950 border-transparent text-slate-500"
-                        }`}
-                      style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
-                        backgroundColor: themeHexAccent + "1a",
-                        borderColor: themeHexAccent + "4d",
-                        color: themeHexAccent
-                      } : {}}
                     >
-                      {timerType === "custom" ? (
-                        isStudying ? "Countdown Active" : "Target Paused"
-                      ) : timerType === "stopwatch" ? (
-                        isStudying ? "Focus Flowing" : "Stopwatch Paused"
-                      ) : (
-                        pomoState === "focus" ? (
-                          isStudying ? "Focus Period" : "Pomo Standby"
-                        ) : (
-                          pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
-                        )
-                      )}
-                    </div>
+                      <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
+                      Chrono Orb
+                    </span>
+                    <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                      Precision Focus
+                    </span>
+                  </div>
 
+                  <div className="relative w-48 h-48 xs:w-52 xs:h-52 sm:w-56 sm:h-56 md:w-60 md:h-60 lg:w-64 lg:h-64 xl:w-72 xl:h-72 flex items-center justify-center relative z-10">
+                    {/* Breathing Ripples when Breathing Coach is active */}
                     {showBreathingCoach && isStudying && (
-                      <div 
-                        className="flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full animate-pulse border"
-                        style={{
-                          backgroundColor: themeHexAccent + "14",
-                          borderColor: themeHexAccent + "26"
-                        }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeHexAccent }} />
-                        <span 
-                          className="text-[7.5px] font-mono font-black uppercase tracking-widest leading-none"
-                          style={{ color: themeHexAccent }}
-                        >
-                          {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
-                        </span>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
+                        <div 
+                          className="absolute rounded-full transition-all duration-[4000ms] ease-in-out"
+                          style={{ 
+                            borderColor: themeHexAccent + "25", 
+                            backgroundColor: themeHexAccent + "09",
+                            animation: "breatheExpand 8s ease-in-out infinite",
+                            inset: breathState === "inhale" ? "0.25rem" : breathState === "hold" ? "0.1rem" : "1.5rem"
+                          }}
+                        />
                       </div>
                     )}
-                  </div>
-                </div>
-              </div>
 
-              {/* Pomodoro Rounds Progress Indicator */}
-              {timerType === "pomodoro" && (
-                <div className="flex items-center gap-2 mt-4 bg-slate-50/70 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800 px-4 py-2 rounded-2xl">
-                  <span className="text-[10px] font-mono font-black uppercase text-slate-400 dark:text-slate-500">Rounds:</span>
-                  <div className="flex items-center gap-1.5 ml-1">
-                    {[1, 2, 3, 4].map(r => {
-                      const isActive = pomoRound === r && pomoState === "focus";
-                      const isDone = pomoRound > r || (pomoRound === r && pomoState !== "focus");
-                      return (
-                        <div 
-                          key={r}
-                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-mono font-black transition-all ${
-                            isActive 
-                              ? "bg-[#f26419] text-white shadow-md animate-pulse scale-110" 
-                              : isDone 
-                              ? "bg-emerald-500 text-white" 
-                              : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
-                          }`}
-                        >
-                          {isDone ? "✓" : r}
+                    {/* Outer Rotating Dotted Border Halo */}
+                    {isStudying && (
+                      <div 
+                        className="absolute inset-0 rounded-full border border-dashed opacity-40 animate-spin" 
+                        style={{ animationDuration: '45s', borderColor: themeHexAccent + "55" }} 
+                      />
+                    )}
+
+                    <svg viewBox="0 0 256 256" className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
+                      <defs>
+                        <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor={gradientStops.start} />
+                          <stop offset="50%" stopColor={gradientStops.mid} />
+                          <stop offset="100%" stopColor={gradientStops.end} />
+                        </linearGradient>
+                        <radialGradient id="ringBackground" cx="50%" cy="50%" r="50%">
+                          <stop offset="70%" stopColor="transparent" />
+                          <stop offset="100%" stopColor={`${gradientStops.start}0c`} />
+                        </radialGradient>
+                      </defs>
+                      
+                      {/* Outer shadow ring */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="110" 
+                        fill="url(#ringBackground)" 
+                        className="stroke-slate-100/40 dark:stroke-white/[0.04]" 
+                        strokeWidth="1"
+                      />
+                      
+                      {/* Light Tick markers around the dial */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="105" 
+                        stroke="rgba(148, 163, 184, 0.15)" 
+                        strokeWidth="3" 
+                        strokeDasharray="2 6"
+                        fill="none"
+                      />
+
+                      {/* Master Background Orbit */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="112" 
+                        className="stroke-slate-200/30 dark:stroke-white/[0.03]" 
+                        strokeWidth="6" 
+                        fill="none" 
+                      />
+
+                      {/* Active Ticking Path */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="112" 
+                        stroke={timerType === "pomodoro" && pomoState !== "focus" ? "rgba(16, 185, 129, 0.85)" : "url(#timerSunsetGrad)"}
+                        className="progress-glow transition-all duration-300"
+                        strokeWidth="7" 
+                        fill="none" 
+                        strokeDasharray={`${(703.7 * currentPercent) / 100} 703.7`}
+                        strokeDashoffset={0}
+                        strokeLinecap="round"
+                      />
+
+                      {/* Orbiting indicator node */}
+                      {currentPercent > 0 && (
+                        <circle
+                          cx={orbDotX}
+                          cy={orbDotY}
+                          r="6"
+                          fill="#ffffff"
+                          stroke={gradientStops.start}
+                          strokeWidth="2.5"
+                          className="shadow-md transition-all duration-100"
+                          style={{ filter: "drop-shadow(0 0 6px " + themeHexAccent + ")" }}
+                        />
+                      )}
+                    </svg>
+
+                    {/* Holographic readout inside the glass crystal */}
+                    <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10">
+                      {activeSubject ? (
+                        <div className="flex flex-col items-center max-w-[210px] mb-1.5">
+                          <span className="text-[10px] md:text-xs font-sans font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[170px]">
+                            {activeSubject.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-mono font-black mt-1" style={{ color: themeHexAccent }}>
+                            <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
+                            <span className="opacity-40">•</span>
+                            <span className="bg-white/50 dark:bg-white/5 px-1.5 py-0.5 rounded-md">
+                              {currentPercent}%
+                            </span>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Study Focus</span>
+                      )}
 
-
-
-              {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
-              <div className="flex items-center gap-3 mt-6">
-                {(timerType === "stopwatch" || timerType === "custom") ? (
-                  activeSeconds > 0 && (
-                    <>
-                      <button
-                        onClick={handleStopAndSave}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
+                      <span 
+                        className="text-4xl xs:text-5xl lg:text-5xl xl:text-5xl font-mono font-extrabold tracking-tight text-slate-800 dark:text-white tabular-nums leading-none"
+                        style={{ textShadow: isStudying ? `0 0 24px ${themeHexAccent}30` : "none" }}
                       >
-                        <Check className="w-4 h-4 stroke-[2.5]" /> Finish & Reflect
-                      </button>
-                      <button
-                        onClick={handleDiscardProgress}
-                        className={`text-slate-500 font-bold text-xs p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-1.5 ${
-                          showDiscardConfirm 
-                            ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse" 
-                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-950 dark:border-slate-805 dark:text-slate-400 dark:hover:bg-slate-900"
-                        }`}
-                      >
-                        {showDiscardConfirm ? "Sure? Clear session" : <RotateCcw className="w-4 h-4" />}
-                      </button>
-                    </>
-                  )
-                ) : (
-                  <>
-                    <button
-                      onClick={handleResetPomo}
-                      className="text-slate-500 font-black text-xs px-4 py-2.5 rounded-xl border bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 transition-all cursor-pointer flex items-center gap-1.5"
-                      title="Reset Pomodoro"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" /> Reset
-                    </button>
-                    <button
-                      onClick={handleSkipPomo}
-                      className="text-[#f26419] font-black text-xs px-4 py-2.5 rounded-xl border bg-orange-500/5 dark:bg-orange-500/10 border-orange-200/50 dark:border-orange-950/50 transition-all cursor-pointer flex items-center gap-1.5 hover:bg-orange-500/10"
-                      title="Skip period"
-                    >
-                      <SkipForward className="w-3.5 h-3.5" /> Skip State
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+                        {timerType === "custom" 
+                          ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
+                          : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
+                        }
+                      </span>
 
-            {/* Right side: Modern Strategic Focus Disciplines Planner */}
-            <div className="lg:col-span-8 col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start text-left animate-fade-in">
-              
-              {/* RAPID STUDY LAUNCHER FOCUS COCKPIT - IMMENSE COGNITIVE ELEVATION */}
-              {subView === "timer" && (
-                <div className="bg-slate-900 dark:bg-[#111218]/95 text-white p-5 rounded-3xl border border-slate-800/80 dark:border-slate-850 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[9px] uppercase font-mono text-[#f26419] font-black tracking-widest block">
-                        ⚡ Focus Cockpit
-                      </span>
-                      <h3 className="text-sm font-black tracking-tight mt-0.5">
-                        {isStudying ? "Study Session in Progress" : "Ready to Start Studying?"}
-                      </h3>
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] bg-white/10 dark:bg-slate-900/65 px-3 py-1 rounded-full font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1" />
-                      <span className="truncate max-w-[120px] font-bold">
-                        {subjects.find(s => s.id === activeSubjectId)?.name || "Select Folder"}
-                      </span>
+                      <div className="mt-3.5 flex flex-col items-center gap-1.5">
+                        <div 
+                          className={`text-[9px] uppercase tracking-widest font-mono px-3.5 py-1 rounded-full border transition-all duration-300 font-extrabold shadow-sm ${
+                            isStudying 
+                              ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
+                                ? "animate-pulse" 
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
+                              : "bg-slate-100 dark:bg-black/40 border-transparent text-slate-500"
+                            }`}
+                          style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
+                            backgroundColor: themeHexAccent + "1a",
+                            borderColor: themeHexAccent + "40",
+                            color: themeHexAccent
+                          } : {}}
+                        >
+                          {timerType === "custom" ? (
+                            isStudying ? "Countdown Active" : "Target Paused"
+                          ) : timerType === "stopwatch" ? (
+                            isStudying ? "Focus Flowing" : "Stopwatch Paused"
+                          ) : (
+                            pomoState === "focus" ? (
+                              isStudying ? "Focus Period" : "Pomo Standby"
+                            ) : (
+                              pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
+                            )
+                          )}
+                        </div>
+
+                        {showBreathingCoach && isStudying && (
+                          <div 
+                            className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-full border backdrop-blur-md shadow-inner"
+                            style={{
+                              backgroundColor: themeHexAccent + "14",
+                              borderColor: themeHexAccent + "26"
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
+                            <span 
+                              className="text-[8px] font-sans font-black uppercase tracking-widest leading-none"
+                              style={{ color: themeHexAccent }}
+                            >
+                              {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                  {/* Ultimate Play Circle Button just down of the watch */}
+                  <div className="flex justify-center items-center relative z-20 mt-1 mb-2">
                     <button
                       type="button"
+                      id="f5-play-circle-button"
                       onClick={async () => {
                         if (subjects.length === 0) {
                           setToast({
@@ -1675,11 +2214,10 @@ export default function TimelineView({
                           return;
                         }
 
-                        // Smart Unended Session Recovery: Check localStorage first
+                        // Smart Unended Session Recovery
                         const localIsStudying = localStorage.getItem("study_is_studying") === "true";
                         const localActiveSubjectId = localStorage.getItem("study_active_subject_id") || activeSubjectId;
                         
-                        // Dynamically check Firebase Firestore for active unended session
                         let dbIsStudying = false;
                         let dbActiveSubjectId = "";
                         try {
@@ -1699,18 +2237,17 @@ export default function TimelineView({
                             }
                           }
                         } catch (err) {
-                          console.warn("Firestore active study check failed on play button click:", err);
+                          console.warn("Firestore active study check failed on play circle button click:", err);
                         }
 
                         const resolvedActiveSubjectId = dbActiveSubjectId || localActiveSubjectId;
                         const hasRunningSession = dbIsStudying || localIsStudying;
 
                         if (hasRunningSession && resolvedActiveSubjectId) {
-                          // Unended active study session exists! Recover and save it directly.
                           setActiveSubjectId(resolvedActiveSubjectId);
                           setIsStudying(true);
                           setToast({
-                            message: "⏱️ Unended active study session detected! Auto-restoring and saving...",
+                            message: "⏱️ Auto-restoring and saving active study session...",
                             type: "info"
                           });
                           setTimeout(() => {
@@ -1727,751 +2264,819 @@ export default function TimelineView({
                             type: "info"
                           });
                         } else {
-                          // No valid active topic has been selected yet. Highlight selection area.
                           setToast({
-                            message: "⚠️ Please select an active Subject/Topic below before starting the focus session!",
+                            message: "⚠️ Please select an active Subject/Topic from the disciplines list below first!",
                             type: "warning"
                           });
-                          const grid = document.getElementById("f5-subject-selection");
-                          if (grid) {
-                            grid.scrollIntoView({ behavior: "smooth" });
-                          }
                         }
                       }}
-                      className={`flex-1 py-4.5 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2.5 shadow-lg active:scale-98 ${
-                        isStudying 
-                          ? "bg-amber-600 hover:bg-amber-500 text-white"
-                          : `${themeBgAccent} text-white hover:scale-[1.015] hover:opacity-95`
-                      }`}
+                      className="w-16 h-16 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 group/play shadow-xl border focus:outline-none"
+                      style={{
+                        backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : themeHexAccent + "1a",
+                        borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : themeHexAccent + "40",
+                        boxShadow: isStudying ? "0 0 20px rgba(245, 158, 11, 0.15)" : `0 0 24px ${themeHexAccent}20`
+                      }}
+                      title={isStudying ? "Stop & Save Study Session" : "Start Focus Session"}
                     >
+                      <span className="absolute inset-0 rounded-full scale-[0.85] border border-dashed opacity-45 group-hover/play:scale-100 transition-all duration-500" style={{ borderColor: isStudying ? "#f59e0b" : themeHexAccent }} />
                       {isStudying ? (
-                        <>
-                          <Pause className="w-4 h-4 fill-current stroke-[3]" /> Stop & Save Study Session
-                        </>
+                        <Pause className="w-6 h-6 text-amber-500 fill-amber-500/20 stroke-[3.5] transform group-hover/play:scale-110 transition-transform" />
                       ) : (
-                        <>
-                          <Play className="w-4 h-4 fill-current stroke-[3] text-white animate-pulse" /> Start Focus Session Now
-                        </>
+                        <Play className="w-6 h-6 text-emerald-500 fill-emerald-500/20 stroke-[3.5] ml-1 transform group-hover/play:scale-110 transition-transform animate-pulse" style={{ color: themeHexAccent, fill: `${themeHexAccent}20` }} />
                       )}
                     </button>
+                  </div>
 
-                    {isStudying && (
-                      <button
-                        type="button"
-                        onClick={handleDiscardProgress}
-                        className="py-4.5 px-4 rounded-2xl font-black text-xs bg-red-650/20 text-red-400 hover:bg-red-650/30 border border-red-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                        title="Discard session progress"
-                      >
-                        <Trash className="w-4 h-4" /> Discard
-                      </button>
+                  {/* Pomodoro Rounds Progress Indicator */}
+                  {timerType === "pomodoro" && (
+                    <div className="flex flex-col items-center gap-2 mt-2 w-full max-w-[220px] bg-white/40 dark:bg-black/10 border border-slate-200/30 dark:border-white/5 px-4 py-3 rounded-2xl relative z-10 shadow-inner">
+                      <span className="text-[9px] font-mono font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Pomo Rounds</span>
+                      <div className="flex items-center gap-2.5 mt-0.5">
+                        {[1, 2, 3, 4].map(r => {
+                          const isActive = pomoRound === r && pomoState === "focus";
+                          const isDone = pomoRound > r || (pomoRound === r && pomoState !== "focus");
+                          return (
+                            <div 
+                              key={r}
+                              className={`w-6 h-6 rounded-xl flex items-center justify-center text-[10px] font-mono font-black transition-all ${
+                                isActive 
+                                  ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30 animate-pulse scale-110 border border-white/20" 
+                                  : isDone 
+                                  ? "bg-emerald-500 text-white border border-white/20" 
+                                  : "bg-slate-200/60 dark:bg-white/5 text-slate-455 dark:text-slate-500 border border-transparent"
+                              }`}
+                            >
+                              {isDone ? "✓" : r}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
+                  <div className="flex items-center gap-3.5 mt-4 w-full relative z-10 px-2">
+                    {(timerType === "stopwatch" || timerType === "custom") ? (
+                      activeSeconds > 0 && (
+                        <>
+                          <button
+                            onClick={handleStopAndSave}
+                            className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-105 text-white font-extrabold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2 active:scale-95 border border-white/10"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" /> Finish & Save
+                          </button>
+                          <button
+                            onClick={handleDiscardProgress}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                              showDiscardConfirm 
+                                ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse w-full text-xs font-black" 
+                                : "bg-white/50 hover:bg-white dark:bg-black/30 dark:hover:bg-black/50 border-slate-200/40 dark:border-white/5 text-slate-500 dark:text-slate-400"
+                            }`}
+                          >
+                            {showDiscardConfirm ? "Reset?" : <RotateCcw className="w-4 h-4" />}
+                          </button>
+                        </>
+                      )
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleResetPomo}
+                          className="flex-1 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-black text-xs py-2.5 rounded-xl border bg-white/45 hover:bg-white dark:bg-black/20 dark:hover:bg-black/35 border-slate-200/40 dark:border-white/5 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                          title="Reset Pomodoro"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" /> Reset
+                        </button>
+                        <button
+                          onClick={handleSkipPomo}
+                          className="flex-1 text-[#f26419] font-black text-xs py-2.5 rounded-xl border bg-orange-500/10 dark:bg-orange-500/5 border-[#f26419]/25 hover:bg-orange-500/15 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                          title="Skip period"
+                        >
+                          <SkipForward className="w-3.5 h-3.5" /> Skip
+                        </button>
+                      </>
                     )}
                   </div>
-
-
                 </div>
-              )}
+              );
+            };
+            return null;
+          })()}
 
-              {/* Atmosphere intro section */}
-              {subView === "atmosphere" && (
-                <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/25 p-5 rounded-3xl text-left relative overflow-hidden shadow-xs animate-fade-in">
-                  <span className="p-1 px-2.5 rounded-lg bg-indigo-500/10 text-indigo-500 text-[9px] font-black uppercase tracking-wider font-mono">
-                    🧘 Zen Space Cabin
+            {/* Redesigned Academic Study Disciplines Card */}
+            <div id="f5-subject-selection-container" className="w-full h-full flex flex-col glass-card-inner p-5.5 rounded-[32px] shadow-2xl space-y-4 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col text-left">
+                  <span className="text-[8.5px] font-mono tracking-widest uppercase font-black text-slate-450 dark:text-slate-500 leading-none">
+                    Scholastic Domains
                   </span>
-                  <h3 className="text-sm font-black text-slate-800 dark:text-neutral-200 mt-2">
-                    Atmosphere & Color Customization
+                  <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 mt-1.5 leading-none">
+                    Academic Disciplines
                   </h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
-                    Play auditory focus soundscapes, toggle distraction shield guards, and customize level-achievement themes away from your active study session space.
-                  </p>
                 </div>
-              )}
+                <button
+                  onClick={() => {
+                    setEditingSubjectId(null);
+                    setIsEditingSubjectsList(true);
+                    setShowSubjectsModal(true);
+                  }}
+                  className="flex items-center gap-1 text-[9.5px] font-mono font-black text-[#f26419] bg-[#f26419]/10 px-2.5 py-1 rounded-full border border-[#f26419]/15 hover:bg-[#f26419]/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Manage
+                </button>
+              </div>
 
-              {subView === "timer" && (
-                <>
-                  {/* Domain selection cockpit */}
-              <div className="bg-white/45 dark:bg-[#0c0d12]/35 p-4 rounded-3xl border border-slate-200/50 dark:border-slate-900/60 shadow-xs">
-                <div className="flex items-center justify-between mb-3.5">
-                  <div className="flex flex-col">
-                    <span className="text-[8px] font-mono tracking-widest uppercase font-black text-slate-400 dark:text-slate-500">
-                      Active Scholastic Focus Domains
-                    </span>
-                    <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-250 mt-0.5">
-                      Academic Study Disciplines
-                    </h3>
+              {/* Subjects List */}
+              <div id="f5-subject-selection" className="space-y-2.5 flex-1 overflow-y-auto no-scrollbar pr-0.5">
+                {subjects.length === 0 ? (
+                  <div className="py-8 text-center text-slate-450 dark:text-slate-500 text-[10.5px] font-bold">
+                    No subjects enrolled yet. Click Manage to add! 🎓
                   </div>
-                  <span className="text-[9.5px] font-mono font-black text-[#f26419] bg-[#f26419]/10 px-3 py-1 rounded-full border border-[#f26419]/15">
-                    {subjects.length} Domains Loaded
-                  </span>
-                </div>
-                
-                {/* Subject selection container */}
-                <div id="f5-subject-selection" className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3.5 max-h-[140px] xs:max-h-[200px] sm:max-h-[260px] overflow-y-auto no-scrollbar pr-1">
-                  {subjects.map((sub) => {
+                ) : (
+                  subjects.map((sub) => {
                     const isSelected = activeSubjectId === sub.id;
                     const liveMinutes = sub.totalMinutes + (isSelected && isStudying && timerType === "stopwatch" ? activeSeconds / 60 : 0);
                     const percentComplete = Math.min(100, Math.round((liveMinutes / (sub.goalMinutes || 120)) * 100));
-
+                    
                     return (
-                      <button
+                      <div
                         key={sub.id}
-                        onClick={() => handleStartStudy(sub.id)}
-                        className={`p-2 sm:p-3 sm:pl-5 rounded-xl sm:rounded-2xl border text-left flex flex-col justify-between transition-all select-none relative overflow-hidden h-[78px] xs:h-[84px] sm:h-[98px] interactive-card ${
-                          isSelected 
-                            ? "border-[#f26419]/70 bg-[#f26419]/5 dark:bg-[#f26419]/10 text-slate-800 dark:text-slate-100 shadow-md scale-[1.02] -translate-y-[1px]" 
-                            : "border-slate-200/50 dark:border-slate-850 bg-white/95 dark:bg-[#121217]/55 hover:bg-slate-50/50 dark:hover:bg-[#161720]/80 text-slate-650 dark:text-slate-200 shadow-xs hover:border-slate-350 dark:hover:border-slate-800"
+                        onClick={() => {
+                          if (isStudying && isSelected) {
+                            // ignore
+                          } else {
+                            handleStartStudy(sub.id);
+                          }
+                        }}
+                        className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-300 relative overflow-hidden group/sub cursor-pointer active:scale-[0.99] ${
+                          isSelected
+                            ? "border-[#f26419]/60 bg-[#f26419]/5 dark:bg-[#f26419]/10 text-slate-800 dark:text-slate-100 shadow-md shadow-orange-500/[0.02]"
+                            : "border-slate-200/30 dark:border-white/5 bg-white/45 dark:bg-[#121217]/35 hover:bg-white/80 dark:hover:bg-white/5 text-slate-650 dark:text-slate-300 hover:border-slate-350 dark:hover:border-slate-700"
                         }`}
                       >
-                        {/* Dynamic Custom Color Indicator Ribbon on Left Edge */}
-                        <div 
-                          className={`absolute top-0 left-0 bottom-0 w-1 sm:w-1.5 rounded-r-xs ${
+                        {/* Side Color bar indicator */}
+                        <div
+                          className={`absolute top-0 left-0 bottom-0 w-1.5 rounded-r-xs transition-transform duration-300 group-hover/sub:scale-y-110 ${
                             sub.color.startsWith("bg-") ? sub.color : `bg-gradient-to-b ${sub.color}`
-                          }`} 
+                          }`}
                         />
 
-                        <div className="text-left w-full pl-0.5">
-                          <p className={`text-[7px] sm:text-[8px] font-mono uppercase font-black tracking-widest ${isSelected ? 'text-[#f26419]' : 'text-slate-400 dark:text-slate-500'}`}>
-                            {isSelected ? 'Active Discipline' : 'Subject Domain'}
-                          </p>
-                          <h4 className="text-[10px] sm:text-[12px] font-bold truncate mt-0.2 sm:mt-0.5 max-w-[135px] text-slate-800 dark:text-neutral-250 leading-tight">{sub.name}</h4>
+                        <div className="flex justify-between items-start pl-1.5 w-full">
+                          <div className="min-w-0 text-left">
+                            <span className={`text-[7.5px] font-mono uppercase font-black tracking-widest block leading-none ${isSelected ? 'text-[#f26419]' : 'text-slate-450'}`}>
+                              {isSelected ? 'Active Focus Domain' : 'Subject'}
+                            </span>
+                            <span className="text-xs font-bold truncate block mt-1.5 text-slate-850 dark:text-neutral-200 group-hover/sub:text-[#f26419] transition-colors leading-tight">
+                              {sub.name}
+                            </span>
+                          </div>
+
+                          {/* Edit action */}
+                          <div className="flex items-center gap-1.5 shrink-0 opacity-40 group-hover/sub:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSubjectId(sub.id);
+                                setEditSubjectName(sub.name);
+                                setEditSubjectColor(sub.color.startsWith("bg-") ? sub.color : "bg-emerald-500");
+                                setEditSubjectGoal(sub.goalMinutes || 120);
+                                setIsEditingSubjectsList(true);
+                                setShowSubjectsModal(true);
+                              }}
+                              className="p-1 rounded-md hover:bg-slate-150 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                              title="Configure Discipline"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Progress goal bar */}
-                        <div className="w-full mt-1 sm:mt-1.5 space-y-0.5 sm:space-y-1 pl-0.5">
-                          <div className="flex justify-between items-center text-[7.5px] sm:text-[8.5px] font-mono leading-none">
-                            <span className="text-[#f26419] dark:text-[#ff7f41] font-black">{formatSubjectMinutes(liveMinutes)}</span>
-                            <span className="text-slate-400 font-bold">{percentComplete}% done</span>
+                        {/* Progress bar */}
+                        <div className="mt-3.5 space-y-1.5 pl-1.5 w-full">
+                          <div className="flex justify-between items-center text-[8.5px] font-mono leading-none">
+                            <span className="text-[#f26419] font-black">{formatSubjectMinutes(liveMinutes)} / {sub.goalMinutes || 120}m</span>
+                            <span className="text-slate-400 font-bold">{percentComplete}% completed</span>
                           </div>
-                          <div className="w-full h-0.5 sm:h-1 bg-slate-100/80 dark:bg-slate-900 rounded-full overflow-hidden">
-                            <div 
+                          <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                            <div
                               className={`h-full transition-all duration-500 rounded-full ${
                                 sub.color.startsWith("bg-") ? sub.color : `bg-gradient-to-r ${sub.color}`
-                              }`} 
+                              }`}
                               style={{ width: `${percentComplete}%` }}
                             />
                           </div>
                         </div>
 
                         {isSelected && isStudying && (
-                          <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5">
+                          <span className="absolute top-2.5 right-2.5 flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                           </span>
                         )}
-                      </button>
+                      </div>
                     );
-                  })}
-                  
-                  {/* Create Subject Domain trigger */}
-                  <button
-                    onClick={() => {
-                      setShowSubjectsModal(true);
-                      setIsEditingSubjectsList(true);
-                    }}
-                    className="border border-dashed border-slate-300 dark:border-slate-800 p-2 rounded-xl sm:rounded-2xl hover:bg-slate-50/50 dark:hover:bg-[#121217] text-slate-400 hover:text-[#f26419] dark:hover:text-[#f26419] flex flex-col justify-center items-center text-center transition-all cursor-pointer h-[78px] xs:h-[84px] sm:h-[98px]"
-                  >
-                    <Plus className="w-4 h-4 mb-0.5 sm:mb-1 text-slate-400 hover:text-[#f26419]" />
-                    <span className="text-[7.5px] sm:text-[8px] font-extrabold uppercase tracking-widest leading-none">Enroll Subject</span>
-                  </button>
-                </div>
-              </div>
-
-                           {timerType === "custom" && !isStudying && (
-                <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-4 animate-fade-in text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider flex items-center gap-1">
-                      <Target className="w-3.5 h-3.5 text-emerald-500" /> Advanced Target Span Planner
-                    </span>
-                    <span className="text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Target reward: +100 XP bonus
-                    </span>
-                  </div>
-
-                  {/* Preset Minute Tabs */}
-                  <div className="space-y-1.5">
-                    <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
-                      General Focus Intervals
-                    </label>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {[15, 30, 45, 60, 90, 120].map((mins) => (
-                        <button
-                          key={mins}
-                          onClick={() => {
-                            setCustomTargetMinutes(mins);
-                            setCustomTargetMinutesInput(String(mins));
-                          }}
-                          className={`py-2 rounded-xl text-center text-xs font-black font-mono border transition-all cursor-pointer ${
-                            customTargetMinutes === mins
-                              ? "bg-emerald-600 border-transparent text-white shadow-xs scale-[1.02]"
-                              : "bg-white dark:bg-[#121215]/50 hover:bg-slate-50 dark:hover:bg-slate-900 border-slate-150 dark:border-slate-800 text-slate-600 dark:text-slate-350"
-                          }`}
-                        >
-                          {mins}m
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Manual Target Minutes Input */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-center">
-                    <div className="space-y-1">
-                      <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
-                        Custom Span Dimension (1 - 300)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="1"
-                          max="300"
-                          value={customTargetMinutesInput}
-                          onChange={(e) => {
-                            setCustomTargetMinutesInput(e.target.value);
-                            const parsed = parseInt(e.target.value, 10);
-                            if (!isNaN(parsed) && parsed > 0) {
-                              setCustomTargetMinutes(parsed);
-                            }
-                          }}
-                          className="w-full pl-3 pr-9 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold font-mono text-slate-800 dark:text-neutral-50 focus:border-[#f26419] focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-2.5 text-[8.5px] font-mono text-slate-400 font-extrabold pb-0.5 uppercase">mins</span>
-                      </div>
-                    </div>
-
-                    {/* Target Focus Quest Input */}
-                    <div className="space-y-1">
-                      <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
-                        Study Directives / Focus goals
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Solve test mock #2"
-                        value={sessionGoalText}
-                        onChange={(e) => setSessionGoalText(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-850 dark:text-neutral-200 placeholder-slate-400 dark:placeholder-slate-550 focus:border-[#f26419] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Active projection box */}
-                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl flex items-center justify-between text-xs font-mono">
-                    <div className="text-left">
-                      <p className="text-[7.5px] font-black uppercase text-slate-400 leading-none mb-1">Provisional Output Projection</p>
-                      <p className="text-[10px] font-bold text-slate-650 dark:text-slate-350">
-                        Study for <span className="text-emerald-500 font-black">{customTargetMinutes} mins</span>
-                      </p>
-                    </div>
-                    <div className="text-right flex items-center gap-1.5 font-bold">
-                      <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md text-[8.5px] font-black">
-                        +{customTargetMinutes * (calculateStudentLevel(userXp).level < 5 ? 5 : 10)} Base XP
-                      </div>
-                      <div className="bg-[#f26419]/10 text-[#f26419] px-2 py-0.5 rounded-md text-[8.5px] font-black">
-                        +100 Milestone Bonus
-                      </div>
-                    </div>
-                  </div>
-
-                  {timerAlertMessage && (
-                    <div className="bg-rose-50 dark:bg-rose-950/40 text-rose-750 dark:text-rose-400 text-[10.5px] font-semibold py-2 px-3.5 rounded-xl border border-rose-200 dark:border-rose-900/30 text-left leading-normal flex items-start gap-1.5 animate-flash">
-                      <span className="text-rose-500 font-bold">⚠️</span>
-                      <span>{timerAlertMessage}</span>
-                    </div>
-                  )}
-
-                  {/* Quick Start Focus Quest button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTimerAlertMessage(null);
-                      if (subjects.length === 0) {
-                        setTimerAlertMessage("⚠️ Please enroll a study Subject or Topic first using the '+' button!");
-                        setToast({
-                          message: "⚠️ Please enroll a study Subject or Topic first!",
-                          type: "warning"
-                        });
-                        setShowSubjectsModal(true);
-                        setIsEditingSubjectsList(true);
-                        return;
-                      }
-                      const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
-                      if (!verifiedSubject) {
-                        setTimerAlertMessage("⚠️ Please select an active Subject/Topic from the Disciplines section before initiating the Focus Odyssey.");
-                        const grid = document.getElementById("f5-subject-selection");
-                        if (grid) {
-                          grid.scrollIntoView({ behavior: "smooth" });
-                        }
-                        return;
-                      }
-                      setActiveSeconds(0);
-                      setIsStudying(true);
-                    }}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white font-extrabold text-[10.5px] uppercase tracking-widest cursor-pointer shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5 hover:opacity-95"
-                  >
-                    <Lock className="w-3.5 h-3.5 stroke-[2.5]" /> Initiate Advanced Focus Odyssey
-                  </button>
-                </div>
-              )}
-
-              {timerType === "custom" && isStudying && (
-                <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 animate-fade-in text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider flex items-center gap-1">
-                      📝 Active Quest Deliverables ({sessionTodos.filter(t => t.isDone).length}/{sessionTodos.length})
-                    </span>
-                    <span className="text-[9px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                      +{Math.max(1, Math.round(activeSeconds / 60 * (calculateStudentLevel(userXp).level < 5 ? 5 : 10)))} XP Earned
-                    </span>
-                  </div>
-
-                  {/* Active Mission Text */}
-                  {sessionGoalText && (
-                    <div className="bg-[#f26419]/5 border border-[#f26419]/15 px-3 py-2 rounded-xl text-[10.5px] font-sans font-bold flex items-center gap-1.5 text-[#f26419]">
-                      <span className="text-[#f26419] font-bold">🎯</span> Study Directive: "{sessionGoalText}"
-                    </div>
-                  )}
-
-                  {/* Scrollable Todo checklist */}
-                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar pr-1">
-                    {sessionTodos.length === 0 ? (
-                      <p className="text-[10px] text-slate-400 italic">No checklist tasks created for this session yet.</p>
-                    ) : (
-                      sessionTodos.map((todo) => (
-                        <div key={todo.id} className="flex items-center justify-between bg-white dark:bg-[#121212]/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850/60 font-sans">
-                          <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={todo.isDone}
-                              onChange={() => handleToggleTodo(todo.id)}
-                              className="w-4 h-4 rounded text-[#f26419] border-slate-350 focus:ring-0 cursor-pointer accent-[#f26419]"
-                            />
-                            <span className={`text-xs truncate pr-2 font-bold ${todo.isDone ? 'line-through text-slate-400' : 'text-slate-755 dark:text-slate-200'}`}>
-                              {todo.text}
-                            </span>
-                          </label>
-                          <button
-                            onClick={() => handleDeleteTodo(todo.id)}
-                            className="text-slate-400 hover:text-rose-500 p-1 rounded-md cursor-pointer transition-colors"
-                            title="Delete task"
-                          >
-                            <Trash className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Add input form */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add micro-task..."
-                      value={newTodoText}
-                      onChange={(e) => setNewTodoText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddTodo()}
-                      className="flex-1 px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-[#f26419]"
-                    />
-                    <button
-                      onClick={handleAddTodo}
-                      className="px-4 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-black cursor-pointer transition-colors border border-transparent"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Daily Scholastic Target Tuner Module */}
-              <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 mt-1 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider">
-                    Daily Scholastic Target Tuner
-                  </span>
-                  <span className="text-[10px] font-mono font-bold bg-[#f26419]/10 text-[#f26419] px-2.5 py-0.5 rounded-full">
-                    {(activeSubject?.goalMinutes) || 120} mins daily
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between bg-white dark:bg-[#121215]/50 p-2.5 rounded-xl border border-slate-150 dark:border-slate-800">
-                  <div className="min-w-0">
-                    <p className="text-[8px] font-mono uppercase text-slate-400">Active Focus Domain</p>
-                    <h4 className="text-xs font-black truncate max-w-[140px] text-slate-700 dark:text-slate-200">
-                      {activeSubject?.name || "No domain selected"}
-                    </h4>
-                  </div>
-                  
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button 
-                      onClick={() => adjustSubjectGoal(-15)}
-                      disabled={!activeSubject}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-black font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-50 animate-pulse-subtle"
-                      title="Reduce goal by 15 mins"
-                    >
-                      -15
-                    </button>
-                    <button 
-                      onClick={() => adjustSubjectGoal(15)}
-                      disabled={!activeSubject}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-black font-mono text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-50 animate-pulse-subtle"
-                      title="Increase goal by 15 mins"
-                    >
-                      +15
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pomodoro Intervals Custom configurators (only in Pomodoro mode) */}
-              {timerType === "pomodoro" && (
-                <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 mt-1 text-left">
-                  <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider block">
-                    Pomodoro Intervals Configurator
-                  </span>
-                  
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* Focus Adjust */}
-                    <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
-                      <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Focus</span>
-                      <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoFocusDuration}m</span>
-                      <div className="flex gap-1 w-full">
-                        <button 
-                          onClick={() => adjustFocusDuration(-5)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          -
-                        </button>
-                        <button 
-                          onClick={() => adjustFocusDuration(5)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Short Break Adjust */}
-                    <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
-                      <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Short Brk</span>
-                      <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoShortBreakDuration}m</span>
-                      <div className="flex gap-1 w-full">
-                        <button 
-                          onClick={() => adjustShortBreakDuration(-1)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          -
-                        </button>
-                        <button 
-                          onClick={() => adjustShortBreakDuration(1)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Long Break Adjust */}
-                    <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
-                      <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Long Brk</span>
-                      <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoLongBreakDuration}m</span>
-                      <div className="flex gap-1 w-full">
-                        <button 
-                          onClick={() => adjustLongBreakDuration(-5)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          -
-                        </button>
-                        <button 
-                          onClick={() => adjustLongBreakDuration(5)}
-                          className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-                </>
-              )}
-
-              {subView === "atmosphere" && (
-                <>
-                  {/* Sound equalizer deck */}
-                  <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3 mt-1 text-left relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider">
-                    Flow Ambient Sound Deck
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {ambientSound !== "none" ? (
-                      <Volume2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                    ) : (
-                      <VolumeX className="w-3.5 h-3.5 text-slate-400" />
-                    )}
-                    <span className="text-[10px] font-mono text-slate-600 dark:text-slate-350 capitalize font-bold">{ambientSound}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "none", label: "Mute" },
-                    { id: "brown", label: "Brownian" },
-                    { id: "rain", label: "Cozy Rain" },
-                    { id: "waves", label: "Ocean Tide" },
-                    { id: "fire", label: "Campfire" },
-                    { id: "binaural", label: "Gamma Beats" }
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setAmbientSound(s.id as any);
-                        setToast({
-                          message: s.id === "none" 
-                            ? "Ambient soundscapes muted." 
-                            : `Synthesizing active ${s.label} flow track 🎧`,
-                          type: s.id === "none" ? "info" : "success"
-                        });
-                      }}
-                      className={`p-2 rounded-xl text-center text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer truncate ${
-                        ambientSound === s.id 
-                          ? "bg-[#f26419] text-white border-[#f26419] dark:bg-slate-950 dark:text-[#f26419] dark:border-[#f26419]/40 shadow-xs font-black" 
-                          : "bg-white dark:bg-slate-900/50 text-slate-550 dark:text-slate-400 border-slate-100 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-900"
-                      }`}
-                      title={s.label}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-
-                {isStudying && ambientSound !== "none" && (
-                  <div className="flex items-end justify-between px-2 pt-2 pb-1 gap-1.5 h-6 bg-slate-100/40 dark:bg-slate-900/40 rounded-lg">
-                    {Array.from({ length: 15 }).map((_, barIdx) => {
-                      const animationDuration = `${0.5 + (barIdx % 4) * 0.25}s`;
-                      const animDelay = `${barIdx * 70}ms`;
-                      return (
-                        <span 
-                          key={barIdx}
-                          className="flex-1 bg-[#f26419] rounded-xs transition-transform"
-                          style={{
-                            height: "100%",
-                            transformOrigin: "bottom",
-                            animation: `equalizerPulse ${animationDuration} ease-in-out infinite alternate`,
-                            animationDelay: animDelay
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-
-                {ambientSound !== "none" && (
-                  <div className="flex items-center gap-3 pt-1">
-                    <span className="text-[9px] text-slate-450 uppercase font-mono font-bold">Vol</span>
-                    <input 
-                      type="range"
-                      min="0"
-                      max="0.5"
-                      step="0.01"
-                      value={volume}
-                      onChange={(e) => setVolume(parseFloat(e.target.value))}
-                      className="flex-1 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#f26419]"
-                    />
-                    <span className="text-[10px] font-mono text-slate-500 w-8 text-right font-bold font-black">
-                      {Math.round(volume * 200)}%
-                    </span>
-                  </div>
+                  })
                 )}
               </div>
-
-              {/* Cognitive Companion Enhancers Deck */}
-              <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
-                <div>
-                  <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-extrabold tracking-wider block">
-                    Focus Boosters
-                  </span>
-                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Activate real-time cognitive state assistants:</p>
-                </div>
-
-                <div className="space-y-2.5">
-                  {/* Focus Guard Protection Switch */}
-                  <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`p-1.5 rounded-lg transition-transform ${focusGuard ? 'bg-[#f26419]/10 text-[#f26419] scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
-                        <Shield className="w-4 h-4 stroke-[2.5]" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Anti-Distraction Shield</span>
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Auto-pauses study if you switch browser tabs</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setFocusGuard(!focusGuard)}
-                      aria-label="Toggle focus guard"
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        focusGuard ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                          focusGuard ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Mindful Breathing Anchor Switch */}
-                  <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`p-1.5 rounded-lg transition-transform ${showBreathingCoach ? 'bg-indigo-500/10 text-indigo-500 scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
-                        <Brain className="w-4 h-4 stroke-[2.5]" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Rhythmic Breath Coach</span>
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Pulsing 4-4-4 visual guide for stress reduction</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowBreathingCoach(!showBreathingCoach)}
-                      aria-label="Toggle breathing guide"
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        showBreathingCoach ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                          showBreathingCoach ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Advanced Aesthetic Workspace Canvas Palette */}
-              <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-3xl border border-slate-200/50 dark:border-slate-900 space-y-3 mt-3 text-left relative overflow-hidden">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-mono text-slate-450 dark:text-slate-500 font-black tracking-widest block">
-                      🌈 Aesthetic Canvas Palette
-                    </span>
-                    <span className="text-[9px] bg-[#f26419]/10 text-[#f26419] px-2.5 py-0.5 rounded-full font-mono font-black uppercase tracking-wider">
-                      Lvl Achievements 🏆
-                    </span>
-                  </div>
-                  <p className="text-[9.5px] text-slate-400 dark:text-slate-500 font-medium mt-1 leading-normal">Instantly shift your scholastic viewport and focus space style with level milestones:</p>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { id: "dark-classic", name: "Amber", class: "from-[#f26419] to-[#ff9f43]", lvl: 1, hex: "#f26419" },
-                    { id: "forest", name: "Matcha", class: "from-[#10b981] to-[#6ee7b7]", lvl: 3, hex: "#10b981" },
-                    { id: "crimson", name: "Crimson", class: "from-[#e11d48] to-[#fda4af]", lvl: 6, hex: "#e11d48" },
-                    { id: "honey", name: "Vanilla", class: "from-[#d97706] to-[#fcd34d]", lvl: 10, hex: "#d97706" },
-                    { id: "amoled", name: "OLED", class: "from-zinc-500 to-black", lvl: 15, hex: "#6366f1" },
-                    { id: "cosmic", name: "Cosmic", class: "from-[#8b5cf6] to-[#d946ef]", lvl: 20, hex: "#8b5cf6" },
-                    { id: "cyberpunk", name: "Tokyo", class: "from-[#ec4899] to-[#06b6d4]", lvl: 25, hex: "#ec4899" },
-                    { id: "nordic", name: "Frozen", class: "from-[#0284c7] to-[#34d399]", lvl: 30, hex: "#0284c7" }
-                  ].map((preset) => {
-                    const userLvl = calculateStudentLevel(userXp).level;
-                    const isLocked = userLvl < preset.lvl;
-                    const isActive = themePreset === preset.id;
-
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => {
-                          if (isLocked) {
-                            setToast({
-                              message: `🔒 Locked Theme: Reaching Student Level ${preset.lvl} unlocks this preset! Complete study sessions to earn XP!`,
-                              type: "warning"
-                            });
-                          } else if (onThemeSelect) {
-                            onThemeSelect(preset.id);
-                            setToast({
-                              message: `Theme styled to ${preset.name}! enjoy your study flow ✨`,
-                              type: "success"
-                            });
-                          }
-                        }}
-                        className={`p-2 rounded-xl border text-center flex flex-col items-center justify-between transition-all cursor-pointer relative group aspect-square hover:scale-105 active:scale-95 ${
-                          isActive 
-                            ? "bg-white dark:bg-slate-900 shadow-md border-slate-350 dark:border-slate-700" 
-                            : "bg-white/50 dark:bg-[#121215]/30 border-slate-150 dark:border-slate-900 hover:bg-white dark:hover:bg-[#14141a]"
-                        }`}
-                        title={`${preset.name} Theme (Required Level: ${preset.lvl})`}
-                      >
-                        <div className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${preset.class} shadow-sm flex items-center justify-center text-white relative`}>
-                          {isLocked ? (
-                            <Lock className="w-2.5 h-2.5 text-white/90 drop-shadow-sm" />
-                          ) : isActive ? (
-                            <Check className="w-3 h-3 text-white drop-shadow-sm stroke-[3]" />
-                          ) : null}
-                        </div>
-                        <span className="text-[8px] font-mono font-black tracking-tight mt-1 truncate max-w-full leading-none">
-                          {preset.name}
-                        </span>
-                        {isLocked && (
-                          <span className="absolute -top-1 -right-1 text-[7px] font-mono font-extrabold bg-amber-500 text-white rounded px-0.5 leading-none shadow-xs">
-                            L{preset.lvl}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-                </>
-              )}
-
-              {/* Today's Focus Session History List */}
-              <div className="bg-slate-50/65 dark:bg-[#121215]/55 p-4.5 rounded-3xl border border-slate-200/50 dark:border-slate-850/60 mt-3.5 flex flex-col text-left">
-                <div className="flex items-center justify-between mb-2.5">
-                  <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <History className="w-3.5 h-3.5 text-[#f26419]" /> Session logs today
-                  </h3>
-                  <span className="text-[9px] font-mono font-black text-[#f26419] bg-[#f26419]/10 px-2.5 py-0.5 rounded-full">
-                    {studyLogs.filter(log => log.date === getLocalDateString()).length} saved
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 max-h-[120px] overflow-y-auto no-scrollbar pr-0.5">
-                  {(() => {
-                    const todayStr = getLocalDateString();
-                    const todaysLogsFiltered = studyLogs.filter(log => log.date === todayStr);
-                    if (todaysLogsFiltered.length === 0) {
-                      return (
-                        <div className="py-6 text-center text-slate-400 dark:text-slate-650 text-[10px] font-bold">
-                          No sessions recorded today yet. Spin the timer to start logging! ⏱️
-                        </div>
-                      );
-                    }
-                    return [...todaysLogsFiltered].reverse().map((log, offsetIdx) => {
-                      const subjectOfLog = subjects.find(s => s.id === log.subjectId);
-                      const colorBg = subjectOfLog?.color || "bg-[#f26419]";
-                      const formattedTime = log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
-
-                      return (
-                        <div key={log.id || offsetIdx} className="bg-white dark:bg-[#16171d] p-2.5 rounded-2xl border border-slate-100 dark:border-slate-850/50 flex items-center justify-between shadow-xs hover:border-[#f26419]/30 transition-all">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`w-2 h-2 rounded-full ${colorBg.startsWith("bg-") ? colorBg : `bg-gradient-to-r ${colorBg}`} shrink-0`}></span>
-                            <div className="min-w-0 text-left">
-                              <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 block truncate">{log.subjectName}</span>
-                              <span className="text-[9px] text-slate-400 font-mono font-bold block">{formattedTime}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[11px] font-mono font-black text-[#f26419] bg-[#f26419]/5 px-2 py-0.5 rounded-lg">
-                              +{Number(log.durationMinutes.toFixed(2))}m
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
             </div>
           </div>
+
+            {/* Watch / Timer & Planners (Visualized on the Left Side using order-1 / lg:order-1) */}
+            <div className="lg:col-span-8 col-span-12 order-1 lg:order-1 flex flex-col gap-4.5">
+              {/* Chrono Orb card at the top */}
+              {renderChronoOrb && renderChronoOrb()}
+
+              {/* Grid of options / configuration below Chrono Orb */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4.5 items-start text-left animate-fade-in">
+                
+                {/* Left Column of Right Panel: Primary control and config cards */}
+                <div className="flex flex-col space-y-4.5 w-full">
+
+                {/* Atmosphere intro section */}
+                {subView === "atmosphere" && (
+                  <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/25 p-5 rounded-3xl text-left relative overflow-hidden shadow-xs animate-fade-in">
+                    <span className="p-1 px-2.5 rounded-lg bg-indigo-500/10 text-indigo-500 text-[9px] font-black uppercase tracking-wider font-mono">
+                      🧘 Zen Space Cabin
+                    </span>
+                    <h3 className="text-sm font-black text-slate-800 dark:text-neutral-200 mt-2">
+                      Atmosphere & Color Customization
+                    </h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                      Play auditory focus soundscapes, toggle distraction shield guards, and customize level-achievement themes away from your active study session space.
+                    </p>
+                  </div>
+                )}
+
+                {subView === "timer" && (
+                  <>
+                    {/* Advanced Target Span Planner */}
+                    {timerType === "custom" && !isStudying && (
+                      <div className="glass-card-inner p-4.5 rounded-[24px] space-y-4 animate-fade-in text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider flex items-center gap-1">
+                            <Target className="w-3.5 h-3.5 text-emerald-500" /> Advanced Target Span Planner
+                          </span>
+                          <span className="text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Target reward: +100 XP bonus
+                          </span>
+                        </div>
+
+                        {/* Preset Minute Tabs */}
+                        <div className="space-y-1.5">
+                          <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                            General Focus Intervals
+                          </label>
+                          <div className="grid grid-cols-6 gap-1.5">
+                            {[15, 30, 45, 60, 90, 120].map((mins) => (
+                              <button
+                                key={mins}
+                                onClick={() => {
+                                  setCustomTargetMinutes(mins);
+                                  setCustomTargetMinutesInput(String(mins));
+                                }}
+                                className={`py-2 rounded-xl text-center text-xs font-black font-mono border transition-all cursor-pointer ${
+                                  customTargetMinutes === mins
+                                    ? "bg-emerald-600 border-transparent text-white shadow-xs scale-[1.02]"
+                                    : "bg-white dark:bg-[#121215]/50 hover:bg-slate-50 dark:hover:bg-slate-900 border-slate-150 dark:border-slate-800 text-slate-600 dark:text-slate-350"
+                                }`}
+                              >
+                                {mins}m
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Manual Target Minutes Input */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-center">
+                          <div className="space-y-1">
+                            <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                              Custom Span Dimension (1 - 300)
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                max="300"
+                                value={customTargetMinutesInput}
+                                onChange={(e) => {
+                                  setCustomTargetMinutesInput(e.target.value);
+                                  const parsed = parseInt(e.target.value, 10);
+                                  if (!isNaN(parsed) && parsed > 0) {
+                                    setCustomTargetMinutes(parsed);
+                                  }
+                                }}
+                                className="w-full pl-3 pr-9 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold font-mono text-slate-800 dark:text-neutral-50 focus:border-[#f26419] focus:outline-none"
+                              />
+                              <span className="absolute right-3 top-2.5 text-[8.5px] font-mono text-slate-400 font-extrabold pb-0.5 uppercase">mins</span>
+                            </div>
+                          </div>
+
+                          {/* Target Focus Quest Input */}
+                          <div className="space-y-1">
+                            <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
+                              Study Directives / Focus goals
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Solve test mock #2"
+                              value={sessionGoalText}
+                              onChange={(e) => setSessionGoalText(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-850 dark:text-neutral-200 placeholder-slate-400 dark:placeholder-slate-550 focus:border-[#f26419] focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Active projection box */}
+                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl flex items-center justify-between text-xs font-mono">
+                          <div className="text-left">
+                            <p className="text-[7.5px] font-black uppercase text-slate-400 leading-none mb-1">Provisional Output Projection</p>
+                            <p className="text-[10px] font-bold text-slate-650 dark:text-slate-350">
+                              Study for <span className="text-emerald-500 font-black">{customTargetMinutes} mins</span>
+                            </p>
+                          </div>
+                          <div className="text-right flex items-center gap-1.5 font-bold">
+                            <div className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md text-[8.5px] font-black">
+                              +{customTargetMinutes * (calculateStudentLevel(userXp).level < 5 ? 5 : 10)} Base XP
+                            </div>
+                            <div className="bg-[#f26419]/10 text-[#f26419] px-2 py-0.5 rounded-md text-[8.5px] font-black">
+                              +100 Milestone Bonus
+                            </div>
+                          </div>
+                        </div>
+
+                        {timerAlertMessage && (
+                          <div className="bg-rose-50 dark:bg-rose-950/40 text-rose-750 dark:text-rose-400 text-[10.5px] font-semibold py-2 px-3.5 rounded-xl border border-rose-200 dark:border-rose-900/30 text-left leading-normal flex items-start gap-1.5 animate-flash">
+                            <span className="text-rose-500 font-bold">⚠️</span>
+                            <span>{timerAlertMessage}</span>
+                          </div>
+                        )}
+
+                        {/* Quick Start Focus Quest button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTimerAlertMessage(null);
+                            if (subjects.length === 0) {
+                              setTimerAlertMessage("⚠️ Please enroll a study Subject or Topic first using the '+' button!");
+                              setToast({
+                                message: "⚠️ Please enroll a study Subject or Topic first!",
+                                type: "warning"
+                              });
+                              setShowSubjectsModal(true);
+                              setIsEditingSubjectsList(true);
+                              return;
+                            }
+                            const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
+                            if (!verifiedSubject) {
+                              setTimerAlertMessage("⚠️ Please select an active Subject/Topic from the Disciplines section before initiating the Focus Odyssey.");
+                              const grid = document.getElementById("f5-subject-selection");
+                              if (grid) {
+                                grid.scrollIntoView({ behavior: "smooth" });
+                              }
+                              return;
+                            }
+                            setActiveSeconds(0);
+                            setIsStudying(true);
+                          }}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white font-extrabold text-[10.5px] uppercase tracking-widest cursor-pointer shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5 hover:opacity-95"
+                        >
+                          <Lock className="w-3.5 h-3.5 stroke-[2.5]" /> Initiate Advanced Focus Odyssey
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Pomodoro Intervals Custom configurators (only in Pomodoro mode) */}
+                    {timerType === "pomodoro" && (
+                      <div className="glass-card-inner p-4 rounded-[24px] space-y-3 mt-1 text-left">
+                        <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-black tracking-wider block">
+                          Pomodoro Intervals Configurator
+                        </span>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          {/* Focus Adjust */}
+                          <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
+                            <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Focus</span>
+                            <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoFocusDuration}m</span>
+                            <div className="flex gap-1 w-full">
+                              <button 
+                                onClick={() => adjustFocusDuration(-5)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                -
+                              </button>
+                              <button 
+                                onClick={() => adjustFocusDuration(5)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Short Break Adjust */}
+                          <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
+                            <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Short Brk</span>
+                            <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoShortBreakDuration}m</span>
+                            <div className="flex gap-1 w-full">
+                              <button 
+                                onClick={() => adjustShortBreakDuration(-1)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                -
+                              </button>
+                              <button 
+                                onClick={() => adjustShortBreakDuration(1)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Long Break Adjust */}
+                          <div className="bg-white dark:bg-[#121215]/50 p-2 rounded-xl border border-slate-150 dark:border-slate-800 flex flex-col items-center">
+                            <span className="text-[8px] font-mono text-slate-400 font-black uppercase">Long Brk</span>
+                            <span className="text-xs font-black font-mono my-1 text-slate-800 dark:text-slate-100">{pomoLongBreakDuration}m</span>
+                            <div className="flex gap-1 w-full">
+                              <button 
+                                onClick={() => adjustLongBreakDuration(-5)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                -
+                              </button>
+                              <button 
+                                onClick={() => adjustLongBreakDuration(5)}
+                                className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-90"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {subView === "atmosphere" && (
+                  <>
+                    {/* Realme UI 7 Control Center Glass Sound Deck */}
+                    <div className="glass-card-inner p-5 rounded-3xl space-y-4 mt-1.5 text-left relative overflow-hidden shadow-2xl">
+                      
+                      {/* Interactive Faux Status Bar (Realme UI style) */}
+                      <div className="flex items-center justify-between border-b border-slate-200/10 pb-2.5 mb-1 text-[11px] font-sans font-medium text-slate-505 dark:text-slate-450">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold">Tue, Oct 21</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] opacity-85">
+                          <span>Vi India | Jio True5G</span>
+                          <span className="inline-flex gap-0.5 items-end h-2.5">
+                            <span className="w-[1.5px] h-1.5 bg-current rounded-full"></span>
+                            <span className="w-[1.5px] h-2 bg-current rounded-full"></span>
+                            <span className="w-[1.5px] h-2.5 bg-current rounded-full"></span>
+                          </span>
+                          <span className="font-mono text-[9px] border border-current px-0.5 rounded text-[8px] leading-none font-black">5G</span>
+                          <span className="flex items-center gap-0.5">
+                            <span className="w-4 h-2.5 border border-current rounded-xs relative flex items-center p-0.5">
+                              <span className="h-full w-[90%] bg-current rounded-2xs"></span>
+                            </span>
+                            <span>92%</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Header with Title */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-display font-bold tracking-widest text-slate-450 dark:text-slate-500 block">
+                            Realme UI 7 Fluid Deck
+                          </span>
+                          <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mt-0.5 block">
+                            Flow Ambient Synthesizer
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {ambientSound !== "none" ? (
+                            <Volume2 className="w-4 h-4 text-blue-500 dark:text-blue-400 animate-pulse" />
+                          ) : (
+                            <VolumeX className="w-4 h-4 text-slate-400" />
+                          )}
+                          <span className="text-xs font-mono text-slate-600 dark:text-slate-350 capitalize font-bold">{ambientSound === "none" ? "Muted" : ambientSound}</span>
+                        </div>
+                      </div>
+
+                      {/* Side by side grid layout mimicking Realme UI 7 Control Center panel */}
+                      <div className="grid grid-cols-12 gap-4 items-center">
+                        
+                        {/* Left Side: 2x3 Circle Button Layout (Control Center widgets) */}
+                        <div className="col-span-8 grid grid-cols-3 gap-3">
+                          {[
+                            { id: "none", label: "Mute", icon: VolumeX },
+                            { id: "brown", label: "Brownian", icon: Radio },
+                            { id: "rain", label: "Cozy Rain", icon: CloudRain },
+                            { id: "waves", label: "Ocean Tide", icon: Waves },
+                            { id: "fire", label: "Campfire", icon: Flame },
+                            { id: "binaural", label: "Gamma Beats", icon: Sparkles }
+                          ].map((s) => {
+                            const IconComponent = s.icon;
+                            const isActive = ambientSound === s.id;
+                            return (
+                              <div key={s.id} className="flex flex-col items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setAmbientSound(s.id as any);
+                                    setToast({
+                                      message: s.id === "none" 
+                                        ? "Ambient soundscapes muted." 
+                                        : `Synthesizing active ${s.label} flow track 🎧`,
+                                      type: s.id === "none" ? "info" : "success"
+                                    });
+                                  }}
+                                  className={`realme-toggle-btn ${isActive ? "active" : ""}`}
+                                  style={isActive && s.id !== "none" ? {
+                                    backgroundColor: "rgba(255, 255, 255, 1)",
+                                    borderColor: "rgba(255, 255, 255, 1)",
+                                    boxShadow: `0 12px 24px -4px rgba(37, 99, 235, 0.25)`
+                                  } : undefined}
+                                  title={s.label}
+                                >
+                                  <IconComponent className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110 text-blue-600 dark:text-blue-900" : "text-slate-600 dark:text-slate-300"}`} />
+                                </button>
+                                <span className={`text-[10px] text-center truncate w-full font-sans font-semibold tracking-tight transition-colors ${isActive ? "text-blue-600 dark:text-blue-450 font-bold" : "text-slate-500 dark:text-slate-400"}`}>
+                                  {s.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Right Side: Large Vertical Tactile Capsule Volume Slider (Exactly like Realme CC volume) */}
+                        <div className="col-span-4 flex flex-col items-center justify-center gap-2 h-full">
+                          <div 
+                            ref={volumeCapsuleRef}
+                            onMouseDown={handleCapsuleMouseDown}
+                            onTouchStart={handleCapsuleTouchStart}
+                            className="realme-slider-track w-14 h-[130px] shadow-lg relative flex items-end overflow-hidden cursor-row-resize"
+                            title="Drag vertically to adjust master ambiance volume"
+                          >
+                            {/* Filled active capsule volume bar */}
+                            <div 
+                              className="realme-slider-fill w-full bg-white flex flex-col items-center justify-end pb-3 transition-all duration-75 relative"
+                              style={{ height: `${(volume / 0.5) * 100}%`, minHeight: "24px" }}
+                            >
+                              {/* Sliding Speaker volume icon */}
+                              <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-100 dark:bg-slate-200 p-1 rounded-full shadow-xs">
+                                {volume > 0 ? (
+                                  <Volume2 className="w-4 h-4 text-blue-600" />
+                                ) : (
+                                  <VolumeX className="w-4 h-4 text-slate-500" />
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Ghost Icon background when empty */}
+                            {volume === 0 && (
+                              <div className="absolute top-2 left-1/2 -translate-x-1/2 text-slate-400 dark:text-slate-600">
+                                <VolumeX className="w-4 h-4" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Tactile Percentage Readout Label */}
+                          <div className="text-center">
+                            <span className="text-[10px] font-mono font-black text-slate-600 dark:text-slate-350 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
+                              {Math.round((volume / 0.5) * 100)}%
+                            </span>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* Smooth Sound Equalizer Animation */}
+                      {isStudying && ambientSound !== "none" && (
+                        <div className="flex items-end justify-between px-3 pt-2.5 pb-1 gap-1 h-7 bg-blue-50/20 dark:bg-blue-950/10 rounded-2xl border border-blue-500/10">
+                          {Array.from({ length: 24 }).map((_, barIdx) => {
+                            const animationDuration = `${0.4 + (barIdx % 5) * 0.15}s`;
+                            const animDelay = `${barIdx * 50}ms`;
+                            return (
+                              <span 
+                                key={barIdx}
+                                className="flex-1 bg-blue-500/80 dark:bg-blue-400/80 rounded-full transition-transform"
+                                style={{
+                                  height: "100%",
+                                  transformOrigin: "bottom",
+                                  animation: `equalizerPulse ${animationDuration} ease-in-out infinite alternate`,
+                                  animationDelay: animDelay
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+
+                    </div>
+
+                    {/* Cognitive Companion Enhancers Deck */}
+                    <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
+                      <div>
+                        <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-extrabold tracking-wider block">
+                          Focus Boosters
+                        </span>
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Activate real-time cognitive state assistants:</p>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {/* Focus Guard Protection Switch */}
+                        <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-1.5 rounded-lg transition-transform ${focusGuard ? 'bg-[#f26419]/10 text-[#f26419] scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
+                              <Shield className="w-4 h-4 stroke-[2.5]" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Anti-Distraction Shield</span>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Auto-pauses study if you switch browser tabs</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setFocusGuard(!focusGuard)}
+                            aria-label="Toggle focus guard"
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              focusGuard ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                focusGuard ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Mindful Breathing Anchor Switch */}
+                        <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-1.5 rounded-lg transition-transform ${showBreathingCoach ? 'bg-indigo-500/10 text-indigo-500 scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
+                              <Brain className="w-4 h-4 stroke-[2.5]" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Rhythmic Breath Coach</span>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Pulsing 4-4-4 visual guide for stress reduction</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowBreathingCoach(!showBreathingCoach)}
+                            aria-label="Toggle breathing guide"
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              showBreathingCoach ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                showBreathingCoach ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Right Column of Right Panel: Active subjects and aesthetic themes */}
+              <div className="flex flex-col space-y-4.5 w-full">
+
+                {subView === "atmosphere" && (
+                  <>
+                    {/* Advanced Aesthetic Workspace Canvas Palette */}
+                    <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-3xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-mono text-slate-450 dark:text-slate-500 font-black tracking-widest block">
+                            🌈 Aesthetic Canvas Palette
+                          </span>
+                          <span className="text-[9px] bg-[#f26419]/10 text-[#f26419] px-2.5 py-0.5 rounded-full font-mono font-black uppercase tracking-wider">
+                            Lvl Achievements 🏆
+                          </span>
+                        </div>
+                        <p className="text-[9.5px] text-slate-400 dark:text-slate-500 font-medium mt-1 leading-normal">Instantly shift your scholastic viewport and focus space style with level milestones:</p>
+                      </div>
+
+                      {/* Dynamic Trial & Unlock Status Info Cards */}
+                      {isPermanentlyUnlocked ? (
+                        <div className="p-3 bg-indigo-500/10 border border-indigo-500/15 rounded-2xl flex items-center gap-2.5">
+                          <Crown className="w-4 h-4 text-indigo-400 shrink-0" />
+                          <div className="text-left">
+                            <h4 className="text-[10px] font-bold text-indigo-300 leading-none">Permanent Theme Unlock Active 👑</h4>
+                            <p className="text-[9px] text-indigo-400/80 mt-1">This account has permanent access to all premium visual workspaces.</p>
+                          </div>
+                        </div>
+                      ) : isTrialActive ? (
+                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/15 rounded-2xl flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                            <div className="text-left min-w-0">
+                              <h4 className="text-[10px] font-bold text-emerald-300 leading-none">7-Day Free Theme Trial Active 🔓</h4>
+                              <p className="text-[9px] text-emerald-400/80 mt-1 truncate">Enjoy access to any workspace style during your initial trial period.</p>
+                            </div>
+                          </div>
+                          <span className="text-[8.5px] font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-lg font-black shrink-0">
+                            {trialDaysRemaining} DAYS LEFT
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 bg-amber-500/15 border border-amber-500/25 rounded-2xl space-y-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                            <div className="text-left">
+                              <h4 className="text-[10px] font-bold text-amber-400 leading-none">Premium Themes Locked 🔒</h4>
+                              <p className="text-[9px] text-amber-500/80 mt-1">Free trial finished. Increase level to unlock, or reset below.</p>
+                            </div>
+                          </div>
+                          {onResetTrial && (
+                            <button
+                              type="button"
+                              onClick={onResetTrial}
+                              className="w-full text-center py-2 px-3 bg-amber-500 hover:bg-amber-600 active:scale-98 text-white rounded-xl text-[10px] font-mono font-black transition-all cursor-pointer shadow-xs"
+                            >
+                              ⚡ ACTIVATE FREE 7-DAY THEME TRIAL
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { id: "dark-classic", name: "Amber", class: "from-[#f26419] to-[#ff9f43]", lvl: 1, hex: "#f26419" },
+                          { id: "forest", name: "Matcha", class: "from-[#10b981] to-[#6ee7b7]", lvl: 3, hex: "#10b981" },
+                          { id: "crimson", name: "Crimson", class: "from-[#e11d48] to-[#fda4af]", lvl: 6, hex: "#e11d48" },
+                          { id: "honey", name: "Vanilla", class: "from-[#d97706] to-[#fcd34d]", lvl: 10, hex: "#d97706" },
+                          { id: "amoled", name: "OLED", class: "from-zinc-500 to-black", lvl: 15, hex: "#6366f1" },
+                          { id: "cosmic", name: "Cosmic", class: "from-[#8b5cf6] to-[#d946ef]", lvl: 20, hex: "#8b5cf6" },
+                          { id: "cyberpunk", name: "Tokyo", class: "from-[#ec4899] to-[#06b6d4]", lvl: 25, hex: "#ec4899" },
+                          { id: "nordic", name: "Frozen", class: "from-[#0284c7] to-[#34d399]", lvl: 30, hex: "#0284c7" }
+                        ].map((preset) => {
+                          const userLvl = calculateStudentLevel(userXp).level;
+                          const isLocked = !isPermanentlyUnlocked && !isTrialActive && userLvl < preset.lvl;
+                          const isActive = themePreset === preset.id;
+
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => {
+                                if (isLocked) {
+                                  setToast({
+                                    message: `🔒 Locked Theme: Reaching Student Level ${preset.lvl} unlocks this preset! Complete study sessions to earn XP!`,
+                                    type: "warning"
+                                  });
+                                } else if (onThemeSelect) {
+                                  onThemeSelect(preset.id);
+                                  setToast({
+                                    message: `Theme styled to ${preset.name}! enjoy your study flow ✨`,
+                                    type: "success"
+                                  });
+                                }
+                              }}
+                              className={`p-2 rounded-xl border text-center flex flex-col items-center justify-between transition-all cursor-pointer relative group aspect-square hover:scale-105 active:scale-95 ${
+                                isActive 
+                                  ? "bg-white dark:bg-slate-900 shadow-md border-slate-350 dark:border-slate-700" 
+                                  : "bg-white/50 dark:bg-[#121215]/30 border-slate-150 dark:border-slate-900 hover:bg-white dark:hover:bg-[#14141a]"
+                              }`}
+                              title={`${preset.name} Theme (Required Level: ${preset.lvl})`}
+                            >
+                              <div className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${preset.class} shadow-sm flex items-center justify-center text-white relative`}>
+                                {isLocked ? (
+                                  <Lock className="w-2.5 h-2.5 text-white/90 drop-shadow-sm" />
+                                ) : isActive ? (
+                                  <Check className="w-3 h-3 text-white drop-shadow-sm stroke-[3]" />
+                                ) : null}
+                              </div>
+                              <span className="text-[8px] font-mono font-black tracking-tight mt-1 truncate max-w-full leading-none">
+                                {preset.name}
+                              </span>
+                              {isLocked && (
+                                <span className="absolute -top-1 -right-1 text-[7px] font-mono font-extrabold bg-amber-500 text-white rounded px-0.5 leading-none shadow-xs">
+                                  L{preset.lvl}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Render the Admin Panel if current logged-in user is the owner */}
+                      {(currentUser?.email?.toLowerCase() === ownerEmail?.toLowerCase() || currentUser?.email?.toLowerCase() === "mauryanaitik9999@gmail.com") && (
+                        <AdminThemeAccessPanel />
+                      )}
+                    </div>
+                  </>
+                )}
+
+              </div>
+
+            </div> {/* close of grid grid-cols-1 md:grid-cols-2 */}
+          </div> {/* close of lg:col-span-8 col-span-12 */}
+        </div> {/* close of main grid grid-cols-1 lg:grid-cols-12 */}
 
 
 
@@ -2741,7 +3346,7 @@ export default function TimelineView({
       {/* Floating Subjects List Popover Form */}
       {showSubjectsModal && (
         <div className="fixed inset-0 bg-[#0a0a0ade] backdrop-blur-md flex items-center justify-center p-5 z-50 animate-fade-in text-slate-800 dark:text-slate-100 leading-normal">
-          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800/90 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90%] shadow-xl">
+          <div className="liquid-glass border rounded-3xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90%] shadow-xl">
             {/* Modal header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/15 text-left">
               <h3 className="font-black text-xs uppercase tracking-wider text-[#f26419]">Class Configuration</h3>
@@ -2768,34 +3373,137 @@ export default function TimelineView({
             {/* Modal list elements */}
             <div className="flex-1 overflow-y-auto p-5 space-y-3.5 max-h-[300px]">
               
-              {isEditingSubjectsList && (
-                <div className="bg-slate-100 dark:bg-[#1a1a1a] rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-3 text-left">
-                  <p className="text-xs text-slate-550 dark:text-slate-400 font-semibold uppercase">Add New subject</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="e.g., Organic chemistry" 
-                      value={newSubjectName}
-                      onChange={(e) => setNewSubjectName(e.target.value)}
-                      className="flex-1 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-505 text-slate-800 dark:text-slate-100"
-                    />
-                    <button 
-                      onClick={handleCreateSubject}
-                      className="bg-[#f26419] px-4 py-2 rounded-xl text-xs font-black text-white hover:opacity-90 cursor-pointer"
+              {(isEditingSubjectsList || editingSubjectId !== null) && (
+                <div className="bg-slate-100 dark:bg-[#1a1a1a]/90 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 space-y-4 text-left">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-[#f26419] font-black uppercase tracking-wider">
+                      {editingSubjectId ? "⚙️ Configure Subject details" : "🎓 Enroll New Subject"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSubjectId(null);
+                        setIsEditingSubjectsList(false);
+                      }}
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white"
                     >
-                      Add
+                      Cancel
                     </button>
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {colorOptions.map((c) => (
-                      <button
-                        key={c.bg}
-                        onClick={() => setNewSubjectColor(c.bg)}
-                        className={`w-6 h-6 rounded-full ${c.bg} flex items-center justify-center cursor-pointer border ${newSubjectColor === c.bg ? 'border-white' : 'border-transparent'}`}
-                      >
-                        {newSubjectColor === c.bg && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                    ))}
+
+                  {/* Name field */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9.5px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wide">Discipline Title</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., Organic Chemistry" 
+                      value={editingSubjectId ? editSubjectName : newSubjectName}
+                      onChange={(e) => {
+                        if (editingSubjectId) {
+                          setEditSubjectName(e.target.value);
+                        } else {
+                          setNewSubjectName(e.target.value);
+                        }
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#f26419] font-bold text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+
+                  {/* Color picker */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9.5px] font-bold text-slate-455 dark:text-slate-400 uppercase tracking-wide">Aesthetic Theme</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {colorOptions.map((c) => {
+                        const isSelected = editingSubjectId ? (editSubjectColor === c.bg) : (newSubjectColor === c.bg);
+                        return (
+                          <button
+                            key={c.bg}
+                            type="button"
+                            onClick={() => {
+                              if (editingSubjectId) {
+                                setEditSubjectColor(c.bg);
+                              } else {
+                                setNewSubjectColor(c.bg);
+                              }
+                            }}
+                            className={`w-6 h-6 rounded-full ${c.bg} flex items-center justify-center cursor-pointer border ${isSelected ? 'border-white ring-2 ring-[#f26419]' : 'border-transparent hover:scale-105'} transition-all`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Target Tuner integrated into Subject configuration */}
+                  <div className="space-y-2.5 bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/50 dark:border-slate-850">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] uppercase font-mono text-slate-450 dark:text-slate-500 font-black tracking-wider">
+                        🎯 Daily Study Target
+                      </span>
+                      <span className="text-[9.5px] font-mono font-black bg-[#f26419]/10 text-[#f26419] px-2.5 py-0.5 rounded-full">
+                        {editingSubjectId ? editSubjectGoal : newSubjectGoal} mins daily
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[8px] font-mono uppercase text-slate-400">Target Level</p>
+                        <h4 className="text-[11px] font-bold truncate text-slate-700 dark:text-slate-350 leading-tight">
+                          {editingSubjectId ? "Adjust scholastic target" : "Set initial goal"}
+                        </h4>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (editingSubjectId) {
+                              setEditSubjectGoal(prev => Math.max(15, prev - 15));
+                            } else {
+                              setNewSubjectGoal(prev => Math.max(15, prev - 15));
+                            }
+                          }}
+                          className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 font-black font-mono text-xs text-slate-655 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          title="Reduce target by 15 mins"
+                        >
+                          -15
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (editingSubjectId) {
+                              setEditSubjectGoal(prev => Math.min(480, prev + 15));
+                            } else {
+                              setNewSubjectGoal(prev => Math.min(480, prev + 15));
+                            }
+                          }}
+                          className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 font-black font-mono text-xs text-slate-655 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                          title="Increase target by 15 mins"
+                        >
+                          +15
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-1">
+                    <button 
+                      type="button"
+                      onClick={async () => {
+                        if (editingSubjectId) {
+                          if (!editSubjectName.trim()) return;
+                          await handleUpdateSubjectDetails(editingSubjectId, editSubjectName, editSubjectGoal, editSubjectColor);
+                          setEditingSubjectId(null);
+                        } else {
+                          await handleCreateSubject();
+                        }
+                      }}
+                      className="flex-1 bg-[#f26419] hover:bg-[#f26419]/90 py-2.5 rounded-xl text-xs font-black text-white cursor-pointer shadow-md transition-all active:scale-98 flex items-center justify-center"
+                    >
+                      {editingSubjectId ? "Save Subject Details" : "Enroll Subject"}
+                    </button>
                   </div>
                 </div>
               )}
@@ -2826,15 +3534,33 @@ export default function TimelineView({
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-mono font-bold text-slate-700 dark:text-slate-350">{formatSubjectMinutes(liveMins)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-350 pr-1">{formatSubjectMinutes(liveMins)}</span>
                       {isEditingSubjectsList && (
-                        <button 
-                          onClick={() => handleDeleteSubject(sub.id)}
-                          className="bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/10 hover:bg-rose-500 hover:text-white transition-all text-[9px] font-black px-2 py-1 rounded-md cursor-pointer"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setEditingSubjectId(sub.id);
+                              setEditSubjectName(sub.name);
+                              setEditSubjectGoal(sub.goalMinutes || 120);
+                              const matchedColorBg = colorOptions.find(c => sub.color.includes(c.bg.replace("bg-", "")))?.bg || "bg-emerald-500";
+                              setEditSubjectColor(matchedColorBg);
+                            }}
+                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-500 dark:text-slate-400 p-1.5 rounded-lg cursor-pointer transition-all border border-slate-200 dark:border-slate-700/80 active:scale-90"
+                            title="Edit target & color"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteSubject(sub.id)}
+                            className="bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/10 hover:bg-rose-500 hover:text-white transition-all text-[9px] font-black w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer active:scale-90"
+                            title="Delete subject"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

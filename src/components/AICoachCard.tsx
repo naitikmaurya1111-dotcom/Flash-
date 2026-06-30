@@ -302,10 +302,10 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
   };
 
   return (
-    <div id="ai-coach-lounge-wrapper" className="bg-white dark:bg-[#0c0d11]/90 rounded-3xl p-6 border border-slate-100 dark:border-slate-850/70 space-y-5 hover-lift transition-all duration-350 shadow-md">
+    <div id="ai-coach-lounge-wrapper" className="liquid-glass rounded-3xl p-6 space-y-5 shadow-md border">
       
       {/* Upper branding section with Toggle Tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-150 dark:border-slate-850/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-150/40 dark:border-slate-850/40 pb-5">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl animate-pulse">
             <Sparkles className="w-5 h-5 fill-current" />
@@ -324,12 +324,12 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
         </div>
 
         {/* Dual Mode Switch Layout */}
-        <div className="flex bg-slate-100 dark:bg-[#121319] p-1 rounded-xl border border-slate-200/40 dark:border-slate-850/50 self-start sm:self-auto">
+        <div className="flex bg-slate-100/50 dark:bg-black/25 p-1 rounded-xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md self-start sm:self-auto shadow-inner">
           <button
             onClick={() => setSubTab("report")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               subTab === "report"
-                ? "bg-white dark:bg-[#1c1d24] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                ? "bg-white text-indigo-600 dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
             }`}
           >
@@ -340,7 +340,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
             onClick={() => setSubTab("chat")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               subTab === "chat"
-                ? "bg-white dark:bg-[#1c1d24] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                ? "bg-white text-indigo-600 dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
             }`}
           >
@@ -351,7 +351,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
       </div>
 
       {/* Advisor Selectors Board */}
-      <div className="space-y-3 bg-slate-50 dark:bg-[#111216]/65 p-4 rounded-2xl border border-slate-100 dark:border-slate-850/60">
+      <div className="space-y-3 bg-slate-100/35 dark:bg-black/10 backdrop-blur-md p-4 rounded-2xl border border-slate-150/40 dark:border-white/5">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-mono font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
             Active Study Mentors
@@ -376,7 +376,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
                 className={`p-3 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between text-slate-700 dark:text-slate-300 h-full ${
                   isMatch
                     ? "border-indigo-500 bg-indigo-500/5 text-indigo-950 dark:text-indigo-400 font-medium scale-101 shadow-xs"
-                    : "border-slate-150/80 bg-white/70 hover:bg-slate-100/50 dark:border-slate-850/50 dark:bg-slate-900/40 dark:hover:bg-slate-850/45"
+                    : "border-slate-200/30 dark:border-white/5 bg-white/45 dark:bg-[#121217]/35 hover:bg-white/80 dark:hover:bg-white/5 text-slate-650 dark:text-slate-300 shadow-xs hover:border-slate-350 dark:hover:border-slate-750"
                 }`}
               >
                 <div>
@@ -537,7 +537,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
         </div>
       ) : (
         // Mode 2: CONVERSATIONAL CHAT BOARD
-        <div className="flex flex-col h-[400px] bg-slate-50/45 dark:bg-[#121318]/50 rounded-2xl border border-slate-150 dark:border-slate-850/60 overflow-hidden relative">
+        <div className="flex flex-col h-[400px] bg-slate-50/20 dark:bg-[#121318]/25 rounded-2xl border border-slate-200/30 dark:border-white/5 overflow-hidden relative backdrop-blur-md">
           
           {/* Chat Messages Scrolling Stage */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth no-scrollbar">
@@ -555,7 +555,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
                   <div className="max-w-[85%] space-y-0.5">
                     <div className={`p-3 rounded-2xl text-[11px] leading-relaxed shadow-xs ${
                       isCoach 
-                        ? "bg-white dark:bg-[#1b1c24] text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-850/50 rounded-tl-none font-medium" 
+                        ? "bg-white/95 dark:bg-[#1b1c24]/90 text-slate-800 dark:text-slate-200 border border-slate-200/40 dark:border-white/5 rounded-tl-none font-semibold shadow-xs" 
                         : "bg-indigo-600 text-white rounded-tr-none font-bold text-left ml-auto"
                     }`}>
                       {msg.text}
@@ -588,14 +588,14 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
           </div>
 
           {/* Preset Suggestions Quick Chips */}
-          <div className="px-3 py-2 border-t border-slate-150 dark:border-slate-850/50 bg-white/40 dark:bg-neutral-900/40 flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+          <div className="px-3 py-2 border-t border-slate-200/30 dark:border-white/5 bg-white/10 dark:bg-black/10 flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
             <span className="text-[8px] font-mono font-bold uppercase text-slate-400 shrink-0">FAQ:</span>
             {quickChips[persona].map((chip, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => handleSendChatMessage(chip)}
-                className="bg-white/90 hover:bg-indigo-50 dark:bg-[#1b1c24] dark:hover:bg-[#252631] text-slate-600 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200/50 dark:border-slate-800/60 px-3 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all shrink-0"
+                className="bg-white/45 hover:bg-indigo-50/70 dark:bg-[#1b1c24]/40 dark:hover:bg-[#252631]/60 text-slate-600 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200/30 dark:border-white/5 px-3 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all shrink-0"
               >
                 {chip}
               </button>
@@ -603,7 +603,7 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
           </div>
 
           {/* Message Input Board layout */}
-          <div className="p-2.5 border-t border-slate-150 dark:border-slate-850 bg-white dark:bg-[#0c0d11]">
+          <div className="p-2.5 border-t border-slate-200/30 dark:border-white/5 bg-white/15 dark:bg-black/15">
             <form 
               onSubmit={(e) => {
                 e.preventDefault();

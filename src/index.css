@@ -38,34 +38,203 @@
   filter: drop-shadow(0 0 8px rgba(242, 100, 25, 0.5));
 }
 
-/* Glassmorphism utility classes */
+/* Glassmorphism utility classes with pristine transparency and refraction */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.02), 0 2px 8px -1px rgba(15, 23, 42, 0.02);
+  background: rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(32px) saturate(200%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 16px 40px -10px rgba(15, 23, 42, 0.05), 
+    0 4px 12px -2px rgba(15, 23, 42, 0.02),
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.8) !important;
 }
 
 .dark .glass-panel {
-  background: rgba(18, 19, 26, 0.92);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.65);
+  background: rgba(15, 17, 26, 0.5) !important;
+  backdrop-filter: blur(32px) saturate(175%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 16px 48px -8px rgba(0, 0, 0, 0.5),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.16) !important;
 }
 
-/* Liquid glass panel design system (Inspired by luxurious futuristic OS like Android 17 style) */
+/* Liquid glass panel design system with realistic fluid gradients, high transparency, and crisp edges */
 .liquid-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid rgba(15, 23, 42, 0.065);
-  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.03), 0 4px 12px -2px rgba(15, 23, 42, 0.02);
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.28) 0%, 
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 100%
+  ) !important;
+  backdrop-filter: blur(40px) saturate(220%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.4), /* Double border look */
+    0 25px 65px -12px rgba(15, 23, 42, 0.08), 
+    0 10px 24px -8px rgba(15, 23, 42, 0.03),
+    inset 0 2.5px 4.5px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 3px 0 rgba(255, 255, 255, 0.35) !important;
 }
 
 .dark .liquid-glass {
-  background: rgba(18, 19, 26, 0.88);
-  backdrop-filter: blur(24px) saturate(175%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.65), inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+  background: linear-gradient(
+    135deg, 
+    rgba(20, 22, 32, 0.55) 0%, 
+    rgba(14, 15, 23, 0.35) 50%, 
+    rgba(8, 9, 14, 0.22) 100%
+  ) !important;
+  backdrop-filter: blur(40px) saturate(190%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.08), /* Outer micro glowing edge */
+    0 35px 80px -15px rgba(0, 0, 0, 0.78), 
+    0 12px 32px -12px rgba(0, 0, 0, 0.45),
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.26), /* Glowing top highlight */
+    inset 0 -1.5px 3.5px 0 rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Nested inside a liquid-glass panel to provide crisp contrast, depth, and realistic liquid refraction */
+.glass-card-inner {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.5), /* Sharp secondary ring */
+    0 10px 30px -10px rgba(15, 23, 42, 0.08), 
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+.dark .glass-card-inner {
+  background: rgba(10, 11, 16, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(140%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.08), /* Outer micro ring */
+    0 12px 35px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Liquid glass inset pill structure - perfect for tabs, segmented selectors, and high-visibility status chips */
+.liquid-glass-inset {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.12) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(210%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 4px 12px -2px rgba(15, 23, 42, 0.03),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .liquid-glass-inset {
+  background: linear-gradient(
+    135deg,
+    rgba(25, 28, 41, 0.65) 0%,
+    rgba(12, 13, 20, 0.4) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(165%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 6px 16px -4px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Realme UI 7 Inspired Capsule Sliders & Circular Toggle Buttons */
+.realme-slider-track {
+  width: 52px;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 26px;
+  backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dark .realme-slider-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.realme-slider-track:hover {
+  transform: scale(1.03);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.realme-slider-fill {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 24px;
+  transition: height 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.dark .realme-slider-fill {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.realme-toggle-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dark .realme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+.realme-toggle-btn:hover {
+  transform: scale(1.08) translateY(-1px);
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.realme-toggle-btn.active {
+  background: #ffffff !important;
+  color: #2563eb !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15), 0 0 12px rgba(255, 255, 255, 0.4);
+}
+.dark .realme-toggle-btn.active {
+  background: #ffffff !important;
+  color: #1e3a8a !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Premium noise-overlay and glass grid style overlays */
+.noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+}
+
+.glass-grid {
+  background-image: radial-gradient(rgba(120, 119, 198, 0.06) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+.dark .glass-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1.5px, transparent 1.5px);
 }
 
 /* Glass-card-tint for active study components */
@@ -83,37 +252,89 @@
   box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.5);
 }
 
-/* Premium drifting glowing blobs */
+/* Premium drifting glowing blobs - fully GPU accelerated for butter smoothness */
 @keyframes floatBlobOne {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(40px, -60px) scale(1.2); }
-  66% { transform: translate(-30px, 30px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
+  0% { transform: translate3d(0px, 0px, 0px) scale(1); }
+  33% { transform: translate3d(40px, -60px, 0px) scale(1.2); }
+  66% { transform: translate3d(-30px, 30px, 0px) scale(0.9); }
+  100% { transform: translate3d(0px, 0px, 0px) scale(1); }
 }
 
 @keyframes floatBlobTwo {
-  0% { transform: translate(0px, 0px) scale(1); }
-  50% { transform: translate(-50px, 50px) scale(1.25); }
-  100% { transform: translate(0px, 0px) scale(1); }
+  0% { transform: translate3d(0px, 0px, 0px) scale(1); }
+  50% { transform: translate3d(-50px, 50px, 0px) scale(1.25); }
+  100% { transform: translate3d(0px, 0px, 0px) scale(1); }
 }
 
 @keyframes floatBlobThree {
-  0% { transform: translate(0px, 0px) scale(1); }
-  40% { transform: translate(50px, 30px) scale(0.85); }
-  80% { transform: translate(-20px, -40px) scale(1.15); }
-  100% { transform: translate(0px, 0px) scale(1); }
+  0% { transform: translate3d(0px, 0px, 0px) scale(1); }
+  40% { transform: translate3d(50px, 30px, 0px) scale(0.85); }
+  80% { transform: translate3d(-20px, -40px, 0px) scale(1.15); }
+  100% { transform: translate3d(0px, 0px, 0px) scale(1); }
 }
 
 .animate-blob-1 {
-  animation: floatBlobOne 16s ease-in-out infinite;
+  will-change: transform;
+  animation: floatBlobOne 22s ease-in-out infinite;
 }
 
 .animate-blob-2 {
-  animation: floatBlobTwo 22s ease-in-out infinite;
+  will-change: transform;
+  animation: floatBlobTwo 28s ease-in-out infinite;
 }
 
 .animate-blob-3 {
-  animation: floatBlobThree 19s ease-in-out infinite;
+  will-change: transform;
+  animation: floatBlobThree 25s ease-in-out infinite;
+}
+
+/* Move style tags to static classes in index.css to prevent browser style recalculations */
+@keyframes equalizerPulse {
+  0% { height: 12%; opacity: 0.4; }
+  100% { height: 100%; opacity: 1; }
+}
+@keyframes flowRipple {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.08); opacity: 0.3; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+@keyframes orbitalSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes holographicWave {
+  0% { transform: translateY(4px) scaleY(0.98); }
+  50% { transform: translateY(-4px) scaleY(1.02); }
+  100% { transform: translateY(4px) scaleY(0.98); }
+}
+@keyframes pulseShadow {
+  0% { box-shadow: 0 0 0 0 rgba(242, 100, 25, 0.4); }
+  70% { box-shadow: 0 0 0 12px rgba(242, 100, 25, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(242, 100, 25, 0); }
+}
+@keyframes breatheExpand {
+  0% { transform: scale(0.97); opacity: 0.3; filter: blur(2px); }
+  50% { transform: scale(1.15); opacity: 0.7; filter: blur(0px); }
+  100% { transform: scale(0.97); opacity: 0.3; filter: blur(2px); }
+}
+.progress-glow {
+  filter: drop-shadow(0 0 10px rgba(242, 100, 25, 0.4));
+}
+.dark .progress-glow {
+  filter: drop-shadow(0 0 16px rgba(242, 100, 25, 0.6));
+}
+.interactive-card {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.interactive-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.25);
+}
+.liquid-reflection {
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%);
+}
+.neon-text-glow {
+  text-shadow: 0 0 20px var(--neon-color);
 }
 
 html, body {
@@ -138,6 +359,15 @@ html, body {
 
 .animate-slide-in {
   animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalZoomIn {
+  0% { transform: scale(0.96) translateY(8px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.animate-modal-zoom-in {
+  animation: modalZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ==========================================================================

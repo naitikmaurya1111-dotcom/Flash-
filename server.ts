@@ -38,6 +38,12 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
+  app.get("/api/app-config", (req, res) => {
+    res.json({
+      ownerEmail: process.env.OWNER_EMAIL || "mauryanaitik9999@gmail.com"
+    });
+  });
+
   app.post("/api/ai/coach", async (req, res) => {
     try {
       const client = getGeminiClient();

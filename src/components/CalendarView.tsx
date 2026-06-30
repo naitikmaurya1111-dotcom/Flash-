@@ -227,10 +227,10 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
   };
 
   return (
-    <div className="relative text-slate-800 dark:text-white font-sans bg-white dark:bg-[#0d0d0d] flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-900/50" id="f5-calendar-canvas">
+    <div className="liquid-glass relative text-slate-800 dark:text-white font-sans flex flex-col h-full rounded-2xl sm:rounded-3xl overflow-hidden border" id="f5-calendar-canvas">
       
       {/* Upper Month Header */}
-      <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-slate-100 dark:border-slate-900/10">
+      <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-slate-100/40 dark:border-slate-850/40">
         <div className="flex items-center gap-2.5">
           <Calendar className="w-5 h-5 text-[#f26419]" />
           <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -240,7 +240,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
         
         <div className="flex items-center gap-2">
           <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:block">Click any calendar cell to backdate or view logs!</p>
-          <div className="flex gap-1 bg-slate-100 dark:bg-[#151515] p-1 rounded-xl border border-slate-200 dark:border-slate-900">
+          <div className="flex gap-1 bg-slate-100/50 dark:bg-black/25 p-1 rounded-xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md shadow-inner">
             <button onClick={handlePrevMonth} className="p-1 px-2 rounded-lg bg-white dark:bg-slate-800/20 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-colors cursor-pointer">
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -282,7 +282,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
         </div>
 
         {/* Miniature Interactive Contribution Heatmap Tracker */}
-        <div className="bg-white dark:bg-black/40 border border-slate-100 dark:border-slate-800/80 p-3 rounded-2xl space-y-1.5 self-stretch flex flex-col justify-center">
+        <div className="bg-white/30 dark:bg-black/10 backdrop-blur-md border border-slate-200/40 dark:border-white/5 p-3 rounded-2xl space-y-1.5 self-stretch flex flex-col justify-center shadow-inner">
           <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
             <span className="uppercase tracking-wider">Mini Streak-Heatmap Tracker (Past 14 Days)</span>
             <span>{miniHeatmapData.filter(d => d.minutes >= 1).length} / 14 Studied</span>
@@ -435,7 +435,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
       {/* Dynamic Drawer / Dialog Overlay for selected date */}
       {selectedLogsDate && (
         <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-30 animate-fade-in">
-          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-900 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl relative text-slate-850 dark:text-slate-100">
+          <div className="liquid-glass border rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl relative text-slate-850 dark:text-slate-100">
             
             {/* Header */}
             <div className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900 flex justify-between items-center">
@@ -598,7 +598,7 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
       {/* Floating Filter dialog modal popup */}
       {showFilterModal && (
         <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-5 z-40 animate-fade-in">
-          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-4 sm:p-6 shadow-xl text-slate-805 dark:text-slate-200">
+          <div className="liquid-glass border rounded-2xl sm:rounded-3xl w-full max-w-sm overflow-hidden flex flex-col p-4 sm:p-6 shadow-xl text-slate-850 dark:text-slate-200">
             <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-3.5">Filter Logs</h3>
             <p className="text-xs text-slate-450 dark:text-slate-400 mb-4 font-sans leading-relaxed">Filter the logs plotted inside the calendar days depending on active criteria:</p>
             

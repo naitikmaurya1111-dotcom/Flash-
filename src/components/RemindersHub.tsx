@@ -438,7 +438,11 @@ export default function RemindersHub({
           }
         });
       } else {
-        new Notification(title, { body, icon: "/favicon.ico" });
+        try {
+          new Notification(title, { body, icon: "/favicon.ico" });
+        } catch (err) {
+          console.warn("Direct Notification constructor failed in fallback path:", err);
+        }
       }
     } catch (err) {
       console.warn("Notification presentation failed:", err);
@@ -680,567 +684,223 @@ export default function RemindersHub({
         </div>
       </div>
 
-      {/* 2. OS Notifications Permission Warning Iframe Fallback */}
-      <div className="bg-gradient-to-r from-slate-50 to-slate-100/85 dark:from-[#151515] dark:to-[#111111] p-5 rounded-3xl border border-slate-200/70 dark:border-slate-900/90 shadow-xl space-y-4">
-        
-        {isIframe && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-left flex flex-col md:flex-row md:items-center justify-between gap-3.5 animate-pulse">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                Iframe Sandboxing Restriction Block Checked
-              </p>
-              <p className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                Operating systems prohibit security permission requests and banner deliveries inside nested browser preview panels.
-                To experience physical test alarms and desktop push cards on your local keyboard, click the primary button!
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleOpenNewTab}
-              className="px-4 py-2 bg-gradient-to-r from-[#f26419] to-amber-600 hover:opacity-90 active:scale-95 text-[10px] text-white uppercase tracking-wider font-semibold rounded-xl transition-all shrink-0 cursor-pointer shadow-md"
-            >
-              Open in New Tab 🚀
-            </button>
-          </div>
-        )}
-
-        {/* Permission Authorization Header Drawer Block */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-slate-900/50 pb-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-indigo-550/10 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-200/20 dark:border-indigo-900/40 shrink-0">
-              <Bell className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Alerts & Sounds Control Center</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl">
-                Authorize security credentials and unlock web audio buffers so you stay perfectly on schedule even when the app is minimized or performing system operations.
-              </p>
-            </div>
-          </div>
-          
-          {permissionStatus === "granted" && isAudioApproved ? (
-            <span className="text-[9.5px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase px-3.5 py-1.5 border border-emerald-555/20 rounded-full flex items-center gap-1.5 shrink-0 self-start lg:self-center">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Precision Alerts Active
-            </span>
-          ) : (
-            <button
-              onClick={handleRequestPermission}
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-650 hover:opacity-90 active:scale-95 text-xs text-white uppercase tracking-widest font-black rounded-xl transition-all self-start lg:self-center cursor-pointer shadow-md shadow-indigo-600/10"
-            >
-              Request Credentials Access
-            </button>
-          )}
-        </div>
-
-        {/* Dual Configuration Check Indicators */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Push Banners Card */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/50 dark:border-slate-900/50 flex items-start gap-3.5 text-left">
-            <div className={`p-2.5 rounded-xl shrink-0 ${
-              permissionStatus === "granted" 
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
-                : "bg-slate-100 dark:bg-slate-950 text-slate-400 border border-slate-200 dark:border-slate-800"
-            }`}>
-              {permissionStatus === "granted" ? <Bell className="w-4.5 h-4.5" /> : <BellOff className="w-4.5 h-4.5" />}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">OS Popup Banners</span>
-                <span className={`text-[8px] uppercase font-black px-1.5 py-0.5 rounded-full ${
-                  permissionStatus === "granted" 
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                    : permissionStatus === "denied" 
-                    ? "bg-rose-500/10 text-rose-500" 
-                    : "bg-amber-500/10 text-amber-500"
-                }`}>
-                  {permissionStatus}
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-550 dark:text-slate-500 font-sans leading-normal">
-                Deliver notification trays directly to your device desktop when focus timelines reach zero.
-              </p>
-              {permissionStatus !== "granted" && (
-                <button
-                  type="button"
-                  onClick={handleRequestPermission}
-                  className="mt-1 text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-350 font-black flex items-center gap-1 cursor-pointer"
-                >
-                  Prompt System Panel ➜
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Web Sound Card */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/50 dark:border-slate-900/50 flex items-start gap-3.5 text-left">
-            <div className={`p-2.5 rounded-xl shrink-0 ${
-              isAudioApproved 
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
-                : "bg-slate-100 dark:bg-slate-950 text-slate-400 border border-slate-200 dark:border-slate-800"
-            }`}>
-              <Volume2 className="w-4.5 h-4.5" />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Browser Audio Channel</span>
-                <span className={`text-[8px] uppercase font-black px-1.5 py-0.5 rounded-full ${
-                  isAudioApproved 
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                    : "bg-amber-500/10 text-amber-500"
-                }`}>
-                  {isAudioApproved ? "unlocked" : "restricted"}
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-550 dark:text-slate-500 leading-normal">
-                Enable native synthesized chime chords immediately when a study slot or break starts/ends.
-              </p>
-              <button
-                type="button"
-                onClick={handleTestChimeOnly}
-                className="mt-1 text-[10px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-350 font-black flex items-center gap-1 cursor-pointer"
-              >
-                {isAudioApproved ? "Play Chime Sample ♫" : "Grant Audio Authorization ♫"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Event Settings Customization Toggles */}
-        <div className="p-5 bg-white/40 dark:bg-black/25 border border-slate-200/50 dark:border-slate-900/40 rounded-2xl space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-200/30 dark:border-slate-900/30 pb-2">
-            <ShieldCheck className="w-4 h-4 text-indigo-500" />
-            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Configure Event Alarm Subscriptions</span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Deliver System Banner Popups</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Display local OS toast cards when alerts tick complete.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableDesktopBanners: !notificationSettings.enableDesktopBanners })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableDesktopBanners ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableDesktopBanners ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Play Resonant Synth Sounds</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Trigger dynamic acoustic beeps on study milestones.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableSoundEffects: !notificationSettings.enableSoundEffects })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableSoundEffects ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableSoundEffects ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              <div className="pt-2">
-                <label className="text-[10px] uppercase font-black text-slate-500 block mb-1">Standard Ringtone Default</label>
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200/20 dark:border-slate-900/30">
-                  {(["chime", "success", "break"] as const).map((tone) => (
-                    <button
-                      key={tone}
-                      type="button"
-                      onClick={() => {
-                        onUpdateNotificationSettings({ ...notificationSettings, activeSoundPreset: tone });
-                        playChime(tone);
-                        triggerCanvasWaveform(tone);
-                      }}
-                      className={`py-1.5 rounded-lg text-center text-[10px] font-bold cursor-pointer transition-colors ${
-                        notificationSettings.activeSoundPreset === tone
-                          ? "bg-[#f26419] text-white shadow-sm"
-                          : "text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      {tone === "chime" ? "Classic Bell" : tone === "success" ? "Ascent Arp" : "Chill Hum"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 border-t md:border-t-0 md:border-l border-slate-200/30 dark:border-slate-800/50 pt-3 md:pt-0 md:pl-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Focus Session Concluded</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Buzzer sounds immediately on Pomodoro clock finished.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnTimerAlerts: !notificationSettings.notifyOnTimerAlerts })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnTimerAlerts ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnTimerAlerts ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Schedules & Cycles Alarm</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Trigger alarms on custom checklist items and hourly slots.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnReminderDue: !notificationSettings.notifyOnReminderDue })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnReminderDue ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnReminderDue ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Daily Study Goal Finished</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Fires with fanfare indicators when target minutes are met.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnDailyGoalMet: !notificationSettings.notifyOnDailyGoalMet })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnDailyGoalMet ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnDailyGoalMet ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">XP Levels & Milestone Upgrades</label>
-                  <span className="text-[10px] text-slate-500 leading-normal">Play an acoustic victory ascent whenever leveling up happens.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnLevelUp: !notificationSettings.notifyOnLevelUp })}
-                  className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnLevelUp ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
-                >
-                  <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnLevelUp ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Synthesizer Hardware Console Panel & Oscilloscope */}
-      <div className="bg-slate-50 dark:bg-[#141414] rounded-3xl border border-slate-200/60 dark:border-slate-900/80 p-5 space-y-5 shadow-lg text-left">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-950 pb-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/10 text-indigo-500 rounded-xl shrink-0">
-              <Sliders className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+      {/* 2. Minimalist Notification Settings Control Panel */}
+      <div className="liquid-glass p-5 sm:p-6 rounded-3xl shadow-xl space-y-5 text-left border">
+        {/* Header with Title & Permission Trigger */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-900/60">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl shrink-0">
+              <Bell className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-150">
-                Acoustic Synthesizer Console Sandbox
-              </h4>
-              <p className="text-[10px] text-slate-500 font-sans">
-                Fine-tune, synthesize, and customize the alarm sound system triggers using native oscillator wave physics.
-              </p>
+              <h4 className="text-sm font-extrabold tracking-tight text-slate-800 dark:text-slate-100">Notification Settings</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Configure alert preferences and sound presets.</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-500">Custom Wave Overrides</span>
-            <button
-              type="button"
-              onClick={() => setSynthEnabled(!synthEnabled)}
-              className={`w-8 h-4 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${synthEnabled ? "bg-indigo-650" : "bg-slate-300 dark:bg-slate-800"}`}
-            >
-              <span className={`w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform absolute ${synthEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
-            </button>
+            {permissionStatus === "granted" && isAudioApproved ? (
+              <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20 inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Active
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRequestPermission}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-[10px] font-bold text-white uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm"
+              >
+                Grant Permissions
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-          {/* Synthesizer sliders and inputs */}
-          <div className="lg:col-span-7 bg-white dark:bg-[#111111] border border-slate-200/50 dark:border-slate-950 rounded-2xl p-4.5 space-y-4 flex flex-col justify-between">
-            <div className="space-y-3.5">
-              {/* Oscillator Shape Selection */}
-              <div>
-                <span className="block text-[9px] uppercase font-black tracking-widest text-slate-400 mb-1.5">
-                  Oscillator Wave Shape
-                </span>
-                <div className="grid grid-cols-4 gap-1 bg-slate-550/5 dark:bg-slate-950 p-1 rounded-xl">
-                  {(["sine", "triangle", "square", "sawtooth"] as const).map((wt) => (
-                    <button
-                      key={wt}
-                      disabled={!synthEnabled}
-                      type="button"
-                      onClick={() => {
-                        setSynthWave(wt);
-                        const AudioClass = window.AudioContext || (window as any).webkitAudioContext;
-                        if (AudioClass) {
-                          const testCtx = new AudioClass();
-                          const osc = testCtx.createOscillator();
-                          const gain = testCtx.createGain();
-                          osc.connect(gain);
-                          gain.connect(testCtx.destination);
-                          osc.type = wt;
-                          osc.frequency.setValueAtTime(synthPitch, testCtx.currentTime);
-                          gain.gain.setValueAtTime(0, testCtx.currentTime);
-                          gain.gain.linearRampToValueAtTime(0.3, testCtx.currentTime + 0.04);
-                          gain.gain.exponentialRampToValueAtTime(0.01, testCtx.currentTime + 0.3);
-                          osc.start();
-                          osc.stop(testCtx.currentTime + 0.35);
-                          triggerCanvasWaveform(wt);
-                        }
-                      }}
-                      className={`py-1.5 rounded-lg text-center text-[10px] font-black tracking-wider uppercase transition-all duration-150 ${
-                        !synthEnabled 
-                          ? "opacity-35 cursor-not-allowed text-slate-400" 
-                          : synthWave === wt
-                          ? "bg-indigo-650 text-white shadow-sm"
-                          : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-205 cursor-pointer"
-                      }`}
-                    >
-                      {wt}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        {/* Iframe Hint */}
+        {isIframe && (
+          <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="leading-relaxed flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>OS notifications and audio may be restricted inside preview frames.</span>
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenNewTab}
+              className="text-[10px] font-bold text-[#f26419] hover:underline shrink-0 cursor-pointer"
+            >
+              Open New Tab 🚀
+            </button>
+          </div>
+        )}
 
-              {/* Pitch Frequency Slider */}
-              <div>
-                <div className="flex justify-between items-center text-[9px] uppercase font-black text-slate-400 mb-1">
-                  <span>Center Pitch Frequency</span>
-                  <span className="text-indigo-500 font-mono font-bold text-xs">{synthPitch} Hz</span>
-                </div>
-                <input
-                  type="range"
-                  min="200"
-                  max="1350"
-                  step="5"
-                  disabled={!synthEnabled}
-                  value={synthPitch}
-                  onChange={(e) => setSynthPitch(Number(e.target.value))}
-                  className="w-full accent-indigo-600 disabled:opacity-35 cursor-pointer"
-                />
-                <div className="flex justify-between text-[8px] text-slate-400 font-bold px-0.5 mt-0.5">
-                  <span>Bass Alert (200Hz)</span>
-                  <span>Concert A (440Hz)</span>
-                  <span>Soprano Bell (1350Hz)</span>
-                </div>
+        {/* Toggles Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+          {/* Channel Preferences */}
+          <div className="space-y-4">
+            <span className="block text-[10px] uppercase font-black tracking-widest text-slate-400">Delivery Channels</span>
+            
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Deliver System Banner Popups</label>
+                <span className="text-[10px] text-slate-500">Show local OS toast notifications when alerts fire.</span>
               </div>
-
-              {/* Decay Release Slider */}
-              <div>
-                <div className="flex justify-between items-center text-[9px] uppercase font-black text-slate-400 mb-1">
-                  <span>Sustained Ring Decay Time</span>
-                  <span className="text-indigo-500 font-mono font-bold text-xs">{synthDuration} Seconds</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="4.0"
-                  step="0.1"
-                  disabled={!synthEnabled}
-                  value={synthDuration}
-                  onChange={(e) => setSynthDuration(Number(e.target.value))}
-                  className="w-full accent-indigo-600 disabled:opacity-35 cursor-pointer"
-                />
-                <div className="flex justify-between text-[8px] text-slate-400 font-bold px-0.5 mt-0.5">
-                  <span>Short click (0.2s)</span>
-                  <span>Echoing bell sound (4.0s)</span>
-                </div>
-              </div>
-
-              {/* Gain volume capacity slider */}
-              <div>
-                <div className="flex justify-between items-center text-[9px] uppercase font-black text-slate-400 mb-1">
-                  <span>Volume Gain Amplitude</span>
-                  <span className="text-indigo-500 font-mono font-bold text-xs">{synthGain}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="15"
-                  max="100"
-                  step="5"
-                  disabled={!synthEnabled}
-                  value={synthGain}
-                  onChange={(e) => setSynthGain(Number(e.target.value))}
-                  className="w-full accent-indigo-600 disabled:opacity-35 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-900/60 flex items-center justify-between gap-2.5">
-              <span className="text-[10px] text-slate-450 italic leading-snug">
-                {synthEnabled 
-                  ? "✓ Customized synth settings are now applied system-wide!" 
-                  : "Using standard orchestral buzzer chime parameters."
-                }
-              </span>
               <button
                 type="button"
-                disabled={!synthEnabled}
-                onClick={() => {
-                  const AudioClass = window.AudioContext || (window as any).webkitAudioContext;
-                  if (AudioClass) {
-                    const actx = new AudioClass();
-                    const osc = actx.createOscillator();
-                    const gain = actx.createGain();
-                    osc.connect(gain);
-                    gain.connect(actx.destination);
-                    osc.type = synthWave;
-                    osc.frequency.setValueAtTime(synthPitch, actx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(synthPitch * 1.08, actx.currentTime + synthDuration);
-                    gain.gain.setValueAtTime(0, actx.currentTime);
-                    gain.gain.linearRampToValueAtTime(synthGain / 100, actx.currentTime + 0.08);
-                    gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + synthDuration);
-                    osc.start();
-                    osc.stop(actx.currentTime + synthDuration + 0.2);
-                    triggerCanvasWaveform(synthWave);
-                  }
-                }}
-                className={`px-3.5 py-1.5 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${
-                  synthEnabled 
-                    ? "bg-indigo-650 hover:bg-indigo-700 text-white cursor-pointer active:scale-95 shadow-sm" 
-                    : "bg-slate-100 dark:bg-slate-900 text-slate-400 cursor-not-allowed"
-                }`}
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableDesktopBanners: !notificationSettings.enableDesktopBanners })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableDesktopBanners ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
               >
-                <Music className="w-3.5 h-3.5" /> Chime Simulator
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableDesktopBanners ? "translate-x-4.5" : "translate-x-0.5"}`} />
               </button>
             </div>
-          </div>
 
-          {/* Canvas Oscilloscope Visualizer Card */}
-          <div className="lg:col-span-5 bg-white dark:bg-[#111111] border border-slate-200/50 dark:border-slate-950 rounded-2xl p-4 flex flex-col justify-between text-left">
-            <div>
-              <span className="block text-[9px] uppercase font-black tracking-widest text-slate-400 mb-1">
-                Real-Time Synthesis Oscilloscope
-              </span>
-              <p className="text-[10px] text-slate-500 font-sans leading-normal">
-                Visualizes the audio scale compression of frequency intervals when test triggers are deployed.
-              </p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Play Resonant Synth Sounds</label>
+                <span className="text-[10px] text-slate-500">Enable chime and bell audio alerts on events.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, enableSoundEffects: !notificationSettings.enableSoundEffects })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.enableSoundEffects ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+              >
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.enableSoundEffects ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
             </div>
 
-            <div className="my-3.5 h-32 w-full bg-slate-950/95 rounded-xl border border-slate-200/10 dark:border-slate-900 flex items-center justify-center relative overflow-hidden">
-              <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 opacity-[0.06] pointer-events-none">
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <div key={i} className="border border-slate-400" />
+            {/* Sound Preset Selector */}
+            <div className="pt-1.5">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] uppercase font-black text-slate-400">Alert Audio Tone</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 font-bold">Custom Wave</span>
+                  <button
+                    type="button"
+                    onClick={() => setSynthEnabled(!synthEnabled)}
+                    className={`w-7 h-3.5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${synthEnabled ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-800"}`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full bg-white shadow-sm transition-transform absolute ${synthEnabled ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/50 dark:border-slate-900/60">
+                {(["chime", "success", "break"] as const).map((tone) => (
+                  <button
+                    key={tone}
+                    type="button"
+                    onClick={() => {
+                      onUpdateNotificationSettings({ ...notificationSettings, activeSoundPreset: tone });
+                      playChime(tone);
+                    }}
+                    className={`py-1.5 rounded-lg text-center text-[10px] font-bold cursor-pointer transition-colors ${
+                      notificationSettings.activeSoundPreset === tone
+                        ? "bg-[#f26419] text-white shadow-sm"
+                        : "text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {tone === "chime" ? "Classic Bell" : tone === "success" ? "Ascent Arp" : "Chill Hum"}
+                  </button>
                 ))}
               </div>
-              <canvas 
-                ref={canvasRef}
-                id="synth-wave-canvas" 
-                width="280" 
-                height="120"
-                className="w-full h-full block"
-              />
-              <span className="absolute bottom-1 right-2 text-[8px] font-mono font-bold uppercase tracking-wider text-slate-500">
-                {synthEnabled ? `${synthWave} scope` : "Standard Ringtone"}
-              </span>
+            </div>
+          </div>
+
+          {/* Alarm Subscription Prefs */}
+          <div className="space-y-4 md:border-l border-slate-150 dark:border-slate-900 md:pl-5">
+            <span className="block text-[10px] uppercase font-black tracking-widest text-slate-400">Mute / Unmute Alarms</span>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Focus Session Finished</label>
+                <span className="text-[10px] text-slate-555 dark:text-slate-500">Ring sound when Pomodoro/focus timer reaches zero.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnTimerAlerts: !notificationSettings.notifyOnTimerAlerts })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnTimerAlerts ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+              >
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnTimerAlerts ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const wt = synthEnabled ? synthWave : "sine";
-                triggerCanvasWaveform(wt);
-              }}
-              className="w-full text-center py-2 bg-slate-105/5 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-950 border border-slate-200/50 dark:border-slate-900 text-slate-650 dark:text-slate-350 text-[10px] font-black uppercase rounded-lg tracking-wider cursor-pointer active:scale-95 transition-all"
-            >
-              Force Sweep Waveform Test
-            </button>
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Schedule & Reminder Alarms</label>
+                <span className="text-[10px] text-slate-555 dark:text-slate-500">Alert when scheduled reminders or task due-times arrive.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnReminderDue: !notificationSettings.notifyOnReminderDue })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnReminderDue ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+              >
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnReminderDue ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Daily Study Goal Completed</label>
+                <span className="text-[10px] text-slate-555 dark:text-slate-500">Trigger notification and celebration sound upon target completion.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnDailyGoalMet: !notificationSettings.notifyOnDailyGoalMet })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnDailyGoalMet ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+              >
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnDailyGoalMet ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">XP Levels & Milestones</label>
+                <span className="text-[10px] text-slate-555 dark:text-slate-500">Celebrate with ascending chimes when upgrading levels.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateNotificationSettings({ ...notificationSettings, notifyOnLevelUp: !notificationSettings.notifyOnLevelUp })}
+                className={`w-9 h-5 rounded-full transition-colors relative flex items-center shrink-0 cursor-pointer ${notificationSettings.notifyOnLevelUp ? "bg-[#f26419]" : "bg-slate-300 dark:bg-slate-800"}`}
+              >
+                <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform absolute ${notificationSettings.notifyOnLevelUp ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Alarm Testing triggers customization box */}
-        <div className="bg-white dark:bg-[#121212] border border-slate-200/50 dark:border-slate-900/50 rounded-2xl p-4 flex flex-col justify-between gap-4">
-          <div>
-            <span className="block text-[10px] uppercase font-black tracking-wider text-slate-500 mb-2">
-              ⚡ Trigger Custom Banner Device Notification Test
-            </span>
-            
-            <div className="space-y-2 mb-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Notification Custom Title</label>
-                  <input
-                    type="text"
-                    value={customTestTitle}
-                    onChange={(e) => setCustomTestTitle(e.target.value)}
-                    placeholder="e.g. You did it! Study session completed!"
-                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-150 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Notification Custom Body</label>
-                  <input
-                    type="text"
-                    value={customTestBody}
-                    onChange={(e) => setCustomTestBody(e.target.value)}
-                    placeholder="e.g. 🍅 Great job! Keep maintaining your streak!"
-                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-150 font-medium"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions Shortcuts */}
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTestTitle("You did it! Study session completed!");
-                  setCustomTestBody("🍅 Great job! Keep maintaining your hyperfocused study streak!");
-                }}
-                className="px-2 py-0.5 text-[8.5px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900 rounded-md hover:bg-indigo-100 transition-colors cursor-pointer"
-              >
-                🎓 Study Session Complete
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTestTitle("💧 Hydration Break!");
-                  setCustomTestBody("It is time to drink water and take a quick 3-minute screen rest.");
-                }}
-                className="px-2 py-0.5 text-[8.5px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900 rounded-md hover:bg-sky-100 transition-colors cursor-pointer"
-              >
-                💧 Water Break
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTestTitle("🚨 Stretch Reminder");
-                  setCustomTestBody("Correct your spine alignment, roll your shoulders, and breathe deeply.");
-                }}
-                className="px-2 py-0.5 text-[8.5px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900 rounded-md hover:bg-amber-100 transition-colors cursor-pointer"
-              >
-                🤸 Stretch Break
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 border-t border-slate-105/50 dark:border-slate-900 pt-3">
-            <button
-              type="button"
-              onClick={handleImmediatePushTest}
-              className="flex-1 min-w-[130px] px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-800 text-slate-100 text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Bell className="w-3.5 h-3.5 text-indigo-400" />
-              Test Device Banner (Now)
-            </button>
-
-            <button
-              type="button"
-              disabled={testCountdown !== null}
-              onClick={handleStartDelayedTest}
-              className={`flex-1 min-w-[130px] px-4 py-2 bg-gradient-to-r from-[#f26419] to-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-md shadow-[#f26419]/10 ${
-                testCountdown !== null ? "opacity-60 cursor-not-allowed animate-pulse" : ""
-              }`}
-            >
-              <Play className="w-3.5 h-3.5 text-white" />
-              {testCountdown !== null ? `Triggering in ${testCountdown}s...` : "Test Alarm (5s Delay)"}
-            </button>
-          </div>
+        {/* Quick Test Trigger Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-900/60 text-xs text-slate-500">
+          <span>Test your notification system to verify system banner popups and audio ringtones.</span>
+          <button
+            type="button"
+            onClick={() => {
+              playChime(notificationSettings.activeSoundPreset || "chime");
+              if (typeof window !== "undefined" && "Notification" in window) {
+                if (Notification.permission === "granted") {
+                  try {
+                    new Notification("Study Alert Checked! 🚀", {
+                      body: "Your Flatudy notification settings are fully functional and working perfectly!",
+                      icon: "/favicon.ico"
+                    });
+                  } catch (err) {
+                    console.warn("Direct Notification constructor failed:", err);
+                    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+                      navigator.serviceWorker.ready.then((reg) => {
+                        reg.showNotification("Study Alert Checked! 🚀", {
+                          body: "Your Flatudy notification settings are fully functional and working perfectly!",
+                          icon: "/favicon.ico"
+                        });
+                      }).catch((swErr) => console.error("SW notification test failed:", swErr));
+                    }
+                  }
+                } else {
+                  handleRequestPermission();
+                }
+              }
+            }}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-[10.5px] font-extrabold uppercase rounded-xl transition-all active:scale-[0.98] cursor-pointer inline-flex items-center gap-1.5 shadow-xs shrink-0 self-start sm:self-center"
+          >
+            <Bell className="w-3.5 h-3.5 text-indigo-500" />
+            Send Test Alert
+          </button>
         </div>
       </div>
 
@@ -1289,7 +949,7 @@ export default function RemindersHub({
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 sm:gap-6">
         
         {/* Form panel for custom creations */}
-        <div className="md:col-span-2 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-4 sm:p-5 rounded-2xl sm:rounded-3xl space-y-3 sm:space-y-4 flex flex-col justify-between">
+        <div className="md:col-span-2 liquid-glass p-4 sm:p-5 rounded-2xl sm:rounded-3xl space-y-3 sm:space-y-4 flex flex-col justify-between border">
           <div>
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-900 pb-2 flex items-center gap-1">
               <Plus className="w-4 h-4 text-[#f26419]" /> Configure Custom Alert
@@ -1388,7 +1048,7 @@ export default function RemindersHub({
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-indigo-650 to-indigo-600 hover:opacity-95 active:scale-[0.98] py-2.5 rounded-xl text-xs font-black text-white tracking-wider cursor-pointer mt-4 shadow-sm transition-all"
+                className="w-full bg-gradient-to-r from-indigo-700 to-indigo-600 hover:opacity-95 active:scale-[0.98] py-2.5 rounded-xl text-xs font-black text-white tracking-wider cursor-pointer mt-4 shadow-sm transition-all"
               >
                 Enroll Alert Channel 🚀
               </button>
@@ -1412,7 +1072,7 @@ export default function RemindersHub({
         </div>
 
         {/* Reminders List Queue Status list */}
-        <div className="md:col-span-3 bg-white/75 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col justify-start">
+        <div className="md:col-span-3 liquid-glass p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col justify-start border">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-900 pb-2 mb-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <Clock className="w-4 h-4 text-indigo-550" /> Reminders Queue ({reminders.length})
@@ -1514,7 +1174,7 @@ export default function RemindersHub({
       </div>
 
       {/* 7. Comprehensive Dispatched Notification History Logs */}
-      <div className="bg-white/70 dark:bg-[#121212]/90 border border-slate-200 dark:border-slate-900/60 p-5 rounded-3xl space-y-4 text-left">
+      <div className="liquid-glass p-5 rounded-3xl space-y-4 text-left border">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-950 pb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-pink-500/10 text-pink-500 rounded-xl">

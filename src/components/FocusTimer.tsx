@@ -334,7 +334,7 @@ export default function FocusTimer({
   };
 
   return (
-    <div id="focus-section" className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-800">
+    <div id="focus-section" className="liquid-glass rounded-3xl p-6 shadow-xs border">
       
       {/* Subject Selector panel */}
       {!isFocusMode && (
@@ -343,7 +343,7 @@ export default function FocusTimer({
             <h3 className="font-display font-semibold text-lg text-slate-800 dark:text-slate-200">
               Select Your Focus Topic
             </h3>
-            <span className="text-xs font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
+            <span className="text-xs font-mono text-slate-500 bg-slate-100/60 dark:bg-black/25 px-2.5 py-1 rounded-full border border-slate-200/30 dark:border-white/5">
               {subjects.length} active categories
             </span>
           </div>
@@ -356,10 +356,10 @@ export default function FocusTimer({
                   key={sub.id}
                   id={`btn-subject-${sub.id}`}
                   onClick={() => setActiveSubjectId(sub.id)}
-                  className={`relative p-3.5 rounded-2xl border text-left transition-all overflow-hidden ${
+                  className={`relative p-3.5 rounded-2xl border text-left transition-all duration-300 overflow-hidden cursor-pointer active:scale-95 ${
                     isActive 
-                      ? "border-emerald-500 bg-emerald-50/70 text-emerald-950 dark:bg-slate-800 dark:text-emerald-400 font-medium"
-                      : "border-slate-100 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                      ? "border-emerald-500 bg-emerald-50/70 text-emerald-950 dark:bg-[#122c1e]/60 dark:text-emerald-400 font-bold shadow-md"
+                      : "border-slate-200/30 dark:border-white/5 bg-white/45 dark:bg-white/[0.03] hover:bg-white/85 dark:hover:bg-white/[0.08] text-slate-650 dark:text-slate-400"
                   }`}
                 >
                   <div className="flex flex-col gap-1 z-10 relative">
@@ -401,10 +401,10 @@ export default function FocusTimer({
                     key={idx}
                     type="button"
                     onClick={() => setLocalTargetMinutes(p.value)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-300 cursor-pointer active:scale-95 ${
                       isActive
-                        ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
-                        : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                        ? "bg-emerald-605 border-emerald-600 text-white shadow-md scale-[1.02]"
+                        : "bg-white/40 dark:bg-white/[0.03] border-slate-200/40 dark:border-white/5 hover:border-slate-300 text-slate-605 dark:text-slate-350"
                     }`}
                   >
                     {p.label}
@@ -416,10 +416,10 @@ export default function FocusTimer({
 
           {/* Quick instructions */}
           {activeSubject && (
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex gap-3 text-slate-500 text-sm mt-1 items-start border border-slate-100/50 dark:border-slate-800/10">
+            <div className="bg-white/35 dark:bg-black/10 backdrop-blur-md rounded-2xl p-4 flex gap-3 text-slate-500 text-sm mt-1 items-start border border-slate-200/40 dark:border-white/5 shadow-inner">
               <Sparkles className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
               <div>
-                Selected: <strong className="text-slate-700 dark:text-slate-300 font-semibold">{activeSubject.name}</strong> • Target: <strong className="text-emerald-600 font-bold">{localTargetMinutes} minutes</strong>. Ready to enter deep focus? We will synthesize real physical white noise waves locally. Start the timer to begin.
+                Selected: <strong className="text-slate-700 dark:text-slate-300 font-semibold">{activeSubject.name}</strong> • Target: <strong className="text-emerald-650 dark:text-emerald-400 font-bold">{localTargetMinutes} minutes</strong>. Ready to enter deep focus? We will synthesize real physical white noise waves locally. Start the timer to begin.
               </div>
             </div>
           )}
@@ -429,7 +429,7 @@ export default function FocusTimer({
             <button
               id="start-focus-btn"
               onClick={toggleTimer}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-4 rounded-2xl flex items-center gap-3 transition-transform hover:scale-103 shadow-lg shadow-emerald-600/15 cursor-pointer cursor-and-touch text-base"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-4 rounded-2xl flex items-center gap-3 transition-transform hover:scale-103 shadow-lg shadow-emerald-600/15 cursor-pointer cursor-and-touch text-base active:scale-95 duration-300"
             >
               <Play className="w-5 h-5 fill-current" />
               Start Study Stopwatch

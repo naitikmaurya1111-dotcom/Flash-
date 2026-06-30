@@ -784,10 +784,10 @@ ${localAdvice.scheduleTip}
   const currentTasks = needsAuth ? sandboxTasks : gTasks;
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-900 rounded-3xl p-6 shadow-md space-y-6 hover-lift transition-all duration-350">
+    <div className="liquid-glass rounded-3xl p-6 shadow-md space-y-6 border">
       
       {/* Top Banner with Google Auth triggers */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-5 bg-white dark:bg-slate-900/90 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs hover-lift transition-all duration-300">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-5 bg-white/30 dark:bg-black/10 backdrop-blur-md rounded-2xl p-5 border border-slate-200/40 dark:border-white/5 shadow-inner transition-all duration-300">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl border border-blue-105/10 dark:border-blue-500/10">
             <Sparkles className="w-5.5 h-5.5 fill-current text-blue-500 animate-pulse" />
@@ -870,7 +870,7 @@ ${localAdvice.scheduleTip}
               onClick={() => setActiveWorkspaceTab(tab.id as any)}
               className={`py-2 px-4 rounded-xl flex items-center gap-2.5 text-xs font-semibold transition-all shrink-0 cursor-pointer hover-lift ${
                 isActive 
-                  ? "bg-gradient-to-r from-blue-650 to-blue-500 text-white font-black shadow-md border border-blue-650" 
+                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black shadow-md border border-blue-600" 
                   : "bg-white hover:bg-slate-50 text-slate-650 border border-slate-200/40 dark:bg-slate-900/50 dark:border-slate-800/80 dark:hover:bg-slate-800/40 dark:text-slate-400"
               }`}
             >

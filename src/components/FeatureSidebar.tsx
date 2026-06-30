@@ -4,7 +4,7 @@ import {
   Sparkles, Palette, Store, HelpCircle, Settings, LogIn, Moon, CloudOff, Cloud,
   Map, Eye, VolumeX, Shuffle, ArrowRight, Grid, Bell,
   Trash, Plus, Upload, Play, Pause, Volume2, ChevronRight, Lock, User, Target,
-  PenTool, Layers, FileText, Zap
+  PenTool, Layers, FileText, Zap, Crown
 } from "lucide-react";
 import { ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
 
@@ -25,6 +25,12 @@ interface FeatureSidebarProps {
   studentPrepTarget: string;
   onUpdateProfile: (updates: { name: string; class: string; preparation: string; level: number }) => Promise<void>;
   isFirebaseConnected?: boolean | null;
+  themePreset: string;
+  currentThemeStyle: any;
+  isTrialActive?: boolean;
+  trialDaysRemaining?: number;
+  isPermanentlyUnlocked?: boolean;
+  onResetTrial?: () => void;
 }
 
 export default function FeatureSidebar({
@@ -43,7 +49,13 @@ export default function FeatureSidebar({
   studentClass,
   studentPrepTarget,
   onUpdateProfile,
-  isFirebaseConnected = null
+  isFirebaseConnected = null,
+  themePreset,
+  currentThemeStyle,
+  isTrialActive = false,
+  trialDaysRemaining = 0,
+  isPermanentlyUnlocked = false,
+  onResetTrial
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -53,14 +65,7 @@ export default function FeatureSidebar({
   // ==========================================
   // --- STUDENT BEAST UTILITY CENTER STATES ---
   // ==========================================
-  const [beastTab, setBeastTab] = useState<"workspace" | "acoustics" | "planners" | "analytics" | "quick">("workspace");
-
-  // 1. Whiteboard Canvas state
-  const whiteboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [wbColor, setWbColor] = useState("#f26419");
-  const [wbSize, setWbSize] = useState(3);
-  const [wbTool, setWbTool] = useState<"pencil" | "eraser">("pencil");
-  const [isWbDrawing, setIsWbDrawing] = useState(false);
+  const [beastTab, setBeastTab] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
 
   // 2. Flashcards state (Spaced Repetition)
   const [flashcards, setFlashcards] = useState<any[]>(() => {
@@ -454,6 +459,7 @@ export default function FeatureSidebar({
   }, [mathActive, mathTimeLeft]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const interval = setInterval(() => {
       const now = new Date().getTime();
       const target = new Date(examDate).getTime();
@@ -470,7 +476,7 @@ export default function FeatureSidebar({
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [examDate]);
+  }, [examDate, isOpen]);
 
   useEffect(() => {
     let interval: any = null;
@@ -734,16 +740,33 @@ export default function FeatureSidebar({
   };
 
   return (
-    <div className={`fixed sm:absolute right-0 top-16 bottom-0 w-full sm:w-[380px] bg-white/80 dark:bg-[#121212]/85 backdrop-blur-xl border-l border-slate-250 dark:border-slate-800/85 z-50 flex flex-col hover:shadow-2xl justify-between shadow-2xl overflow-y-auto no-scrollbar sm:rounded-l-3xl p-6 text-slate-800 dark:text-slate-100 transition-all duration-300 ease-in-out ${
-      isOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 pointer-events-none"
-    }`}>
+    <div 
+      className={`fixed sm:absolute right-0 top-16 bottom-0 w-full sm:w-[385px] liquid-glass border-l-2 z-50 flex flex-col justify-between overflow-y-auto no-scrollbar sm:rounded-l-[32px] p-6 text-slate-800 dark:text-slate-100 transition-all duration-500 ease-in-out ${
+        isOpen ? "translate-x-0 opacity-100 scale-100" : "translate-x-full opacity-0 scale-95 pointer-events-none"
+      }`}
+      style={{
+        borderLeftColor: (currentThemeStyle?.primary || '#f26419') + '25',
+        boxShadow: isOpen 
+          ? `0 30px 70px -15px rgba(0, 0, 0, 0.45), 0 0 40px 0 ${(currentThemeStyle?.primary || '#f26419')}0d, inset 0 2px 2px 0 rgba(255, 255, 255, 0.15)`
+          : 'none'
+      }}
+    >
+      {/* Dynamic Ambient Aura Glow (Inspired by ColorOS 16 Liquid Glass) */}
+      <div 
+        className="absolute -top-12 -right-12 w-64 h-64 rounded-full filter blur-[95px] opacity-[0.24] dark:opacity-[0.28] mix-blend-screen pointer-events-none transition-all duration-1000 animate-pulse"
+        style={{ backgroundColor: currentThemeStyle?.primary || '#f26419' }}
+      />
+      <div 
+        className="absolute bottom-20 -left-12 w-48 h-48 rounded-full filter blur-[80px] opacity-[0.14] dark:opacity-[0.18] mix-blend-screen pointer-events-none transition-all duration-1000"
+        style={{ backgroundColor: currentThemeStyle?.primary || '#f26419' }}
+      />
       
       {activeSubView === null ? (
-        <div className="space-y-6">
+        <div className="space-y-6 relative z-10">
           
           {/* Main Title Row */}
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-900/40">
-            <span className="text-sm font-black tracking-widest text-[#f26419] uppercase">Flash5tudy Functions</span>
+          <div className="flex items-center justify-between pb-2 border-b border-white/20 dark:border-white/5">
+            <span className={`text-sm font-black tracking-widest uppercase ${currentThemeStyle?.gradientText || 'text-[#f26419]'}`}>Flash5tudy Functions</span>
             <button 
               onClick={onClose}
               className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer"
@@ -753,16 +776,27 @@ export default function FeatureSidebar({
           </div>
 
           {/* Section: Student Profile Card */}
-          <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#151515] dark:to-[#1a1a1a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#f26419]/5 rounded-full filter blur-xl transition-all duration-300 group-hover:bg-[#f26419]/10"></div>
-                        <div className="flex items-start gap-3 relative z-10">
-              <div className="w-10 h-10 rounded-full bg-[#f26419] text-white font-black flex items-center justify-center text-base shadow-md shadow-orange-500/20">
+          <div className="bg-white/40 dark:bg-black/30 backdrop-blur-xl p-4 rounded-3xl border border-white/40 dark:border-white/10 shadow-lg relative overflow-hidden group">
+            <div 
+              className="absolute top-0 right-0 w-32 h-32 rounded-full filter blur-xl transition-all duration-500 group-hover:scale-110 opacity-20"
+              style={{ backgroundColor: currentThemeStyle?.primary || '#f26419' }}
+            ></div>
+            <div className="flex items-start gap-3 relative z-10">
+              <div 
+                className={`w-10 h-10 rounded-full text-white font-black flex items-center justify-center text-base shadow-md transition-all duration-300 ${currentThemeStyle?.accentBg || 'bg-[#f26419]'} ${currentThemeStyle?.glowClass || 'shadow-orange-500/20'}`}
+              >
                 {studentName?.[0]?.toUpperCase() || "S"}
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center justify-between gap-1">
                   <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">{studentName}</h4>
-                  <span className="text-[9px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold px-1.5 py-0.5 rounded font-mono shrink-0">
+                  <span 
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0"
+                    style={{ 
+                      backgroundColor: (currentThemeStyle?.primary || '#f26419') + '20', 
+                      color: currentThemeStyle?.primary || '#f26419' 
+                    }}
+                  >
                     Lvl {calculateStudentLevel(userXp).level}
                   </span>
                 </div>
@@ -780,14 +814,14 @@ export default function FeatureSidebar({
             {(() => {
               const levelInfo = calculateStudentLevel(userXp);
               return (
-                <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-800/60 text-left relative z-10">
+                <div className="mt-3 pt-3 border-t border-white/20 dark:border-white/5 text-left relative z-10">
                   <div className="flex justify-between items-center text-[9px] text-slate-500 dark:text-slate-400 font-mono mb-1">
                     <span className="font-bold">XP Progress • {levelInfo.percent}%</span>
                     <span>{levelInfo.xpInCurrentLevel} / {levelInfo.xpSegmentTotal} XP</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-slate-200/50 dark:bg-white/5 rounded-full overflow-hidden border border-white/10">
                     <div 
-                      className="h-full bg-gradient-to-r from-[#f26419] to-amber-500 transition-all duration-500 ease-out" 
+                      className={`h-full bg-gradient-to-r ${currentThemeStyle?.gradient || 'from-[#f26419] to-amber-500'} transition-all duration-500 ease-out`} 
                       style={{ width: `${levelInfo.percent}%` }}
                     />
                   </div>
@@ -801,7 +835,8 @@ export default function FeatureSidebar({
 
             <button 
               onClick={() => handleSubViewSelect("profile")}
-              className="w-full mt-3.5 bg-white hover:bg-slate-50 dark:bg-[#1f1f1f] dark:hover:bg-[#252525] border border-slate-200 dark:border-slate-800 text-[10px] font-black py-1.5 rounded-xl cursor-pointer transition-all text-center block text-[#f26419] shadow-sm active:scale-98"
+              className="w-full mt-3.5 bg-white/50 hover:bg-white/75 dark:bg-white/5 dark:hover:bg-white/10 border border-white/60 dark:border-white/10 text-[10px] font-black py-2 rounded-xl cursor-pointer transition-all duration-300 text-center block shadow-xs active:scale-98"
+              style={{ color: currentThemeStyle?.primary || '#f26419' }}
             >
               Configure Student Profile
             </button>
@@ -809,38 +844,38 @@ export default function FeatureSidebar({
 
           {/* Section 1: Main Features */}
           <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500">Main Features</p>
+            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Main Features</p>
             <div className="grid grid-cols-2 gap-2.5">
               <button 
                 onClick={() => handleActionClick("analytics")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
-                <BarChart2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                <span className="text-xs font-semibold">Statistics</span>
+                <BarChart2 className="w-4 h-4 text-emerald-550 dark:text-emerald-450" />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Statistics</span>
               </button>
               
               <button 
                 onClick={() => handleActionClick("target-suite")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
-                <Target className="w-4 h-4 text-[#f26419]" />
-                <span className="text-xs font-semibold">Target Suite</span>
+                <Target className="w-4 h-4" style={{ color: currentThemeStyle?.primary || '#f26419' }} />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Target Suite</span>
               </button>
 
               <button 
                 onClick={() => handleSubViewSelect("pomodoro")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
-                <Clock className="w-4 h-4 text-[#f26419]" />
-                <span className="text-xs font-semibold">Pomodoro</span>
+                <Clock className="w-4 h-4" style={{ color: currentThemeStyle?.primary || '#f26419' }} />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Pomodoro</span>
               </button>
 
               <button 
                 onClick={() => handleSubViewSelect("editlog")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
                 <BookOpen className="w-4 h-4 text-pink-500 dark:text-pink-400" />
-                <span className="text-xs font-semibold">Edit log</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Edit log</span>
               </button>
 
               <button 
@@ -848,26 +883,26 @@ export default function FeatureSidebar({
                   setActiveTab("reminders");
                   onClose();
                 }}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
                 <Bell className="w-4 h-4 text-amber-500 animate-pulse" />
-                <span className="text-xs font-semibold">Study Reminders</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Reminders</span>
               </button>
 
               <button 
                 onClick={() => setIsOfflineMode(!isOfflineMode)}
-                className={`flex items-center gap-2.5 p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border ${
+                className={`flex items-center gap-2.5 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer border backdrop-blur-md ${
                   isOfflineMode 
-                    ? "bg-rose-950/45 border-rose-800 text-rose-300" 
-                    : "bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] text-slate-800 dark:text-slate-100 border-slate-200/45 dark:border-transparent"
+                    ? "bg-rose-950/40 border-rose-800 text-rose-300 shadow-md shadow-rose-950/30" 
+                    : "bg-white/40 dark:bg-[#12121e]/35 border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 text-slate-750 dark:text-slate-200"
                 }`}
               >
-                <CloudOff className="w-4 h-4" />
-                <span className="text-xs font-semibold">{isOfflineMode ? "Offline" : "Offline Mode"}</span>
+                <CloudOff className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <span className="text-xs font-bold">{isOfflineMode ? "Offline" : "Offline Mode"}</span>
               </button>
 
-              <div className="col-span-2 py-2 px-3.5 rounded-2xl flex items-center justify-between text-[11px] font-mono border border-slate-150 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#111]/80">
-                <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <div className="col-span-2 py-2 px-3.5 rounded-2xl flex items-center justify-between text-[11px] font-mono border border-white/30 dark:border-white/5 bg-white/20 dark:bg-black/20 backdrop-blur-md">
+                <span className="text-slate-450 dark:text-slate-500 flex items-center gap-1">
                   <Cloud className="w-3 h-3 text-sky-400" />
                   Cloud Sync:
                 </span>
@@ -883,8 +918,8 @@ export default function FeatureSidebar({
                     isFirebaseConnected === true 
                       ? "text-emerald-500 font-extrabold" 
                       : isFirebaseConnected === false 
-                        ? "text-rose-400 font-extrabold" 
-                        : "text-amber-400 font-extrabold"
+                        ? "text-rose-450 font-extrabold" 
+                        : "text-amber-450 font-extrabold"
                   }>
                     {isFirebaseConnected === true 
                       ? "CONNECTED" 
@@ -899,60 +934,58 @@ export default function FeatureSidebar({
 
           {/* Section 2: Extra Features */}
           <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500">Extra Features</p>
+            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Extra Features</p>
             <div className="grid grid-cols-2 gap-2.5">
               <button 
                 onClick={() => handleSubViewSelect("challenge")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
                 <Dumbbell className="w-4 h-4 text-violet-500 dark:text-violet-400" />
-                <span className="text-xs font-semibold">Challenge</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Challenge</span>
               </button>
 
               <button 
                 onClick={() => handleSubViewSelect("music")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
                 <Music className="w-4 h-4 text-rose-500 dark:text-rose-400" />
-                <span className="text-xs font-semibold">Music Player</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Music Player</span>
               </button>
 
               <button 
                 onClick={() => handleActionClick("workspace")}
-                className="col-span-2 flex items-center justify-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-center cursor-pointer border border-slate-200/45 dark:border-transparent"
+                className="col-span-2 flex items-center justify-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-center cursor-pointer shadow-xs"
               >
                 <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
-                <span className="text-xs font-semibold">Google Hub Integration</span>
-              </button>
-
-              <button 
-                onClick={() => handleSubViewSelect("beast_utility")}
-                className="col-span-2 flex items-center justify-center gap-2.5 bg-gradient-to-r from-orange-500/15 via-pink-500/15 to-indigo-500/15 hover:from-orange-500/25 hover:via-pink-500/25 hover:to-indigo-500/25 p-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-center cursor-pointer border border-orange-500/30"
-              >
-                <Sparkles className="w-4.5 h-4.5 text-orange-500 animate-bounce" />
-                <span className="text-xs font-black text-orange-600 dark:text-orange-400">🔥 BEAST UTILITY CENTER (30+ TOOLS)</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Google Hub Integration</span>
               </button>
             </div>
           </div>
 
           {/* Section 3: Customize */}
           <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500">Customize Mode</p>
+            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Customize Mode</p>
             <div className="grid grid-cols-2 gap-2.5">
               <button 
                 onClick={() => handleSubViewSelect("themes")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-slate-200/45 dark:border-transparent hover:border-indigo-400/40"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
+                style={{ 
+                  borderColor: (currentThemeStyle?.primary || '#f26419') + '35'
+                }}
               >
                 <Palette className="w-4 h-4 text-teal-500 dark:text-teal-400" />
-                <span className="text-xs font-semibold">Themes Colors</span>
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Themes Colors</span>
               </button>
 
               <button 
                 onClick={() => handleActionClick("rewards")}
-                className="flex items-center gap-2.5 bg-slate-100/70 hover:bg-slate-200/80 dark:bg-[#171717]/90 dark:hover:bg-[#1a1a1a] p-2 px-3 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all text-left cursor-pointer border border-[#f26419]/25 hover:border-[#f26419]"
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
+                style={{ 
+                  borderColor: (currentThemeStyle?.primary || '#f26419') + '35'
+                }}
               >
-                <Trophy className="w-4 h-4 text-[#f26419] animate-pulse" />
-                <span className="text-xs font-black">Wishlist Store</span>
+                <Trophy className="w-4 h-4 text-amber-500 animate-pulse" />
+                <span className="text-xs font-black" style={{ color: currentThemeStyle?.primary || '#f26419' }}>Wishlist Store</span>
               </button>
             </div>
           </div>
@@ -1055,32 +1088,21 @@ export default function FeatureSidebar({
                 <div className="text-center">
                   <h4 className="font-extrabold text-sm text-[#f26419] uppercase tracking-wider flex items-center justify-center gap-1">
                     <Sparkles className="w-4 h-4 animate-spin text-amber-500" />
-                    Student Beast Utility Hub
+                    Apex Focus Citadel
                   </h4>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">30+ ultra-advanced client utilities to supercharge your study sessions</p>
-                  
-                  <button
-                    onClick={() => {
-                      setActiveTab("beast");
-                      onClose();
-                    }}
-                    className="mt-3 w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/10 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5 animate-pulse" />
-                    Open Full-Screen Beast Hub →
-                  </button>
                 </div>
 
-                {/* Categories Scrollable Bar */}
-                <div className="flex gap-1 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800 scrollbar-none no-scrollbar">
+                {/* Categories Scrollable Bar with Premium Liquid Glass Inset */}
+                <div className="liquid-glass-inset p-1.5 rounded-2xl flex gap-1 overflow-x-auto scrollbar-none no-scrollbar">
                   {[
-                    { id: "workspace", label: "🎨 Draw", icon: PenTool },
                     { id: "acoustics", label: "🎛️ sound", icon: Volume2 },
                     { id: "planners", label: "🃏 study", icon: Layers },
                     { id: "analytics", label: "📈 target", icon: BarChart2 },
                     { id: "quick", label: "⚡ quick", icon: Sparkles }
                   ].map((tab) => {
                     const Icon = tab.icon;
+                    const isSelected = beastTab === tab.id;
                     return (
                       <button
                         key={tab.id}
@@ -1088,11 +1110,16 @@ export default function FeatureSidebar({
                           setBeastTab(tab.id as any);
                           playKeyboardClack();
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shrink-0 transition-all cursor-pointer ${
-                          beastTab === tab.id
-                            ? "bg-[#f26419] text-white shadow-md shadow-orange-500/10"
-                            : "bg-slate-100 dark:bg-slate-900 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shrink-0 transition-all duration-300 cursor-pointer ${
+                          isSelected
+                            ? "text-white scale-102 font-black shadow-md border"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/30 dark:hover:bg-white/5 border border-transparent"
                         }`}
+                        style={isSelected ? { 
+                          backgroundColor: currentThemeStyle?.primary || '#f26419', 
+                          borderColor: (currentThemeStyle?.primary || '#f26419') + '80', 
+                          boxShadow: `0 4px 12px ${(currentThemeStyle?.primary || '#f26419')}30` 
+                        } : {}}
                       >
                         <Icon className="w-3 h-3" />
                         {tab.label}
@@ -1100,223 +1127,6 @@ export default function FeatureSidebar({
                     );
                   })}
                 </div>
-
-                {/* Sub-tab: 🎨 Creative Workspace */}
-                {beastTab === "workspace" && (
-                  <div className="space-y-4 text-left">
-                    {/* Big Feature 1: Whiteboard Canvas */}
-                    <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
-                          <PenTool className="w-3.5 h-3.5 text-[#f26419]" />
-                          Interactive Study Board
-                        </span>
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={() => {
-                              const canvas = whiteboardCanvasRef.current;
-                              if (canvas) {
-                                const ctx = canvas.getContext("2d");
-                                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-                              }
-                            }}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded text-[9px] font-bold text-slate-500 border border-slate-300 dark:border-slate-700 cursor-pointer"
-                            title="Clear Board"
-                          >
-                            Clear
-                          </button>
-                          <button 
-                            onClick={() => {
-                              const canvas = whiteboardCanvasRef.current;
-                              if (canvas) {
-                                const url = canvas.toDataURL("image/png");
-                                const link = document.createElement("a");
-                                link.download = "flash5tudy-notes-sketch.png";
-                                link.href = url;
-                                link.click();
-                              }
-                            }}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded text-[9px] font-bold text-[#f26419] border border-[#f26419]/30 cursor-pointer"
-                            title="Save Snapshot"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1 bg-slate-200 dark:bg-slate-800 p-1 rounded-lg">
-                          {["#f26419", "#3b82f6", "#10b981", "#ef4444", "#ffffff", "#000000"].map((c) => (
-                            <button
-                              key={c}
-                              onClick={() => setWbColor(c)}
-                              className={`w-4 h-4 rounded-full border ${wbColor === c ? "ring-2 ring-indigo-500" : ""}`}
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
-
-                        <select
-                          value={wbTool}
-                          onChange={(e: any) => setWbTool(e.target.value)}
-                          className="bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded px-1.5 py-0.5 text-[9px] border border-slate-200 dark:border-slate-800 focus:outline-none"
-                        >
-                          <option value="pencil">✏️ Draw</option>
-                          <option value="eraser">🧹 Eraser</option>
-                        </select>
-
-                        <input 
-                          type="range"
-                          min="1"
-                          max="10"
-                          value={wbSize}
-                          onChange={(e) => setWbSize(parseInt(e.target.value))}
-                          className="w-16 h-1 bg-slate-300 dark:bg-slate-800 rounded appearance-none cursor-pointer"
-                          style={{ accentColor: "#f26419" }}
-                        />
-                      </div>
-
-                      <canvas
-                        ref={whiteboardCanvasRef}
-                        width="310"
-                        height="130"
-                        onMouseDown={(e: React.MouseEvent<HTMLCanvasElement>) => {
-                          const canvas = whiteboardCanvasRef.current;
-                          if (!canvas) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const ctx = canvas.getContext("2d");
-                          if (ctx) {
-                            ctx.beginPath();
-                            const scaleX = canvas.width / rect.width;
-                            const scaleY = canvas.height / rect.height;
-                            const x = (e.clientX - rect.left) * scaleX;
-                            const y = (e.clientY - rect.top) * scaleY;
-                            ctx.moveTo(x, y);
-                            ctx.strokeStyle = wbTool === "eraser" ? (document.documentElement.classList.contains("dark") ? "#161616" : "#f8fafc") : wbColor;
-                            ctx.lineWidth = wbSize;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-                            ctx.lineTo(x + 0.1, y + 0.1);
-                            ctx.stroke();
-                            setIsWbDrawing(true);
-                          }
-                        }}
-                        onMouseMove={(e: React.MouseEvent<HTMLCanvasElement>) => {
-                          if (!isWbDrawing) return;
-                          const canvas = whiteboardCanvasRef.current;
-                          if (!canvas) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const ctx = canvas.getContext("2d");
-                          if (ctx) {
-                            const scaleX = canvas.width / rect.width;
-                            const scaleY = canvas.height / rect.height;
-                            ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-                            ctx.strokeStyle = wbTool === "eraser" ? (document.documentElement.classList.contains("dark") ? "#161616" : "#f8fafc") : wbColor;
-                            ctx.lineWidth = wbSize;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-                            ctx.stroke();
-                          }
-                        }}
-                        onMouseUp={() => setIsWbDrawing(false)}
-                        onMouseLeave={() => setIsWbDrawing(false)}
-                        onTouchStart={(e: React.TouchEvent<HTMLCanvasElement>) => {
-                          if (e.touches.length !== 1) return;
-                          const touch = e.touches[0];
-                          const canvas = whiteboardCanvasRef.current;
-                          if (!canvas) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const ctx = canvas.getContext("2d");
-                          if (ctx) {
-                            ctx.beginPath();
-                            const scaleX = canvas.width / rect.width;
-                            const scaleY = canvas.height / rect.height;
-                            const x = (touch.clientX - rect.left) * scaleX;
-                            const y = (touch.clientY - rect.top) * scaleY;
-                            ctx.moveTo(x, y);
-                            ctx.strokeStyle = wbTool === "eraser" ? (document.documentElement.classList.contains("dark") ? "#161616" : "#f8fafc") : wbColor;
-                            ctx.lineWidth = wbSize;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-                            ctx.lineTo(x + 0.1, y + 0.1);
-                            ctx.stroke();
-                            setIsWbDrawing(true);
-                          }
-                        }}
-                        onTouchMove={(e: React.TouchEvent<HTMLCanvasElement>) => {
-                          if (!isWbDrawing || e.touches.length !== 1) return;
-                          const touch = e.touches[0];
-                          const canvas = whiteboardCanvasRef.current;
-                          if (!canvas) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const ctx = canvas.getContext("2d");
-                          if (ctx) {
-                            const scaleX = canvas.width / rect.width;
-                            const scaleY = canvas.height / rect.height;
-                            ctx.lineTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
-                            ctx.strokeStyle = wbTool === "eraser" ? (document.documentElement.classList.contains("dark") ? "#161616" : "#f8fafc") : wbColor;
-                            ctx.lineWidth = wbSize;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-                            ctx.stroke();
-                          }
-                        }}
-                        onTouchEnd={() => setIsWbDrawing(false)}
-                        style={{ backgroundColor: document.documentElement.classList.contains("dark") ? "#020617" : "#f1f5f9", opacity: 1 }}
-                        className="w-full h-[130px] bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl cursor-crosshair touch-none select-none"
-                      />
-                      <p className="text-[8px] text-slate-400 text-center">Draw diagrams, write mathematical formulas, or scratch key pointers.</p>
-                    </div>
-
-                    {/* Small Feature 11: Study Scratchpad Notes */}
-                    <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1.5">
-                      <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-blue-400" />
-                        Persistent Rich Study Notes Scratchpad
-                      </span>
-                      <textarea
-                        value={scratchpadText}
-                        onChange={(e) => {
-                          setScratchpadText(e.target.value);
-                          playKeyboardClack();
-                        }}
-                        placeholder="Type notes or code drafts here..."
-                        rows={3}
-                        className="w-full bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-[#f26419]"
-                      />
-                    </div>
-
-                    {/* Small Feature 4: Mechanical Keyboard Sound Simulator Toggle */}
-                    <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                      <div className="text-left">
-                        <span className="text-[10px] font-black uppercase text-slate-400 block">Keyboard Sound Clicker</span>
-                        <span className="text-[9px] text-slate-500">Satisfying tactical keys clacks on notes typing</span>
-                      </div>
-                      <input 
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={ambientVolume.keyboardSimulator}
-                        onChange={(e) => setAmbientVolume(prev => ({ ...prev, keyboardSimulator: parseFloat(e.target.value) }))}
-                        className="w-16 h-1 bg-slate-300 dark:bg-slate-800 rounded appearance-none cursor-pointer"
-                        style={{ accentColor: "#10b981" }}
-                      />
-                    </div>
-
-                    {/* Small Feature 14: Active Session Attention Ring */}
-                    <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                      <div className="text-left">
-                        <span className="text-[10px] font-black uppercase text-slate-400 block">Focus Attention Ring</span>
-                        <span className="text-[9px] text-slate-500">Acoustic state: {binauralActive ? "Active Flowing Alpha" : "Idle Stable"}</span>
-                      </div>
-                      <svg className="w-10 h-10 shrink-0 transform -rotate-90">
-                        <circle cx="20" cy="20" r="15" stroke="#f1f5f9" strokeWidth="3" fill="transparent" className="dark:stroke-slate-800" />
-                        <circle cx="20" cy="20" r="15" stroke={binauralActive ? "#10b981" : "#f26419"} strokeWidth="3" fill="transparent" strokeDasharray="94.2" strokeDashoffset={binauralActive ? 20 : 40} className="transition-all duration-500" />
-                      </svg>
-                    </div>
-                  </div>
-                )}
 
                 {/* Sub-tab: 🎛️ sound */}
                 {beastTab === "acoustics" && (
@@ -2688,12 +2498,54 @@ export default function FeatureSidebar({
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Match the visual interface to fit your current study vibe:
                 </p>
+
+                {/* Dynamic Trial & Unlock Status Info Cards */}
+                {isPermanentlyUnlocked ? (
+                  <div className="p-3 bg-indigo-500/10 border border-indigo-500/15 rounded-2xl flex items-center gap-2.5">
+                    <Crown className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <div className="text-left">
+                      <h4 className="text-[10px] font-bold text-indigo-300 leading-none">Permanent Theme Unlock Active 👑</h4>
+                      <p className="text-[9px] text-indigo-400/80 mt-1">This account has permanent access to all premium visual workspaces.</p>
+                    </div>
+                  </div>
+                ) : isTrialActive ? (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/15 rounded-2xl flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                      <div className="text-left min-w-0">
+                        <h4 className="text-[10px] font-bold text-emerald-300 leading-none">7-Day Free Theme Trial Active 🔓</h4>
+                        <p className="text-[9px] text-emerald-400/80 mt-1 truncate">Enjoy access to any workspace style during your initial trial period.</p>
+                      </div>
+                    </div>
+                    <span className="text-[8.5px] font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-lg font-black shrink-0">
+                      {trialDaysRemaining} DAYS LEFT
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-amber-500/15 border border-amber-500/25 rounded-2xl space-y-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div className="text-left">
+                        <h4 className="text-[10px] font-bold text-amber-400 leading-none">Premium Themes Locked 🔒</h4>
+                        <p className="text-[9px] text-amber-500/80 mt-1">Free trial period finished. Increase your study level to unlock them forever!</p>
+                      </div>
+                    </div>
+                    {onResetTrial && (
+                      <button
+                        onClick={onResetTrial}
+                        className="w-full text-center py-2 px-3 bg-amber-500 hover:bg-amber-600 active:scale-98 text-white rounded-xl text-[10px] font-mono font-black transition-all cursor-pointer shadow-xs"
+                      >
+                        ⚡ ACTIVATE FREE 7-DAY THEME TRIAL
+                      </button>
+                    )}
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   {(() => {
                     const currentPresetId = localStorage.getItem("f5_theme_preset") || "dark-classic";
                     const userLevel = calculateStudentLevel(userXp || 0).level;
-
+ 
                     return [
                       { id: "dark-classic", name: "Classic Steel & Amber", bg: "bg-gradient-to-tr from-[#f26419] to-[#ff9f43]", desc: "The signature steel & orange colorway", reqLevel: 1, textHex: "#f26419" },
                       { id: "forest", name: "Matcha Forest & Mint", bg: "bg-gradient-to-tr from-[#10b981] to-[#6ee7b7]", desc: "Cozy forest green vibes & matcha styling", reqLevel: 3, textHex: "#10b981" },
@@ -2704,7 +2556,7 @@ export default function FeatureSidebar({
                       { id: "cyberpunk", name: "Tokyo Cyberpunk Neon & Grid", bg: "bg-gradient-to-tr from-[#ec4899] via-[#8b5cf6] to-[#06b6d4]", desc: "Vivid Tokyolights & magenta laser grids", reqLevel: 25, textHex: "#ec4899" },
                       { id: "nordic", name: "Nordic Frost & Aurora Blue", bg: "bg-gradient-to-tr from-[#0284c7] via-[#22d3ee] to-[#34d399]", desc: "Frosted polar blue aura and subzero minimalism", reqLevel: 30, textHex: "#0284c7" }
                     ].map((preset) => {
-                      const isLocked = userLevel < preset.reqLevel;
+                      const isLocked = !isPermanentlyUnlocked && !isTrialActive && userLevel < preset.reqLevel;
                       const isActive = currentPresetId === preset.id;
 
                       return (
@@ -2717,23 +2569,31 @@ export default function FeatureSidebar({
                               onClose();
                             }
                           }}
-                          className={`group flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left w-full ${
+                          className={`group flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left w-full relative overflow-hidden backdrop-blur-md ${
                             isLocked 
-                              ? "opacity-55 bg-slate-100 dark:bg-[#1b1b1b] border-dashed border-slate-300 dark:border-zinc-800 cursor-not-allowed" 
+                              ? "opacity-50 bg-slate-100/50 dark:bg-black/15 border-dashed border-slate-350 dark:border-zinc-800 cursor-not-allowed" 
                               : isActive
-                                ? "bg-white dark:bg-[#18181c] shadow-md scale-[1.01]"
-                                : "bg-[#fbfbfc]/85 dark:bg-[#121215]/80 hover:bg-white dark:hover:bg-[#16161a] border-slate-200/65 dark:border-slate-800/80 cursor-pointer hover:scale-[1.01]"
+                                ? "bg-white/80 dark:bg-[#151522]/65 shadow-md scale-[1.01]"
+                                : "bg-white/30 hover:bg-white/60 dark:bg-black/25 dark:hover:bg-[#12121e]/45 border-white/40 dark:border-white/5 cursor-pointer hover:scale-[1.01]"
                           }`}
                           style={
                             !isLocked && isActive 
-                              ? { borderColor: preset.textHex, boxShadow: `0 4px 14px -4px ${preset.textHex}40` } 
+                              ? { borderColor: preset.textHex, boxShadow: `0 8px 24px -6px ${preset.textHex}55` } 
                               : {}
                           }
                         >
-                          <div className="flex items-center gap-3">
+                          {/* Animated Theme Aura particle */}
+                          {!isLocked && (
+                            <div 
+                              className={`absolute -right-6 -bottom-6 w-16 h-16 rounded-full filter blur-[20px] transition-all duration-700 opacity-[0.22] group-hover:opacity-[0.40] group-hover:scale-125 pointer-events-none`}
+                              style={{ backgroundColor: preset.textHex }}
+                            />
+                          )}
+
+                          <div className="flex items-center gap-3 relative z-10">
                             <span 
-                              className={`w-6 h-6 rounded-xl border border-white/20 shadow-xs shrink-0 ${preset.bg}`} 
-                              style={isActive ? { boxShadow: `0 0 10px ${preset.textHex}80` } : {}}
+                              className={`w-6 h-6 rounded-xl border border-white/30 shadow-xs shrink-0 transition-transform duration-500 group-hover:scale-110 ${preset.bg}`} 
+                              style={isActive ? { boxShadow: `0 0 12px ${preset.textHex}99` } : {}}
                             />
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -2748,25 +2608,27 @@ export default function FeatureSidebar({
                             </div>
                           </div>
                           
-                          {isLocked ? (
-                            <span className="text-[8.5px] text-zinc-550 dark:text-zinc-550 font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
-                              <Lock className="w-2.5 h-2.5" /> Locked
-                            </span>
-                          ) : isActive ? (
-                            <span 
-                              className="text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded px-2"
-                              style={{ color: '#fff', backgroundColor: preset.textHex, boxShadow: `0 0 6px ${preset.textHex}` }}
-                            >
-                              Active
-                            </span>
-                          ) : (
-                            <span 
-                              className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 group-hover:block hidden transition-opacity"
-                              style={{ color: preset.textHex }}
-                            >
-                              Apply
-                            </span>
-                          )}
+                          <div className="relative z-10 shrink-0">
+                            {isLocked ? (
+                              <span className="text-[8.5px] text-zinc-550 dark:text-zinc-550 font-black uppercase tracking-wider flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5" /> Locked
+                              </span>
+                            ) : isActive ? (
+                              <span 
+                                className="text-[8.5px] font-black uppercase tracking-widest px-2.5 py-1 rounded-xl shadow-sm transition-all duration-300"
+                                style={{ color: '#fff', backgroundColor: preset.textHex, boxShadow: `0 4px 10px ${preset.textHex}66` }}
+                              >
+                                Active
+                              </span>
+                            ) : (
+                              <span 
+                                className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 group-hover:opacity-100 opacity-0 transition-opacity duration-350"
+                                style={{ color: preset.textHex }}
+                              >
+                                Apply
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     });

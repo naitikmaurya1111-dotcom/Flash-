@@ -318,7 +318,7 @@ export default function RewardSystem({
       </div>
 
       {/* 2. Quests and Dynamic Daily Challenges Board */}
-      <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs">
+      <div className="liquid-glass rounded-3xl p-5 shadow-xs border">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-900 pb-3 mb-4">
           <div>
             <h3 className="text-xs font-black uppercase tracking-widest text-[#f26419] flex items-center gap-1.5">
@@ -437,7 +437,7 @@ export default function RewardSystem({
       <div className="space-y-4">
         
         {/* Head controls section */}
-        <div className="flex justify-between items-center bg-white/70 dark:bg-[#121212]/92 p-4.5 rounded-3xl border border-slate-200 dark:border-slate-900/60 shadow-xs">
+        <div className="flex justify-between items-center bg-white/30 dark:bg-black/10 backdrop-blur-md p-4.5 rounded-3xl border border-slate-200/40 dark:border-white/5 shadow-inner">
           <div className="text-left">
             <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-[#f26419]" /> Real-World Wishlist Store
@@ -457,7 +457,7 @@ export default function RewardSystem({
 
         {/* Wishlist grid items */}
         {rewards.length === 0 ? (
-          <div className="bg-white/70 dark:bg-[#121212]/92 rounded-3xl border border-dashed border-slate-200 dark:border-slate-900/70 p-12 text-center flex flex-col items-center justify-center">
+          <div className="bg-white/30 dark:bg-black/10 backdrop-blur-md rounded-3xl border border-dashed border-slate-200/40 dark:border-white/5 p-12 text-center flex flex-col items-center justify-center shadow-inner">
             <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full mb-3">
               <Gift className="w-10 h-10 animate-bounce" />
             </div>
@@ -483,12 +483,12 @@ export default function RewardSystem({
               return (
                 <div 
                   key={r.id} 
-                  className={`bg-white/95 dark:bg-[#121212]/95 border rounded-3xl p-5 flex flex-col justify-between shadow-lg relative transition-all hover-lift group overflow-hidden ${
+                  className={`liquid-glass rounded-3xl p-5 flex flex-col justify-between shadow-lg relative transition-all duration-300 hover:scale-[1.02] cursor-pointer group overflow-hidden border ${
                     r.isClaimed
-                      ? "border-slate-200/60 dark:border-slate-900/60 opacity-60"
+                      ? "opacity-60"
                       : hasEnough 
-                      ? "border-amber-500 dark:border-amber-500/35 ring-1 ring-amber-500/10" 
-                      : "border-slate-200 dark:border-slate-900/60 hover:border-slate-350 dark:hover:border-slate-800"
+                      ? "ring-1 ring-amber-500/10" 
+                      : "hover:border-slate-350 dark:hover:border-slate-800"
                   }`}
                 >
                   {/* Category Accent Stripe Badge */}
@@ -642,7 +642,7 @@ export default function RewardSystem({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pointer-events-auto">
         
         {/* Left column: XP logs */}
-        <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs">
+        <div className="liquid-glass rounded-3xl p-5 shadow-xs border">
           <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3.5 flex items-center gap-1.5 justify-start">
             <Clock className="w-4 h-4 text-emerald-400" /> Career XP Achievement Feed ({xpLogs.length})
           </h4>
@@ -677,7 +677,7 @@ export default function RewardSystem({
         </div>
 
         {/* Right column: Claimed Rewards Logs */}
-        <div className="bg-white/70 dark:bg-[#121212]/92 border border-slate-200 dark:border-slate-900/60 rounded-3xl p-5 shadow-xs text-left">
+        <div className="liquid-glass rounded-3xl p-5 shadow-xs text-left border">
           <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3.5 flex items-center gap-1.5 justify-start">
             <Gift className="w-4 h-4 text-[#f26419]" /> Dream Milestones Claim History ({rewards.filter(r => r.isClaimed).length})
           </h4>

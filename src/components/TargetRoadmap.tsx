@@ -596,7 +596,7 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     <div id="target_roadmap_hub_container" className="space-y-4 sm:space-y-6">
       
       {/* Visual Banner Header */}
-      <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden p-4 sm:p-6 md:p-8 bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-[#0d131f] dark:to-[#090b11] border border-slate-200 dark:border-slate-850/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
+      <div className="liquid-glass relative rounded-2xl sm:rounded-3xl overflow-hidden p-4 sm:p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6 border">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#f26419]/5 rounded-full filter blur-3xl -z-10" />
         <div className="space-y-2 text-left shrink-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f26419]/10 text-[#f26419] text-xs font-black uppercase tracking-wider">
@@ -618,12 +618,12 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
         </div>
         
         {/* Dynamic Navigation Tabs inside Target Suite */}
-        <div className="flex bg-slate-150/60 dark:bg-[#161616]/85 p-1 rounded-2xl border border-slate-200/40 dark:border-slate-905 shrink-0 select-none self-start md:self-center">
+        <div className="flex bg-slate-100/50 dark:bg-black/25 p-1 rounded-2xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md shrink-0 select-none self-start md:self-center shadow-inner">
           <button
             onClick={() => setActiveSubTab("milestones")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer duration-350 ${
               activeSubTab === "milestones"
-                ? "bg-[#f26419] text-white shadow-md shadow-orange-500/20"
+                ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
@@ -633,9 +633,9 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
           
           <button
             onClick={() => setActiveSubTab("gpa")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer duration-350 ${
               activeSubTab === "gpa"
-                ? "bg-[#f26419] text-white shadow-md shadow-orange-500/20"
+                ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
