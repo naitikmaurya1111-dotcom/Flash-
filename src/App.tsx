@@ -31,6 +31,7 @@ import CalendarView from "./components/CalendarView";
 import FeatureSidebar from "./components/FeatureSidebar";
 import RemindersHub, { playChime } from "./components/RemindersHub";
 import BeastHub from "./components/BeastHub";
+import PremiumBackdrop from "./components/PremiumBackdrop";
 
 
 // Firestore Error Helper (from firebase-integration skill)
@@ -3633,6 +3634,7 @@ export default function App() {
       
       {/* Liquid Glass Background Drifting Blobs & Textured Grids */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <PremiumBackdrop themePreset={themePreset} userXp={userXp} />
         {/* Dynamic auroral glass blobs */}
         <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${dynamicBlobs.blob1}`}></div>
         <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${dynamicBlobs.blob2}`}></div>
