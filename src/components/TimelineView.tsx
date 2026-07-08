@@ -226,7 +226,7 @@ function AdminThemeAccessPanel() {
   );
 }
 
-export default function TimelineView({
+function TimelineView({
   subjects,
   studyLogs,
   setSubjects,
@@ -3738,3 +3738,6 @@ export default function TimelineView({
     </div>
   );
 }
+
+export default React.memo(TimelineView);
+

@@ -14,7 +14,7 @@ interface BeastHubProps {
   onAddXp: (reason: string, amount: number) => void;
 }
 
-export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
+function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
   const [activeBeastTab, setActiveBeastTab] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -715,6 +715,21 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
     }
     return () => clearInterval(timerId);
   }, [sleepTimerMinutes, sleepTimerSecondsLeft, binauralActive]);
+
+  // Clean-up all synthesis and close AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      if (binLeftOscRef.current) { try { binLeftOscRef.current.stop(); } catch (e) {} binLeftOscRef.current.disconnect(); binLeftOscRef.current = null; }
+      if (binRightOscRef.current) { try { binRightOscRef.current.stop(); } catch (e) {} binRightOscRef.current.disconnect(); binRightOscRef.current = null; }
+      if (binGainRef.current) { binGainRef.current.disconnect(); binGainRef.current = null; }
+      if (noiseSourceRef.current) { try { noiseSourceRef.current.stop(); } catch (e) {} noiseSourceRef.current.disconnect(); noiseSourceRef.current = null; }
+      if (noiseGainRef.current) { noiseGainRef.current.disconnect(); noiseGainRef.current = null; }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(err => console.warn("Failed to close AudioContext in BeastHub on unmount:", err));
+        audioCtxRef.current = null;
+      }
+    };
+  }, []);
 
   const startSleepTimer = (minutes: number) => {
     setSleepTimerMinutes(minutes);
@@ -1990,3 +2005,6 @@ export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps
     </div>
   );
 }
+
+export default React.memo(BeastHub);
+

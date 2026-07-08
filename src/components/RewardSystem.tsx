@@ -40,7 +40,7 @@ interface RewardSystemProps {
   studyLogs?: StudyLog[];
 }
 
-export default function RewardSystem({
+function RewardSystem({
   userXp,
   rewards,
   xpLogs,
@@ -1055,3 +1055,6 @@ export default function RewardSystem({
     </div>
   );
 }
+
+export default React.memo(RewardSystem);
+

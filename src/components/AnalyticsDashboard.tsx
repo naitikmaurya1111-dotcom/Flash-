@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie } from "recharts";
 import { Award, Target, TrendingUp, Calendar, Info } from "lucide-react";
 import { Subject, StudyLog, formatStudyTimeExact } from "../types";
@@ -11,7 +11,7 @@ interface AnalyticsDashboardProps {
   totalMinutesToday: number; // Accurate, live-updated real-time minutes passed from App.tsx
 }
 
-export default function AnalyticsDashboard({
+function AnalyticsDashboard({
   subjects,
   studyLogs,
   streak,
@@ -213,7 +213,7 @@ export default function AnalyticsDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Weekly Trend Bar Chart */}
-        <div className="liquid-glass rounded-3xl p-6 shadow-sm space-y-4 transition-all duration-320 border">
+        <div className="liquid-glass rounded-3xl p-6 shadow-sm space-y-4 transition-all duration-320 border min-w-0">
           <h3 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-100">
             Weekly Study Trend (past 7 days)
           </h3>
@@ -270,7 +270,7 @@ export default function AnalyticsDashboard({
         </div>
 
         {/* Subject Allocation Allocation */}
-        <div className="liquid-glass rounded-3xl p-6 flex flex-col justify-between shadow-sm transition-all duration-320 border">
+        <div className="liquid-glass rounded-3xl p-6 flex flex-col justify-between shadow-sm transition-all duration-320 border min-w-0">
           <h3 className="font-display font-semibold text-sm text-slate-800 dark:text-slate-100 mb-2">
             Today Topic Distribution
           </h3>
@@ -400,3 +400,6 @@ export default function AnalyticsDashboard({
     </div>
   );
 }
+
+export default memo(AnalyticsDashboard);
+

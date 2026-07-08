@@ -6,22 +6,172 @@ service cloud.firestore {
 
     function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
-    function isEmailVerified() { return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com' || request.auth.token.firebase.sign_in_provider == 'password'); }
+    
+    // Strict email verification check (requires actual verified email for password users)
+    function isEmailVerified() { 
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        request.auth.token.firebase.sign_in_provider == 'google.com'
+      ); 
+    }
+    
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
 
+    // Strict schema & field boundary constraints for profile to prevent shadow keys & privilege escalation
     function isValidUser(d, uid) {
-      return (d.userId == null || d.userId == uid) && (d.email == null || d.email is string) && (d.dailyTargetMinutes == null || d.dailyTargetMinutes >= 0);
+      let allowedKeys = [
+        'userId', 'email', 'displayName', 'studentName', 'studentClass', 
+        'studentPrepTarget', 'dailyTargetMinutes', 'xp', 'lastActiveDate', 
+        'themePreset', 'themeMode', 'timerType', 'pomoFocusDuration', 
+        'pomoShortBreakDuration', 'pomoLongBreakDuration', 'createdAt', 
+        'isStudyingUser', 'activeSubjectId', 'studyStartTimeMs', 
+        'studySecondsBaseline', 'studyTimerType', 'lastNotifiedLevel', 'updatedAt'
+      ];
+      return d.keys().hasOnly(allowedKeys) &&
+             (d.userId == null || d.userId == uid) &&
+             (d.email == null || d.email is string) &&
+             (d.dailyTargetMinutes == null || (d.dailyTargetMinutes is number && d.dailyTargetMinutes >= 0)) &&
+             (d.xp == null || (d.xp is number && d.xp >= 0)) &&
+             (d.studentName == null || (d.studentName is string && d.studentName.size() <= 100)) &&
+             (d.studentClass == null || (d.studentClass is string && d.studentClass.size() <= 50)) &&
+             (d.studentPrepTarget == null || (d.studentPrepTarget is string && d.studentPrepTarget.size() <= 50)) &&
+             (d.themePreset == null || d.themePreset is string) &&
+             (d.themeMode == null || d.themeMode is string) &&
+             (d.timerType == null || d.timerType is string) &&
+             (d.pomoFocusDuration == null || d.pomoFocusDuration >= 0) &&
+             (d.pomoShortBreakDuration == null || d.pomoShortBreakDuration >= 0) &&
+             (d.pomoLongBreakDuration == null || d.pomoLongBreakDuration >= 0);
+    }
+
+    // Subcollections schema check helpers
+    function isValidSubject(d) {
+      return d.keys().hasAll(['id', 'name', 'color', 'icon', 'totalMinutes', 'goalMinutes']) &&
+             d.keys().hasOnly(['id', 'name', 'color', 'icon', 'totalMinutes', 'goalMinutes']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.name is string && d.name.size() <= 100 &&
+             d.color is string && d.color.size() <= 100 &&
+             d.icon is string && d.icon.size() <= 100 &&
+             d.totalMinutes is number && d.totalMinutes >= 0 &&
+             d.goalMinutes is number && d.goalMinutes >= 0;
+    }
+
+    function isValidTask(d) {
+      return d.keys().hasAll(['id', 'title', 'isCompleted', 'subjectId']) &&
+             d.keys().hasOnly(['id', 'title', 'isCompleted', 'subjectId']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.title is string && d.title.size() <= 500 &&
+             d.isCompleted is bool &&
+             d.subjectId is string && d.subjectId.size() <= 128;
+    }
+
+    function isValidStudyLog(d) {
+      return d.keys().hasAll(['id', 'date', 'subjectId', 'subjectName', 'durationMinutes', 'timestamp']) &&
+             d.keys().hasOnly(['id', 'date', 'subjectId', 'subjectName', 'durationMinutes', 'timestamp']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.date is string && d.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+             d.subjectId is string && d.subjectId.size() <= 128 &&
+             d.subjectName is string && d.subjectName.size() <= 100 &&
+             d.durationMinutes is number && d.durationMinutes >= 0 &&
+             d.timestamp is string;
+    }
+
+    function isValidReward(d) {
+      return d.keys().hasAll(['id', 'title', 'costXp', 'purchaseUrl', 'category', 'isUnlocked', 'isClaimed', 'createdAt']) &&
+             d.keys().hasOnly(['id', 'title', 'costXp', 'purchaseUrl', 'category', 'isUnlocked', 'isClaimed', 'notes', 'createdAt']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.title is string && d.title.size() <= 200 &&
+             d.costXp is number && d.costXp >= 0 &&
+             d.purchaseUrl is string && d.purchaseUrl.size() <= 2000 &&
+             d.category is string &&
+             d.isUnlocked is bool &&
+             d.isClaimed is bool &&
+             (d.notes == null || (d.notes is string && d.notes.size() <= 1000)) &&
+             d.createdAt is string;
+    }
+
+    function isValidQuest(d) {
+      return d.keys().hasAll(['id', 'title', 'condition', 'xpReward', 'isCompleted', 'category']) &&
+             d.keys().hasOnly(['id', 'title', 'condition', 'xpReward', 'isCompleted', 'category']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.title is string && d.title.size() <= 200 &&
+             d.condition is string && d.condition.size() <= 500 &&
+             d.xpReward is number && d.xpReward >= 0 &&
+             d.isCompleted is bool &&
+             d.category is string;
+    }
+
+    function isValidXpLog(d) {
+      return d.keys().hasAll(['id', 'reason', 'amount', 'timestamp']) &&
+             d.keys().hasOnly(['id', 'reason', 'amount', 'timestamp']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.reason is string && d.reason.size() <= 200 &&
+             d.amount is number && d.amount >= 0 &&
+             d.timestamp is string;
+    }
+
+    function isValidReminder(d) {
+      return d.keys().hasAll(['id', 'title', 'time', 'type', 'isActive', 'isCompleted']) &&
+             d.keys().hasOnly(['id', 'title', 'time', 'type', 'durationMinutes', 'triggeredAt', 'isActive', 'isCompleted', 'subjectId']) &&
+             d.id is string && d.id.size() <= 128 &&
+             d.title is string && d.title.size() <= 200 &&
+             d.time is string &&
+             d.type is string &&
+             (d.durationMinutes == null || (d.durationMinutes is number && d.durationMinutes >= 0)) &&
+             (d.triggeredAt == null || d.triggeredAt is string) &&
+             d.isActive is bool &&
+             d.isCompleted is bool &&
+             (d.subjectId == null || (d.subjectId is string && d.subjectId.size() <= 128));
     }
 
     match /users/{userId} {
       allow get, delete: if isOwner(userId);
-      allow create, update: if isOwner(userId) && isValidUser(request.resource.data, userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data, userId);
+      allow update: if isOwner(userId) && 
+                       isValidUser(request.resource.data, userId) && 
+                       (!request.resource.data.keys().contains('createdAt') || !resource.data.keys().contains('createdAt') || request.resource.data.createdAt == resource.data.createdAt) &&
+                       (!request.resource.data.keys().contains('updatedAt') || !resource.data.keys().contains('updatedAt') || request.resource.data.updatedAt == resource.data.updatedAt || request.resource.data.updatedAt == request.time);
 
-      // Secure all user subcollections dynamically with high-performance rules
-      match /{subcollection}/{id} {
+      // Secure subcollections with schema and value verification
+      match /subjects/{id} {
         allow list, get, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id);
-        allow update: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidSubject(request.resource.data);
+        allow update: if isOwner(userId) && isValidSubject(request.resource.data);
+      }
+
+      match /tasks/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidTask(request.resource.data);
+        allow update: if isOwner(userId) && isValidTask(request.resource.data);
+      }
+
+      match /studyLogs/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidStudyLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidStudyLog(request.resource.data);
+      }
+
+      match /rewards/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidReward(request.resource.data);
+        allow update: if isOwner(userId) && isValidReward(request.resource.data);
+      }
+
+      match /quests/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidQuest(request.resource.data);
+        allow update: if isOwner(userId) && isValidQuest(request.resource.data);
+      }
+
+      match /xpLogs/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidXpLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidXpLog(request.resource.data);
+      }
+
+      match /reminders/{id} {
+        allow list, get, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isEmailVerified() && isValidId(id) && isValidReminder(request.resource.data);
+        allow update: if isOwner(userId) && isValidReminder(request.resource.data);
       }
     }
 

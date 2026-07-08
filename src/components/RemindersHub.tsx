@@ -176,7 +176,7 @@ interface RemindersHubProps {
   currentUser?: User | null;
 }
 
-export default function RemindersHub({
+function RemindersHub({
   subjects,
   reminders,
   onAddReminder,
@@ -1279,3 +1279,6 @@ export default function RemindersHub({
     </div>
   );
 }
+
+export default React.memo(RemindersHub);
+

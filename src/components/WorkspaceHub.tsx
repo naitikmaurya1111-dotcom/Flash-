@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { 
   Calendar, 
   FileText, 
@@ -58,7 +58,7 @@ interface WorkspaceHubProps {
   onGlobalLogout: () => Promise<void>;
 }
 
-export default function WorkspaceHub({ 
+function WorkspaceHub({ 
   streak, 
   aiCoachAdvice, 
   globalCurrentUser, 
@@ -1986,3 +1986,6 @@ ${localAdvice.scheduleTip}
     </div>
   );
 }
+
+export default memo(WorkspaceHub);
+

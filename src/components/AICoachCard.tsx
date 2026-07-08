@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import { 
   Sparkles, 
   Loader2, 
@@ -29,7 +29,7 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps) {
+function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps) {
   const [advice, setAdvice] = useState<AICoachAdvice | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -634,3 +634,6 @@ export default function AICoachCard({ subjects, streak, dailyTargetMinutes }: AI
     </div>
   );
 }
+
+export default memo(AICoachCard);
+

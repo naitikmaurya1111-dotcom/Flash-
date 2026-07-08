@@ -16,7 +16,7 @@ interface CalendarEventItem {
   color: string; // Tailwind class
 }
 
-export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: CalendarViewProps) {
+function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date()); // Dynamic current date to support current month (June)
   const [selectedLogsDate, setSelectedLogsDate] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -639,3 +639,6 @@ export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinut
     </div>
   );
 }
+
+export default React.memo(CalendarView);
+

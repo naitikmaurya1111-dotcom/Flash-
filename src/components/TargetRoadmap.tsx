@@ -73,7 +73,7 @@ const DEFAULT_COURSES: GpaCourse[] = [
   }
 ];
 
-export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic", currentUser = null }: TargetRoadmapProps) {
+function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic", currentUser = null }: TargetRoadmapProps) {
   const [activeSubTab, setActiveSubTab] = useState<"milestones" | "gpa">("milestones");
   const [exams, setExams] = useState<ExamTarget[]>([]);
   const [courses, setCourses] = useState<GpaCourse[]>([]);
@@ -1240,3 +1240,6 @@ export default function TargetRoadmap({ subjects, userXp, onAddXp, themePreset =
     </div>
   );
 }
+
+export default React.memo(TargetRoadmap);
+

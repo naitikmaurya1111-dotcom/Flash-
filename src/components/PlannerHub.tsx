@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import { Plus, Trash, Check, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 import { Subject, Task } from "../types";
 
@@ -10,7 +10,7 @@ interface PlannerHubProps {
   onRemoveTask: (taskId: string) => void;
 }
 
-export default function PlannerHub({
+function PlannerHub({
   subjects,
   tasks,
   onAddTask,
@@ -297,3 +297,6 @@ export default function PlannerHub({
     </div>
   );
 }
+
+export default memo(PlannerHub);
+
