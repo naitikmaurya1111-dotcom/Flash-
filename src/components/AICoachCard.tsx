@@ -350,6 +350,33 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
         </div>
       </div>
 
+      {/* Animated Siri-like AI Coach Orb */}
+      <div className="flex flex-col items-center justify-center py-6 bg-slate-100/35 dark:bg-black/10 backdrop-blur-md rounded-2xl border border-slate-200/20 dark:border-white/5 relative overflow-hidden select-none">
+        {/* Glowing background flares */}
+        <div className={`absolute w-36 h-36 rounded-full blur-3xl opacity-40 animate-pulse transition-all duration-1000 ${
+          persona === "Minerva" ? "bg-indigo-500 shadow-[0_0_50px_rgba(99,102,241,0.5)]" : 
+          persona === "Sgt" ? "bg-rose-500 shadow-[0_0_50px_rgba(244,63,94,0.5)]" : 
+          "bg-teal-500 shadow-[0_0_50px_rgba(20,184,166,0.5)]"
+        }`}></div>
+
+        {/* Floating animated central orb */}
+        <div className={`w-16 h-16 rounded-full border border-white/10 relative z-10 flex items-center justify-center transition-all duration-1000 transform hover:scale-105 ${
+          persona === "Minerva" ? "bg-gradient-to-tr from-indigo-600 via-blue-500 to-indigo-400 animate-study-pulse shadow-[0_0_30px_rgba(99,102,241,0.3)]" :
+          persona === "Sgt" ? "bg-gradient-to-tr from-rose-600 via-red-500 to-amber-500 animate-study-pulse shadow-[0_0_30px_rgba(244,63,94,0.35)]" :
+          "bg-gradient-to-tr from-teal-600 via-emerald-500 to-teal-400 animate-study-pulse shadow-[0_0_30px_rgba(20,184,166,0.3)]"
+        }`}>
+          {persona === "Minerva" && <span className="text-xl">🎓</span>}
+          {persona === "Sgt" && <span className="text-xl">⚔️</span>}
+          {persona === "Zen" && <span className="text-xl">🌸</span>}
+        </div>
+
+        <span className="text-[10px] uppercase font-mono font-black tracking-widest mt-3.5 z-10 transition-colors duration-1000 text-slate-500 dark:text-slate-400">
+          {persona === "Minerva" ? "Cognitive Stream Active" : 
+           persona === "Sgt" ? "APEX ADVISOR DIRECTIVES ACTIVE" : 
+           "Mindful flow active"}
+        </span>
+      </div>
+
       {/* Advisor Selectors Board */}
       <div className="space-y-3 bg-slate-100/35 dark:bg-black/10 backdrop-blur-md p-4 rounded-2xl border border-slate-150/40 dark:border-white/5">
         <div className="flex items-center justify-between">

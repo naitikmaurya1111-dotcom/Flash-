@@ -961,6 +961,12 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
     setShowBulkModal(false);
   };
 
+  const syllabusDone = syllabusItems.filter((s: any) => s.done).length;
+  const matrixDone = matrixItems.filter((m: any) => m.done).length;
+  const totalItemsCount = syllabusItems.length + matrixItems.length;
+  const totalDoneCount = syllabusDone + matrixDone;
+  const combustPercentage = totalItemsCount > 0 ? Math.round((totalDoneCount / totalItemsCount) * 100) : 0;
+
   return (
     <div className="w-full text-slate-800 dark:text-slate-100 flex flex-col space-y-6 select-none font-sans antialiased">
       
@@ -1059,6 +1065,55 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
                 💧 {waterCups}
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Combust Efficiency Meter Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+        <div className="md:col-span-2 liquid-glass p-5 rounded-3xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-1.5 text-left">
+            <h3 className="text-[10px] font-mono font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+              Apex Combust Efficiency
+            </h3>
+            <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+              {combustPercentage === 100 ? "Maximum Focus Ignition 🔥" : 
+               combustPercentage >= 50 ? "Steady Energy Flow ⚡" : 
+               "System Warming Up 💡"}
+            </p>
+            <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-normal max-w-sm">
+              Combust rate scales dynamically as you complete syllabus check topics and daily Eisenhower priority matrix objectives.
+            </p>
+          </div>
+
+          <div className="w-full sm:w-48 space-y-2">
+            <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-400">
+              <span>Ignition Status</span>
+              <span className="text-orange-500 font-extrabold">{combustPercentage}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-slate-900/50 dark:bg-black/30 rounded-full overflow-hidden border border-slate-850/50 dark:border-white/5 relative">
+              <div 
+                className="h-full bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_12px_rgba(249,115,22,0.4)]"
+                style={{ width: `${combustPercentage}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="liquid-glass p-5 rounded-3xl border flex items-center justify-between gap-4 text-left">
+          <div className="space-y-1.5">
+            <h3 className="text-[10px] font-mono font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+              Apex Active Level
+            </h3>
+            <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+              {focusAura === "hyper" ? "Hyper-Focus Mode" : focusAura === "zen" ? "Zen Mind Flow" : "Scholastic Prep"}
+            </p>
+            <p className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold">
+              Latency: Minimized (0ms)
+            </p>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/15 shrink-0 animate-pulse">
+            <Zap className="w-5 h-5" />
           </div>
         </div>
       </div>

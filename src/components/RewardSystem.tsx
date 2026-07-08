@@ -564,13 +564,13 @@ function RewardSystem({
                     {!r.isClaimed && (
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-[9px] font-mono text-slate-400">
-                          <span>Focus level reach</span>
-                          <span className="font-semibold text-slate-600 dark:text-slate-350">{percent}%</span>
+                          <span>Focus Level Reach</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">{percent}%</span>
                         </div>
-                        <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-900/50 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-800/20 relative shadow-inner">
                           <div 
-                            className={`h-full transition-all duration-500 ${hasEnough ? 'bg-gradient-to-r from-amber-400 to-amber-600 animate-pulse' : ''}`} 
-                            style={hasEnough ? {} : { backgroundColor: themeHexAccent, width: `${percent}%` }}
+                            className={`h-full transition-all duration-1000 ease-out rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 shadow-[0_0_8px_rgba(245,158,11,0.4)] ${hasEnough ? 'animate-pulse' : ''}`} 
+                            style={{ width: `${percent}%` }}
                           />
                         </div>
                       </div>

@@ -46,12 +46,14 @@ export default function FocusTimer({
     { id: "waves", name: "Ocean Swell", emoji: "🌊", volume: 0.0, isPlaying: false },
     { id: "brown", name: "Deepspace Noise", emoji: "🌌", volume: 0.0, isPlaying: false },
     { id: "campfire", name: "Campfire Crackles", emoji: "🔥", volume: 0.0, isPlaying: false },
-    { id: "keyboard", name: "ASMR Keyboard", emoji: "⌨️", volume: 0.0, isPlaying: false }
+    { id: "keyboard", name: "ASMR Keyboard", emoji: "⌨️", volume: 0.0, isPlaying: false },
+    { id: "binaural", name: "Binaural Focus Beat", emoji: "🧘", volume: 0.0, isPlaying: false },
+    { id: "forest", name: "Rainforest River", emoji: "🍃", volume: 0.0, isPlaying: false }
   ]);
 
   // Audio Context and track-based active sources ref
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const activeSourcesRef = useRef<Record<string, { source: AudioBufferSourceNode, gainNode: GainNode, filterNode?: BiquadFilterNode }>>({});
+  const activeSourcesRef = useRef<Record<string, { source: AudioNode, gainNode: GainNode, filterNode?: BiquadFilterNode, oscillators?: OscillatorNode[] }>>({});
 
   // Timer interval reference
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -108,26 +110,52 @@ export default function FocusTimer({
         stopTrackSynth(trackId);
       }
 
+      if (trackId === "binaural") {
+        const oscL = ctx.createOscillator();
+        const oscR = ctx.createOscillator();
+        oscL.type = "sine";
+        oscR.type = "sine";
+        oscL.frequency.setValueAtTime(110, ctx.currentTime);
+        oscR.frequency.setValueAtTime(114, ctx.currentTime);
+
+        const merger = ctx.createChannelMerger(2);
+        oscL.connect(merger, 0, 0);
+        oscR.connect(merger, 0, 1);
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(trackVol * volume, ctx.currentTime);
+
+        merger.connect(gain);
+        gain.connect(ctx.destination);
+
+        oscL.start();
+        oscR.start();
+
+        activeSourcesRef.current[trackId] = {
+          source: merger,
+          gainNode: gain,
+          oscillators: [oscL, oscR]
+        };
+        return;
+      }
+
       const bufferSize = 2 * ctx.sampleRate;
       const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const output = noiseBuffer.getChannelData(0);
 
       if (trackId === "brown") {
-        // Brownian noise (deeper rumble)
         let lastOut = 0.0;
         for (let i = 0; i < bufferSize; i++) {
           const white = Math.random() * 2 - 1;
           output[i] = (lastOut + (0.02 * white)) / 1.02;
           lastOut = output[i];
-          output[i] *= 3.5; // volume compensation
+          output[i] *= 3.5;
         }
       } else if (trackId === "waves") {
-        // Ocean swell
         for (let i = 0; i < bufferSize; i++) {
           output[i] = Math.random() * 2 - 1;
         }
       } else if (trackId === "rain") {
-        // Rain
         for (let i = 0; i < bufferSize; i++) {
           let val = Math.random() * 2 - 1;
           if (Math.random() < 0.1) {
@@ -136,24 +164,32 @@ export default function FocusTimer({
           output[i] = val * 0.35;
         }
       } else if (trackId === "campfire") {
-        // Campfire crackles
         for (let i = 0; i < bufferSize; i++) {
           let val = Math.random() * 2 - 1;
-          // occasional crackles
           if (Math.random() < 0.005) {
             val += (Math.random() > 0.5 ? 1 : -1) * 2.5;
           }
           output[i] = val * 0.15;
         }
       } else if (trackId === "keyboard") {
-        // ASMR keyboard typing clicks
         for (let i = 0; i < bufferSize; i++) {
           let val = 0;
           if (Math.random() < 0.002) {
-            // Typing tap
             val = Math.sin(i * 0.05) * Math.exp(-0.01 * (i % 1000));
           }
           output[i] = val * 0.2;
+        }
+      } else if (trackId === "forest") {
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          const brown = (lastOut + (0.015 * white)) / 1.015;
+          lastOut = brown;
+          let waterDrop = 0;
+          if (Math.random() < 0.0004) {
+            waterDrop = Math.sin(i * 0.02) * Math.exp(-0.004 * (i % 600));
+          }
+          output[i] = brown * 2.2 + waterDrop * 0.55;
         }
       }
 
@@ -168,7 +204,7 @@ export default function FocusTimer({
         filter.frequency.setValueAtTime(320, ctx.currentTime);
       } else if (trackId === "waves") {
         filter.frequency.setValueAtTime(450, ctx.currentTime);
-        modulateFilterWaves(filter, source); // custom wave modulator
+        modulateFilterWaves(filter, source);
       } else if (trackId === "rain") {
         filter.frequency.setValueAtTime(800, ctx.currentTime);
       } else if (trackId === "campfire") {
@@ -177,6 +213,8 @@ export default function FocusTimer({
         filter.type = "bandpass";
         filter.frequency.setValueAtTime(1050, ctx.currentTime);
         filter.Q.setValueAtTime(6, ctx.currentTime);
+      } else if (trackId === "forest") {
+        filter.frequency.setValueAtTime(550, ctx.currentTime);
       }
 
       const gain = ctx.createGain();
@@ -202,11 +240,18 @@ export default function FocusTimer({
     try {
       const active = activeSourcesRef.current[trackId];
       if (active) {
-        active.source.stop();
-        active.source.disconnect();
-        active.gainNode.disconnect();
+        if (active.oscillators) {
+          active.oscillators.forEach(osc => {
+            try { osc.stop(); } catch(e){}
+            try { osc.disconnect(); } catch(e){}
+          });
+        } else {
+          try { (active.source as any).stop(); } catch(e){}
+        }
+        try { active.source.disconnect(); } catch(e){}
+        try { active.gainNode.disconnect(); } catch(e){}
         if (active.filterNode) {
-          active.filterNode.disconnect();
+          try { active.filterNode.disconnect(); } catch(e){}
         }
         delete activeSourcesRef.current[trackId];
       }
@@ -443,210 +488,234 @@ export default function FocusTimer({
       )}
 
       {/* FULL FOCUS MODE OVERLAY (Immersive concentration capsule) */}
-      {isFocusMode && activeSubject && (
-        <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-between p-6 sm:p-12 z-50 animate-fade-in text-white no-scrollbar overflow-y-auto">
-          
-          {/* Header information */}
-          <div className="w-full max-w-md flex items-center justify-between pt-4">
-            <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-800 px-4 py-2 rounded-full">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-mono text-slate-300 uppercase tracking-widest">
-                Deep Focus active
+      {isFocusMode && activeSubject && (() => {
+        const secondCycle = elapsedSeconds % 16;
+        let breathText = "Breathe In";
+        let breathScale = 1;
+        if (secondCycle < 4) {
+          breathText = "Inhale 🌬️";
+          breathScale = 1 + (secondCycle / 4) * 0.12;
+        } else if (secondCycle < 8) {
+          breathText = "Hold 🧘";
+          breathScale = 1.12;
+        } else if (secondCycle < 12) {
+          breathText = "Exhale 🍃";
+          breathScale = 1.12 - ((secondCycle - 8) / 4) * 0.12;
+        } else {
+          breathText = "Hold 🌸";
+          breathScale = 1.0;
+        }
+
+        return (
+          <div className="fixed inset-0 bg-slate-950 bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.12)_0%,_rgba(6,9,20,1)_75%)] flex flex-col items-center justify-between p-6 sm:p-12 z-50 animate-fade-in text-white no-scrollbar overflow-y-auto">
+            {/* Background technical digital glass grid */}
+            <div className="absolute inset-0 glass-grid opacity-[0.2] pointer-events-none z-0"></div>
+
+            {/* Header information */}
+            <div className="w-full max-w-md flex items-center justify-between pt-4 z-10">
+              <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-800 px-4 py-2 rounded-full">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs font-mono text-slate-300 uppercase tracking-widest">
+                  Deep Focus active
+                </span>
+              </div>
+
+              <span className="text-xs font-heading font-semibold px-3 py-1 bg-emerald-950 border border-emerald-900/50 text-emerald-400 rounded-full">
+                {activeSubject.name}
               </span>
             </div>
 
-            <span className="text-xs font-heading font-semibold px-3 py-1 bg-emerald-950 border border-emerald-900/50 text-emerald-400 rounded-full">
-              {activeSubject.name}
-            </span>
-          </div>
+            {/* Centered stopwatch indicator */}
+            <div className="flex flex-col items-center my-auto py-8 z-10">
+              <div className="relative w-72 h-72 flex items-center justify-center">
+                {/* Outer circular pulsing svg */}
+                <svg className="absolute inset-0 w-full h-full -rotate-90">
+                  <circle 
+                    cx="144" 
+                    cy="144" 
+                    r="132" 
+                    stroke="rgba(30, 41, 59, 1)" 
+                    strokeWidth="8" 
+                    fill="none" 
+                  />
+                  <circle 
+                    cx="144" 
+                    cy="144" 
+                    r="132" 
+                    stroke="rgba(16, 185, 129, 0.85)" 
+                    strokeWidth="8" 
+                    fill="none" 
+                    strokeDasharray="830"
+                    strokeDashoffset={830 - (830 * Math.min(elapsedSeconds, localTargetMinutes * 60)) / (localTargetMinutes * 60 || 3600)}
+                    className="transition-all duration-1000 ease-linear text-glow"
+                  />
+                </svg>
 
-          {/* Centered stopwatch indicator */}
-          <div className="flex flex-col items-center my-auto py-8">
-            <div className="relative w-72 h-72 flex items-center justify-center">
-              {/* Outer circular pulsing svg */}
-              <svg className="absolute inset-0 w-full h-full -rotate-90">
-                <circle 
-                  cx="144" 
-                  cy="144" 
-                  r="132" 
-                  stroke="rgba(30, 41, 59, 1)" 
-                  strokeWidth="8" 
-                  fill="none" 
-                />
-                <circle 
-                  cx="144" 
-                  cy="144" 
-                  r="132" 
-                  stroke="rgba(16, 185, 129, 0.85)" 
-                  strokeWidth="8" 
-                  fill="none" 
-                  strokeDasharray="830"
-                  strokeDashoffset={830 - (830 * Math.min(elapsedSeconds, localTargetMinutes * 60)) / (localTargetMinutes * 60 || 3600)}
-                  className="transition-all duration-1000 ease-linear text-glow"
-                />
-              </svg>
-
-              <div className="flex flex-col items-center z-10 text-center px-4">
-                <span className="text-xs tracking-wider uppercase font-mono text-slate-400">
-                  Focus Timer
-                </span>
-                <span className="text-5xl sm:text-6xl font-mono font-bold font-display text-white tracking-tighter text-glow my-3">
-                  {formatTime(elapsedSeconds)}
-                </span>
-                <span className="text-xs text-slate-400 font-sans">
-                  Earned: {formatStudyTimeExact(elapsedSeconds / 60)}
-                </span>
-                <span className="text-xs text-emerald-400/80 font-mono mt-1">
-                  Target Goal: {localTargetMinutes}m
-                </span>
+                <div 
+                  className="flex flex-col items-center z-10 text-center px-4 transition-transform duration-1000 ease-in-out"
+                  style={{ transform: `scale(${breathScale})` }}
+                >
+                  <span className="text-xs tracking-wider uppercase font-mono text-emerald-400 font-extrabold animate-pulse">
+                    {breathText}
+                  </span>
+                  <span className="text-5xl sm:text-6xl font-mono font-bold font-display text-white tracking-tighter text-glow my-3">
+                    {formatTime(elapsedSeconds)}
+                  </span>
+                  <span className="text-xs text-slate-400 font-sans">
+                    Earned: {formatStudyTimeExact(elapsedSeconds / 60)}
+                  </span>
+                  <span className="text-xs text-emerald-400/80 font-mono mt-1">
+                    Target Goal: {localTargetMinutes}m
+                  </span>
+                </div>
               </div>
+
+              <p className="text-sm text-slate-400 text-center max-w-xs mt-8">
+                "Focus is a muscle. Keep pushing. Your future self is thanking you."
+              </p>
             </div>
 
-            <p className="text-sm text-slate-400 text-center max-w-xs mt-8">
-              "Focus is a muscle. Keep pushing. Your future self is thanking you."
-            </p>
-          </div>
-
-          {/* Sound simulation and controls footer */}
-          <div className="w-full max-w-md bg-slate-900/90 border border-slate-800/80 p-5 rounded-3xl space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">
-                Multi-channel Ambience Mixing Board
-              </span>
-              <div className="flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-900/40 px-2.5 py-1 rounded-full text-emerald-400">
-                <Volume2 className="w-3.5 h-3.5 animate-pulse" />
-                <span className="text-[11px] font-mono font-semibold uppercase">Soundboard Live</span>
+            {/* Sound simulation and controls footer */}
+            <div className="w-full max-w-md bg-slate-900/90 border border-slate-800/80 p-5 rounded-3xl space-y-4 z-10 backdrop-blur-md">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">
+                  Multi-channel Ambience Mixing Board
+                </span>
+                <div className="flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-900/40 px-2.5 py-1 rounded-full text-emerald-400">
+                  <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                  <span className="text-[11px] font-mono font-semibold uppercase">Soundboard Live</span>
+                </div>
               </div>
-            </div>
 
-            {/* Mixer Channels List */}
-            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
-              {synthTracks.map((track) => {
-                return (
-                  <div key={track.id} className="bg-slate-900/40 border border-slate-800/40 p-2.5 rounded-xl space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{track.emoji}</span>
-                        <span className="text-xs font-medium text-slate-200">{track.name}</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSynthTracks(prev =>
-                            prev.map(t => t.id === track.id ? { ...t, isPlaying: !t.isPlaying } : t)
-                          );
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
-                          track.isPlaying
-                            ? "bg-emerald-900/50 border border-emerald-800 text-emerald-400"
-                            : "bg-slate-800 border border-slate-700 text-slate-500"
-                        }`}
-                      >
-                        {track.isPlaying ? "ON" : "OFF"}
-                      </button>
-                    </div>
-
-                    {track.isPlaying && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={track.volume}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
+              {/* Mixer Channels List */}
+              <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 no-scrollbar">
+                {synthTracks.map((track) => {
+                  return (
+                    <div key={track.id} className="bg-slate-900/40 border border-slate-800/40 p-2.5 rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{track.emoji}</span>
+                          <span className="text-xs font-medium text-slate-200">{track.name}</span>
+                        </div>
+                        <button
+                          onClick={() => {
                             setSynthTracks(prev =>
-                              prev.map(t => t.id === track.id ? { ...t, volume: val } : t)
+                              prev.map(t => t.id === track.id ? { ...t, isPlaying: !t.isPlaying } : t)
                             );
                           }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                        />
-                        <span className="text-[10px] font-mono text-slate-500 w-8 text-right shrink-0">
-                          {Math.round(track.volume * 100)}%
-                        </span>
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                            track.isPlaying
+                              ? "bg-emerald-900/50 border border-emerald-800 text-emerald-400"
+                              : "bg-slate-800 border border-slate-700 text-slate-500"
+                          }`}
+                        >
+                          {track.isPlaying ? "ON" : "OFF"}
+                        </button>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Master Volume Slider */}
-            <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase">
-                <span>Master Scale Multiplier</span>
-                <span>Vol: {Math.round(volume * 100)}%</span>
+                      {track.isPlaying && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={track.volume}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setSynthTracks(prev =>
+                                prev.map(t => t.id === track.id ? { ...t, volume: val } : t)
+                              );
+                            }}
+                            className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                          />
+                          <span className="text-[10px] font-mono text-slate-500 w-8 text-right shrink-0">
+                            {Math.round(track.volume * 100)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex items-center gap-3">
-                <VolumeX className="w-3.5 h-3.5 text-slate-600" />
-                <input
-                  type="range"
-                  min="0"
-                  max="1.5"
-                  step="0.05"
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                />
-                <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+
+              {/* Master Volume Slider */}
+              <div className="pt-2 border-t border-slate-800/50 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase">
+                  <span>Master Scale Multiplier</span>
+                  <span>Vol: {Math.round(volume * 100)}%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <VolumeX className="w-3.5 h-3.5 text-slate-600" />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1.5"
+                    step="0.05"
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
               </div>
-            </div>
 
-            {/* Action panel */}
-            <div className="flex items-center gap-2.5 pt-3">
-              <button
-                id="toggle-active-timer-btn"
-                onClick={toggleTimer}
-                className={`flex-1 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer text-sm ${
-                  isRunning
-                    ? "bg-slate-800 text-slate-200 hover:bg-slate-700"
-                    : "bg-emerald-600 text-white hover:bg-emerald-500"
-                }`}
-              >
-                {isRunning ? (
-                  <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    Pause study
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    Resume focus
-                  </>
-                )}
-              </button>
+              {/* Action panel */}
+              <div className="flex items-center gap-2.5 pt-3">
+                <button
+                  id="toggle-active-timer-btn"
+                  onClick={toggleTimer}
+                  className={`flex-1 py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer text-sm ${
+                    isRunning
+                      ? "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                      : "bg-emerald-600 text-white hover:bg-emerald-500"
+                  }`}
+                >
+                  {isRunning ? (
+                    <>
+                      <Pause className="w-4 h-4 fill-current" />
+                      Pause study
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      Resume focus
+                    </>
+                  )}
+                </button>
 
-              <button
-                id="stop-save-timer-btn"
-                onClick={stopAndSave}
-                disabled={elapsedSeconds === 0}
-                className={`py-3.5 px-5 rounded-2xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-sm ${
-                  elapsedSeconds > 0
-                    ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                    : "bg-slate-800 text-slate-600 cursor-not-allowed"
-                }`}
-                title="Complete focus sessions and save minutes code blocks studied"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Finish ({formatStudyTimeExact(elapsedSeconds / 60)})
-              </button>
+                <button
+                  id="stop-save-timer-btn"
+                  onClick={stopAndSave}
+                  disabled={elapsedSeconds === 0}
+                  className={`py-3.5 px-5 rounded-2xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-sm ${
+                    elapsedSeconds > 0
+                      ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                      : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                  }`}
+                  title="Complete focus sessions and save minutes code blocks studied"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Finish ({formatStudyTimeExact(elapsedSeconds / 60)})
+                </button>
 
-              <button
-                id="cancel-timer-btn"
-                onClick={cancelSession}
-                className={`py-3.5 px-4 rounded-2xl transition-all cursor-pointer border text-xs font-semibold flex items-center gap-1 shrink-0 ${
-                  showDiscardConfirm 
-                    ? "bg-rose-600 border-rose-500 text-white animate-pulse" 
-                    : "bg-slate-900 border-slate-800 text-rose-500 hover:bg-rose-950/20"
-                }`}
-                title="Discard study minutes"
-              >
-                {showDiscardConfirm ? "Confirm Discard?" : <Square className="w-4 h-4 fill-current" />}
-              </button>
+                <button
+                  id="cancel-timer-btn"
+                  onClick={cancelSession}
+                  className={`py-3.5 px-4 rounded-2xl transition-all cursor-pointer border text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                    showDiscardConfirm 
+                      ? "bg-rose-600 border-rose-500 text-white animate-pulse" 
+                      : "bg-slate-900 border-slate-800 text-rose-500 hover:bg-rose-950/20"
+                  }`}
+                  title="Discard study minutes"
+                >
+                  {showDiscardConfirm ? "Confirm Discard?" : <Square className="w-4 h-4 fill-current" />}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

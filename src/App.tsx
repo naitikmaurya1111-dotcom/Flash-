@@ -3607,6 +3607,8 @@ export default function App() {
     }
   };
 
+  const { level: currentStudentLvl, percent: currentStudentPercent } = calculateStudentLevel(userXp);
+
   return (
     <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between pb-24 transition-all duration-500 relative select-none ${
       activeTheme === "light"
@@ -3856,6 +3858,32 @@ export default function App() {
               <span className="text-[9px] text-slate-450 dark:text-slate-550 uppercase font-black tracking-wider">Studied Today:</span>
               <span className={`font-bold ${currentThemeStyle.accentText} ${currentThemeStyle.glowText}`}>
                 {formatStudyTimeExact(totalStudiedTodayMins)}
+              </span>
+            </div>
+
+            {/* Level & XP HUD Badge */}
+            <div 
+              onClick={() => {
+                setActiveTab("rewards");
+              }}
+              className={`bg-white/45 dark:bg-[#171717]/85 border ${currentThemeStyle.accentBorder} px-3.5 py-1.5 rounded-full flex items-center gap-2.5 font-mono text-[10.5px] cursor-pointer hover:scale-[1.03] active:scale-95 transition-all shadow-xs backdrop-blur-md shrink-0 select-none group`}
+              title="Click to view Wishlist & Student Ranks"
+            >
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] uppercase font-black tracking-wider text-slate-400">LVL</span>
+                <span className="font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-500 transition-colors">{currentStudentLvl}</span>
+              </div>
+
+              {/* Progress mini bar inside HUD */}
+              <div className="w-14 h-1.5 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden shrink-0">
+                <div 
+                  className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${currentStudentPercent}%` }}
+                />
+              </div>
+
+              <span className="text-[9px] font-black uppercase text-indigo-550 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">
+                {currentStudentPercent}%
               </span>
             </div>
 
