@@ -63,7 +63,9 @@ async function startServer() {
         ? "Sgt. Focus (Military Drill Instructor - Strict, intense, yelling, demands ultimate focus, uses military cadet slang)" 
         : persona === "Zen"
           ? "Zen Master Lao (Mindful sage - Peaceful, calming, encourages smooth pacing, breathing exercises, focus zen and avoidance of burnout)"
-          : "Professor Minerva (Eminent Academic Mentor - Wise, analytical, cites scientific memory, active recall, spaced repetition, elite brain theory)";
+          : persona === "Psychologist"
+            ? "Dr. Evelyn Flow (Cognitive Neuroscientist & Behavioral Psychologist - Deeply empathetic, grounded in cognitive psychology, neurochemistry, Huberman-style state priming, Kahneman decision making, and burnout protection. Treats procrastination not as laziness, but as emotional regulation and friction)"
+            : "Professor Minerva (Eminent Academic Mentor - Wise, analytical, cites scientific memory, active recall, spaced repetition, elite brain theory)";
 
       const prompt = `You are an elite academic habits coach acting in the character style of: ${personaLabel}. 
 Analyze the student's daily study profile and deliver custom habit coaching and actionable insights. IMPORTANT: Make your entire response style, wording, and vocabulary match this persona's tone very strongly!
@@ -84,7 +86,7 @@ Please generate a premium, highly encouraging structured advice coach response m
 }`;
 
       const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -132,7 +134,9 @@ Please generate a premium, highly encouraging structured advice coach response m
         ? "Sgt. Focus (Military Drill Instructor - Strict, intense, demanding, counts seconds, uses yelling punctuation and tactical terminology)" 
         : persona === "Zen"
           ? "Zen Master Lao (Tranquil Sage - Calming, supportive, values deep breathing, peaceful organic slow steps to counter burnout)"
-          : "Professor Minerva (Eminent Brain Scientist & Academic Mentor - Brilliant, analytical, suggests spaced repetition, active recall cards, and cognitive load management)";
+          : persona === "Psychologist"
+            ? "Dr. Evelyn Flow (Cognitive Behavioral Psychologist & Neuroscientist - Deeply empathetic, brain-science grounded, understands executive dysfunction, activation energy, Yerkes-Dodson arousal, and dopamine recovery)"
+            : "Professor Minerva (Eminent Brain Scientist & Academic Mentor - Brilliant, analytical, suggests spaced repetition, active recall cards, and cognitive load management)";
 
       const subjectsDetails = subjects.length > 0 
         ? "The student is currently active on these subject modules:\n" + subjects.map((s: any) => `- ${s.name}: ${s.totalMinutes || 0} minutes studied today`).join("\n")
@@ -154,9 +158,9 @@ IMPORTANT GUIDELINES:
 2. Provide concrete, super-actionable micro study hacks (e.g. active recall questions, micro breaks, pomodoro divisions).
 3. Do not break character. Keep your reply highly relevant, engaging, and under 150 words.`;
 
-      // Use gemini-3.5-flash for incredibly snappy latency and optimal instructions matching
+      // Use gemini-3.8-flash for rapid response latency and adherence to prompt instructions
       const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.8-flash",
         contents: [
           ...structuredHistory,
           { role: "user", parts: [{ text: message }] }
@@ -172,6 +176,57 @@ IMPORTANT GUIDELINES:
       res.json({ reply: replyText });
     } catch (error: any) {
       console.error("Gemini Chat Coach API error:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Psychologist Quick Friction-Remover Micro-Intervention Endpoint
+  app.post("/api/ai/psychologist/friction-remover", async (req, res) => {
+    try {
+      const client = getGeminiClient();
+      if (!client) {
+        return res.status(503).json({
+          error: "Gemini AI client is not configured."
+        });
+      }
+
+      const { currentFeeling = "procrastinating", subjectName = "General Study" } = req.body;
+
+      const prompt = `You are Dr. Evelyn Flow, a top-tier Cognitive Psychologist & Performance Neuroscientist.
+The student is trying to study "${subjectName}" right now, but they report feeling: "${currentFeeling}".
+
+Provide a powerful 2-3 sentence cognitive intervention based on behavioral psychology (e.g., Yerkes-Dodson arousal curve, Zeigarnik effect, 5-minute micro-start, dopamine baseline regulation, emotional regulation over task aversion).
+
+Return exact JSON format:
+{
+  "insight": "1-2 sentences explaining why the brain is resisting and reframing the feeling without guilt",
+  "actionableStep": "One extremely specific, friction-free action to take in the next 60 seconds",
+  "recommendedMinutes": 5,
+  "cognitiveAnchor": "Short mantra or mental cue (e.g. 'Action precedes motivation' or 'Just 5 minutes to cross the bridge')"
+}`;
+
+      const response = await client.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              insight: { type: Type.STRING },
+              actionableStep: { type: Type.STRING },
+              recommendedMinutes: { type: Type.NUMBER },
+              cognitiveAnchor: { type: Type.STRING }
+            },
+            required: ["insight", "actionableStep", "recommendedMinutes", "cognitiveAnchor"]
+          }
+        }
+      });
+
+      const responseText = response.text || "{}";
+      res.json(JSON.parse(responseText.trim()));
+    } catch (error: any) {
+      console.error("Psychologist intervention API error:", error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

@@ -176,7 +176,7 @@ interface RemindersHubProps {
   currentUser?: User | null;
 }
 
-function RemindersHub({
+export default function RemindersHub({
   subjects,
   reminders,
   onAddReminder,
@@ -204,7 +204,7 @@ function RemindersHub({
   
   const isIframe = typeof window !== "undefined" && window.self !== window.top;
   
-  const handleOpenNewTab = () => {
+  const handleOpenStandaloneWindow = () => {
     if (typeof window !== "undefined") {
       window.open(window.location.href, "_blank");
     }
@@ -725,10 +725,10 @@ function RemindersHub({
             </p>
             <button
               type="button"
-              onClick={handleOpenNewTab}
+              onClick={handleOpenStandaloneWindow}
               className="text-[10px] font-bold text-[#f26419] hover:underline shrink-0 cursor-pointer"
             >
-              Open New Tab 🚀
+              Open Standalone Window 🚀
             </button>
           </div>
         )}
@@ -1234,7 +1234,7 @@ function RemindersHub({
               <ListFilter className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto opacity-35 mb-2 animate-pulse" />
               <p className="text-xs text-slate-650 dark:text-slate-400 font-bold">No historical matches in archive</p>
               <p className="text-[10px] text-slate-500 mt-0.5 max-w-xs mx-auto leading-relaxed">
-                Matches are compiled as soon as alarms trigger or test alerts are deployed in this tab.
+                Matches are compiled as soon as alarms trigger or test alerts are deployed in this session.
               </p>
             </div>
           ) : (
@@ -1279,6 +1279,3 @@ function RemindersHub({
     </div>
   );
 }
-
-export default React.memo(RemindersHub);
-

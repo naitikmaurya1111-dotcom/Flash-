@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, 
   Loader2, 
@@ -13,14 +13,27 @@ import {
   Send,
   RefreshCw,
   Flame,
-  Bot
+  Bot,
+  Users,
+  Coffee,
+  FlaskConical,
+  Library,
+  Moon,
+  Coins,
+  HandMetal,
+  Radio,
+  Zap,
+  DoorOpen,
+  LogOut
 } from "lucide-react";
 import { Subject, AICoachAdvice } from "../types";
+import { INITIAL_CLASSMATES, STUDY_ROOMS, simulateClassmateTicks } from "../data";
 
 interface AICoachCardProps {
   subjects: Subject[];
   streak: number;
   dailyTargetMinutes: number;
+  onAddXp?: (reason: string, amount: number) => void;
 }
 
 interface ChatMessage {
@@ -29,14 +42,14 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps) {
+export default function AICoachCard({ subjects, streak, dailyTargetMinutes, onAddXp }: AICoachCardProps) {
   const [advice, setAdvice] = useState<AICoachAdvice | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [persona, setPersona] = useState<"Minerva" | "Sgt" | "Zen">("Minerva");
 
   // Premium Conversational States
-  const [subTab, setSubTab] = useState<"report" | "chat">("report");
+  const [coachSection, setCoachSection] = useState<"report" | "chat" | "co-study">("report");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -44,12 +57,103 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
   
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
+  // SOCIAL CO-STUDY lobby states
+  const [classmates, setClassmates] = useState(INITIAL_CLASSMATES);
+  const [joinedRoomId, setJoinedRoomId] = useState<string | null>(() => {
+    return localStorage.getItem("f5_joined_room_id");
+  });
+  const [notifications, setNotifications] = useState<string[]>([]);
+  const [socialCoins, setSocialCoins] = useState<number>(() => {
+    const cached = localStorage.getItem("f5_beast_coins");
+    return cached ? parseInt(cached) : 120; // default/fallback
+  });
+
+  // Live ticking simulation for classmates on the desk floor
+  useEffect(() => {
+    if (coachSection !== "co-study") return;
+    const interval = setInterval(() => {
+      setClassmates(prev => simulateClassmateTicks(prev));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [coachSection]);
+
+  // Keep socialCoins synced with localstorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const cached = localStorage.getItem("f5_beast_coins");
+      if (cached) setSocialCoins(parseInt(cached));
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("f5_coins_updated", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("f5_coins_updated", handleStorageChange);
+    };
+  }, []);
+
+  const updateCoins = (amount: number) => {
+    const nextCoins = Math.max(0, socialCoins + amount);
+    setSocialCoins(nextCoins);
+    localStorage.setItem("f5_beast_coins", nextCoins.toString());
+    window.dispatchEvent(new Event("f5_coins_updated"));
+  };
+
+  // Join/leave study room
+  const handleJoinRoom = (roomId: string, roomName: string) => {
+    setJoinedRoomId(roomId);
+    localStorage.setItem("f5_joined_room_id", roomId);
+    addNotification(`Joined virtual room: ${roomName}! 🎒 Focus mode active.`);
+    if (onAddXp) {
+      onAddXp(`Entered Co-Study Room: ${roomName} 🚪`, 15);
+    }
+  };
+
+  const handleLeaveRoom = () => {
+    const room = STUDY_ROOMS.find(r => r.id === joinedRoomId);
+    setJoinedRoomId(null);
+    localStorage.removeItem("f5_joined_room_id");
+    if (room) {
+      addNotification(`Left virtual room: ${room.name}.`);
+    }
+  };
+
+  const addNotification = (text: string) => {
+    setNotifications(prev => [text, ...prev.slice(0, 4)]);
+  };
+
+  // Interactive Social Actions
+  const handleNudge = (mateName: string) => {
+    addNotification(`⚡ You sent a focus nudge to ${mateName}!`);
+    if (onAddXp) {
+      onAddXp(`Encouraged teammate ${mateName}`, 5);
+    }
+  };
+
+  const handleHighFive = (mateName: string) => {
+    addNotification(`🙌 You high-fived ${mateName}! "Keep grinding!"`);
+    if (onAddXp) {
+      onAddXp(`Accountability high-five for ${mateName}`, 5);
+    }
+  };
+
+  const handleGiftCoins = (mateName: string) => {
+    if (socialCoins < 10) {
+      addNotification(`❌ Insufficient study coins (Need 🪙 10) to support ${mateName}.`);
+      return;
+    }
+    updateCoins(-10);
+    addNotification(`🪙 Gifted 10 Study Coins to support ${mateName}'s focus session!`);
+    if (onAddXp) {
+      onAddXp(`Supported peer ${mateName} with Study Coins`, 15);
+    }
+  };
+
   // Auto-scroll to lowest message bubble in the chat view
   useEffect(() => {
-    if (subTab === "chat") {
+    if (coachSection === "chat") {
       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chatMessages, chatLoading, subTab]);
+  }, [chatMessages, chatLoading, coachSection]);
 
   // Generate characteristic welcoming messages when persona changes
   useEffect(() => {
@@ -304,7 +408,7 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
   return (
     <div id="ai-coach-lounge-wrapper" className="liquid-glass rounded-3xl p-6 space-y-5 shadow-md border">
       
-      {/* Upper branding section with Toggle Tabs */}
+      {/* Upper branding section with Mode Selectors */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-150/40 dark:border-slate-850/40 pb-5">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl animate-pulse">
@@ -323,12 +427,12 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
           </div>
         </div>
 
-        {/* Dual Mode Switch Layout */}
-        <div className="flex bg-slate-100/50 dark:bg-black/25 p-1 rounded-xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md self-start sm:self-auto shadow-inner">
+        {/* Mode Switch Layout */}
+        <div className="flex flex-wrap bg-slate-100/50 dark:bg-black/25 p-1 rounded-xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md self-start sm:self-auto shadow-inner gap-1 sm:gap-0">
           <button
-            onClick={() => setSubTab("report")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              subTab === "report"
+            onClick={() => setCoachSection("report")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              coachSection === "report"
                 ? "bg-white text-indigo-600 dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
             }`}
@@ -337,15 +441,26 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
             Habit Reports
           </button>
           <button
-            onClick={() => setSubTab("chat")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              subTab === "chat"
+            onClick={() => setCoachSection("chat")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              coachSection === "chat"
                 ? "bg-white text-indigo-600 dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
             Live Consult Chat
+          </button>
+          <button
+            onClick={() => setCoachSection("co-study")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              coachSection === "co-study"
+                ? "bg-white text-indigo-600 dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
+                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Co-Study Floor
           </button>
         </div>
       </div>
@@ -392,7 +507,7 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
         </div>
       </div>
 
-      {subTab === "report" ? (
+      {coachSection === "report" && (
         // Mode 1: HABIT REPORTS VIZ
         <div className="space-y-5">
           <div className="flex items-center justify-between">
@@ -535,7 +650,9 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
             </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {coachSection === "chat" && (
         // Mode 2: CONVERSATIONAL CHAT BOARD
         <div className="flex flex-col h-[400px] bg-slate-50/20 dark:bg-[#121318]/25 rounded-2xl border border-slate-200/30 dark:border-white/5 overflow-hidden relative backdrop-blur-md">
           
@@ -631,9 +748,219 @@ function AICoachCard({ subjects, streak, dailyTargetMinutes }: AICoachCardProps)
         </div>
       )}
 
+      {/* CO-STUDY DESK FLOOR MODE */}
+      {coachSection === "co-study" && (
+        <div className="space-y-6 animate-fade-in text-slate-705 dark:text-slate-350">
+          
+          {/* Active room banner or lobby header */}
+          {joinedRoomId ? (
+            <div className="p-5 rounded-3xl border border-emerald-500/25 bg-emerald-500/10 text-left space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-500/15 text-emerald-600 dark:text-emerald-450 rounded-2xl animate-pulse">
+                    <Radio className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-mono tracking-widest text-emerald-500 font-black">Live Study Session Active</span>
+                    <h4 className="text-sm font-black font-display text-emerald-800 dark:text-emerald-400">
+                      {STUDY_ROOMS.find(r => r.id === joinedRoomId)?.name || "Interactive Co-Study Room"}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      You are studying in real-time alongside other synchronized virtual study peers.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleLeaveRoom}
+                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold px-4 py-2 rounded-xl text-xs transition-transform hover:scale-102 flex items-center gap-1.5 cursor-pointer border border-rose-500/20"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Leave Focus Room
+                </button>
+              </div>
+
+              {/* Room Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-emerald-500/10 text-xs">
+                <div className="p-3 bg-white/45 dark:bg-black/20 rounded-2xl border border-white/50 dark:border-white/5">
+                  <p className="text-[10px] text-slate-400 font-mono font-bold uppercase">Room Space Category</p>
+                  <p className="font-extrabold text-slate-750 dark:text-slate-200 mt-1">
+                    {STUDY_ROOMS.find(r => r.id === joinedRoomId)?.category || "All Focus Paths"}
+                  </p>
+                </div>
+                <div className="p-3 bg-white/45 dark:bg-black/20 rounded-2xl border border-white/50 dark:border-white/5">
+                  <p className="text-[10px] text-slate-400 font-mono font-bold uppercase">Estimated Room Capacity</p>
+                  <p className="font-extrabold text-slate-750 dark:text-slate-200 mt-1 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    {(STUDY_ROOMS.find(r => r.id === joinedRoomId)?.currentUsersCount || 0) + 1} students active
+                  </p>
+                </div>
+                <div className="col-span-2 sm:col-span-1 p-3 bg-white/45 dark:bg-black/20 rounded-2xl border border-white/50 dark:border-white/5">
+                  <p className="text-[10px] text-slate-400 font-mono font-bold uppercase">My Study Coins</p>
+                  <p className="font-extrabold text-[#f26419] mt-1 flex items-center gap-1">
+                    🪙 {socialCoins} Coins
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 text-left">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-[11px] font-mono font-black uppercase text-slate-400">Available Virtual Study Rooms</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Join an active co-study space to sync focus energy and accountability.
+                  </p>
+                </div>
+                <div className="text-xs font-bold text-[#f26419] bg-[#f26419]/10 px-3 py-1.5 rounded-full flex items-center gap-1 self-start sm:self-auto">
+                  🪙 <span className="font-mono font-black">{socialCoins} Coins</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {STUDY_ROOMS.map((room) => {
+                  return (
+                    <div 
+                      key={room.id}
+                      className="p-4 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-slate-150/40 dark:border-white/5 rounded-3xl flex flex-col justify-between space-y-3.5 shadow-xs hover:border-slate-350 dark:hover:border-white/10 transition-all group"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-mono font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+                            {room.category}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            {room.currentUsersCount} online
+                          </span>
+                        </div>
+                        <h5 className="font-bold text-xs text-slate-800 dark:text-slate-100 font-display flex items-center gap-2">
+                          {room.name}
+                        </h5>
+                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-normal">
+                          {room.description}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleJoinRoom(room.id, room.name)}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2 rounded-xl text-[11px] transition-transform hover:scale-102 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <DoorOpen className="w-3.5 h-3.5" />
+                        Enter Study Room
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Social Notification Feed */}
+          {notifications.length > 0 && (
+            <div className="space-y-1.5 text-left bg-slate-100/50 dark:bg-black/20 p-3 rounded-2xl border border-slate-200/20 animate-fade-in">
+              <p className="text-[9px] font-mono font-bold uppercase text-slate-400 tracking-wider">Social Feed Logs</p>
+              <div className="space-y-1">
+                {notifications.map((notif, idx) => (
+                  <p key={idx} className="text-[10px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5 leading-relaxed font-semibold">
+                    <span className="w-1 h-1 rounded-full bg-indigo-500 shrink-0" />
+                    {notif}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Classmates on the desk floor */}
+          <div className="space-y-4 text-left">
+            <div>
+              <h4 className="text-[11px] font-mono font-black uppercase text-slate-400">Classmate Peer Tracker (Active Desk Floor)</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Observe live study timers, support active peers, or nudge classmates to keep up the momentum.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {classmates.map((mate) => {
+                const formatTime = (secs: number) => {
+                  const m = Math.floor(secs / 60);
+                  const s = secs % 60;
+                  return `${m}:${s.toString().padStart(2, "0")}`;
+                };
+
+                return (
+                  <div 
+                    key={mate.id}
+                    className="p-3.5 bg-white/40 dark:bg-[#12121e]/35 border border-slate-150/40 dark:border-white/5 rounded-2xl flex items-start gap-3 justify-between shadow-xs"
+                  >
+                    <div className="flex gap-2.5">
+                      <div className="relative">
+                        <div className={`w-9 h-9 rounded-full ${mate.avatarSeed || 'bg-slate-450'} text-white font-black flex items-center justify-center text-xs shadow-xs`}>
+                          {mate.name[0]}
+                        </div>
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-[#1a1b24] ${mate.isStudying ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <h5 className="font-extrabold text-[11.5px] text-slate-800 dark:text-slate-150 font-display">
+                          {mate.name}
+                        </h5>
+                        
+                        {mate.isStudying ? (
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-extrabold flex items-center gap-1">
+                              📖 Studying: {mate.activeSubjectName}
+                            </p>
+                            <p className="text-[9.5px] text-slate-400 font-mono font-semibold">
+                              Session: {formatTime(mate.activeSeconds)} • Today: {mate.studyDurationTodayMinutes}m
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-slate-400 font-semibold italic">
+                            💤 Resting
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Interaction Buttons */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {mate.isStudying ? (
+                        <>
+                          <button
+                            onClick={() => handleHighFive(mate.name)}
+                            className="p-1 px-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 rounded-lg text-[9.5px] font-black text-slate-650 dark:text-slate-300 flex items-center gap-1 transition-all cursor-pointer border border-transparent hover:border-slate-300"
+                            title="High Five"
+                          >
+                            🙌 Five
+                          </button>
+                          <button
+                            onClick={() => handleGiftCoins(mate.name)}
+                            className="p-1 px-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-white/5 dark:hover:bg-indigo-950/20 rounded-lg text-[9.5px] font-black text-slate-650 dark:text-indigo-400 flex items-center gap-1 transition-all cursor-pointer border border-transparent hover:border-indigo-500/20"
+                            title="Gift Study Coins"
+                          >
+                            🪙 Gift
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleNudge(mate.name)}
+                          className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:hover:bg-indigo-950/40 rounded-lg text-[9.5px] font-black text-indigo-600 dark:text-indigo-400 flex items-center gap-1 transition-all cursor-pointer border border-transparent hover:border-indigo-500/20"
+                          title="Nudge classmate to study"
+                        >
+                          ⚡ Nudge
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }
-
-export default memo(AICoachCard);
-

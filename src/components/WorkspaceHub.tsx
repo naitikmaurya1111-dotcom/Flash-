@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from "react";
+import { useState, useEffect } from "react";
 import { 
   Calendar, 
   FileText, 
@@ -58,7 +58,7 @@ interface WorkspaceHubProps {
   onGlobalLogout: () => Promise<void>;
 }
 
-function WorkspaceHub({ 
+export default function WorkspaceHub({ 
   streak, 
   aiCoachAdvice, 
   globalCurrentUser, 
@@ -85,7 +85,7 @@ function WorkspaceHub({
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"calendar" | "drive" | "tasks" | "keep" | "docs">("calendar");
+  const [activeTool, setActiveTool] = useState<"calendar" | "drive" | "tasks" | "keep" | "docs">("calendar");
 
   // Google Drive Navigation & Preview States
   const [currentFolderId, setCurrentFolderId] = useState("root");
@@ -446,28 +446,28 @@ function WorkspaceHub({
     }
   };
 
-  // Loads API specific data when active workspace tab is selected or navigation state changes
+  // Loads API specific data when active workspace tool is selected or navigation state changes
   useEffect(() => {
     if (!accessToken || needsAuth) return;
     triggerApiFetch();
-  }, [accessToken, activeWorkspaceTab, selectedTaskListId, needsAuth, currentFolderId, searchQuery]);
+  }, [accessToken, activeTool, selectedTaskListId, needsAuth, currentFolderId, searchQuery]);
 
   const triggerApiFetch = async () => {
     if (!accessToken) return;
     setLoading(true);
     try {
-      if (activeWorkspaceTab === "calendar") {
+      if (activeTool === "calendar") {
         const evs = await fetchCalendarEvents(accessToken);
         setEvents(evs);
-      } else if (activeWorkspaceTab === "drive") {
+      } else if (activeTool === "drive") {
         const files = await fetchDriveFiles(accessToken, currentFolderId, searchQuery);
         setDriveFiles(files);
-      } else if (activeWorkspaceTab === "tasks") {
+      } else if (activeTool === "tasks") {
         const lists = await fetchTaskLists(accessToken);
         setTaskLists(lists);
         const tsk = await fetchTasksFromList(accessToken, selectedTaskListId);
         setGTasks(tsk);
-      } else if (activeWorkspaceTab === "keep") {
+      } else if (activeTool === "keep") {
         try {
           const keepNotesFromApi = await fetchKeepNotes(accessToken);
           if (keepNotesFromApi && keepNotesFromApi.length > 0) {
@@ -549,7 +549,7 @@ function WorkspaceHub({
   // Google Docs Study Blueprint exporter
   const handleExportAdviceToDoc = async () => {
     if (!localAdvice) {
-      showNotification("Generate AI Coach advice first on the main AI Coach tab!", "error");
+      showNotification("Generate AI Coach advice first on the main AI Coach screen!", "error");
       return;
     }
 
@@ -853,7 +853,7 @@ ${localAdvice.scheduleTip}
         </div>
       )}
 
-      {/* Workspace Inner Navigation Tabs */}
+      {/* Workspace Inner Navigation Tools */}
       <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-850 pb-2 overflow-x-auto no-scrollbar font-display">
         {[
           { id: "calendar", label: "Google Calendar", icon: Calendar, color: "text-blue-500 dark:text-blue-400" },
@@ -861,21 +861,21 @@ ${localAdvice.scheduleTip}
           { id: "tasks", label: "Google Tasks", icon: CheckSquare, color: "text-indigo-500 dark:text-indigo-400" },
           { id: "keep", label: "Study Pinboard", icon: BookHeart, color: "text-rose-500 dark:text-rose-400" },
           { id: "docs", label: "Docs Exporter", icon: FileText, color: "text-emerald-500 dark:text-emerald-400" }
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeWorkspaceTab === tab.id;
+        ].map(tool => {
+          const Icon = tool.icon;
+          const isActive = activeTool === tool.id;
           return (
             <button
-              key={tab.id}
-              onClick={() => setActiveWorkspaceTab(tab.id as any)}
+              key={tool.id}
+              onClick={() => setActiveTool(tool.id as any)}
               className={`py-2 px-4 rounded-xl flex items-center gap-2.5 text-xs font-semibold transition-all shrink-0 cursor-pointer hover-lift ${
                 isActive 
                   ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black shadow-md border border-blue-600" 
                   : "bg-white hover:bg-slate-50 text-slate-650 border border-slate-200/40 dark:bg-slate-900/50 dark:border-slate-800/80 dark:hover:bg-slate-800/40 dark:text-slate-400"
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? "text-white" : tab.color}`} />
-              {tab.label}
+              <Icon className={`w-4 h-4 ${isActive ? "text-white" : tool.color}`} />
+              {tool.label}
             </button>
           );
         })}
@@ -885,7 +885,7 @@ ${localAdvice.scheduleTip}
       <div className="space-y-4">
         
         {/* Auth prompt if not logged in for Google APIs */}
-        {needsAuth && activeWorkspaceTab !== "keep" && (
+        {needsAuth && activeTool !== "keep" && (
           <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-left text-xs text-amber-700 dark:text-amber-400 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
             <div className="flex items-center gap-3">
               <span className="shrink-0 bg-amber-500 text-white rounded-xl p-2 flex items-center justify-center font-bold font-sans text-xs w-6 h-6">💡</span>
@@ -906,7 +906,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 1. Google Calendar Panel */}
-        {activeWorkspaceTab === "calendar" && (
+        {activeTool === "calendar" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Left Col: Create event block */}
@@ -1007,7 +1007,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 2. Google Drive Panel (Hierarchical storage navigator and PDF previewer) */}
-        {activeWorkspaceTab === "drive" && (
+        {activeTool === "drive" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Left side (File & Folder grid + Navigation Tools) */}
@@ -1163,7 +1163,7 @@ ${localAdvice.scheduleTip}
                               rel="noreferrer"
                               onClick={e => e.stopPropagation()}
                               className="p-1.5 hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-amber-400 rounded-lg transition-all"
-                              title="Open original Cloud document in standard Google Tab"
+                              title="Open original Cloud document in standalone window"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </a>
@@ -1508,9 +1508,9 @@ ${localAdvice.scheduleTip}
                     target="_blank" 
                     rel="noreferrer"
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl text-xs flex justify-center items-center gap-1.5 transition-all text-center"
-                    id="drive-preview-external-tab"
+                    id="drive-preview-external-link"
                   >
-                    Open Original in New Tab
+                    Open Original in New Window
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -1521,7 +1521,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 3. Google Tasks Panel */}
-        {activeWorkspaceTab === "tasks" && (
+        {activeTool === "tasks" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Left Column: Quick list setup */}
@@ -1632,7 +1632,7 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 4. Study Keep Pinboard (Always available, backends gracefully swap back and forth between Storage and Cloud Firebase) */}
-        {activeWorkspaceTab === "keep" && (
+        {activeTool === "keep" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Left Note Editor */}
@@ -1741,26 +1741,26 @@ ${localAdvice.scheduleTip}
         )}
 
         {/* 5. Google Docs Exporter */}
-        {activeWorkspaceTab === "docs" && (
+        {activeTool === "docs" && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 max-w-xl mx-auto space-y-6">
             
-            {/* Docs sub-navigation */}
+            {/* Docs mode selector */}
             <div className="flex gap-1.5 p-1 bg-slate-100/80 dark:bg-slate-950/40 rounded-xl border border-slate-200/50 dark:border-slate-850">
               {[
                 { id: "strategy", label: "AI Strategy" },
                 { id: "custom", label: "Custom Document" },
                 { id: "compile", label: "Compile Pinboard" }
-              ].map(subTab => (
+              ].map(subMode => (
                 <button
-                  key={subTab.id}
-                  onClick={() => setDocsMode(subTab.id as any)}
+                  key={subMode.id}
+                  onClick={() => setDocsMode(subMode.id as any)}
                   className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                    docsMode === subTab.id
+                    docsMode === subMode.id
                       ? "bg-white text-slate-800 shadow-xs dark:bg-slate-900 dark:text-slate-200"
                       : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                   }`}
                 >
-                  {subTab.label}
+                  {subMode.label}
                 </button>
               ))}
             </div>
@@ -1789,7 +1789,7 @@ ${localAdvice.scheduleTip}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400 italic text-left">
-                      No active strategic plan generated today. Navigate to the AI Coach tab, click "Analyze My Habits", and then return here to export.
+                      No active strategic plan generated today. Navigate to the AI Coach screen, click "Analyze My Habits", and then return here to export.
                     </p>
                   )}
                 </div>
@@ -1873,7 +1873,7 @@ ${localAdvice.scheduleTip}
 
                 {keepNotes.length === 0 ? (
                   <p className="text-xs text-slate-400 italic text-center py-6">
-                    No pinned study notes found on your board. Create a few notes in the "Study Pinboard" tab first!
+                    No pinned study notes found on your board. Create a few notes in the "Study Pinboard" screen first!
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar pr-1">
@@ -1986,6 +1986,3 @@ ${localAdvice.scheduleTip}
     </div>
   );
 }
-
-export default memo(WorkspaceHub);
-

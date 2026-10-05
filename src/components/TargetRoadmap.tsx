@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Target, Calculator, Calendar, AlertCircle, Plus, Trash2, CheckCircle2, 
-  Sparkles, Award, TrendingUp, HelpCircle, BookOpen, Clock, RefreshCw, ChevronRight, Check
+  Sparkles, Award, TrendingUp, HelpCircle, BookOpen, Clock, RefreshCw, ChevronRight, Check,
+  Zap, Flame, Shield, ShieldCheck, Heart, Dumbbell, Circle
 } from "lucide-react";
-import { Subject, ExamTarget, GpaCourse } from "../types";
+import { Subject, ExamTarget, GpaCourse, Habit, DEFAULT_HABITS } from "../types";
 import { User } from "firebase/auth";
 import { db, handleFirestoreError, OperationType } from "../lib/googleApi";
 import { collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
@@ -14,6 +15,10 @@ interface TargetRoadmapProps {
   onAddXp: (reason: string, amount: number) => Promise<void>;
   themePreset?: string;
   currentUser?: User | null;
+  habits?: Habit[];
+  onToggleHabit?: (habitId: string, dateStr?: string) => void;
+  onAddHabit?: (title: string, category: "study" | "health" | "review" | "discipline", icon?: string) => void;
+  onRemoveHabit?: (habitId: string) => void;
 }
 
 const DEFAULT_EXAMS: ExamTarget[] = [
@@ -73,10 +78,36 @@ const DEFAULT_COURSES: GpaCourse[] = [
   }
 ];
 
-function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic", currentUser = null }: TargetRoadmapProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"milestones" | "gpa">("milestones");
+export default function TargetRoadmap({ 
+  subjects, 
+  userXp, 
+  onAddXp, 
+  themePreset = "dark-classic", 
+  currentUser = null,
+  habits: propHabits,
+  onToggleHabit,
+  onAddHabit,
+  onRemoveHabit
+}: TargetRoadmapProps) {
+  const [viewMode, setViewMode] = useState<"habits" | "milestones" | "gpa">("habits");
   const [exams, setExams] = useState<ExamTarget[]>([]);
   const [courses, setCourses] = useState<GpaCourse[]>([]);
+
+  // Habits local state fallback
+  const [localHabits, setLocalHabits] = useState<Habit[]>(() => {
+    try {
+      const saved = localStorage.getItem("f5_habits_state");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_HABITS;
+  });
+  const habits = propHabits || localHabits;
+  const [habitCategoryFilter, setHabitCategoryFilter] = useState<"all" | "study" | "health" | "review" | "discipline">("all");
+  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
+  const [newHabitTitle, setNewHabitTitle] = useState("");
+  const [newHabitCategory, setNewHabitCategory] = useState<"study" | "health" | "review" | "discipline">("study");
+  const [newHabitIcon, setNewHabitIcon] = useState("⚡");
+  const [newHabitTargetDays, setNewHabitTargetDays] = useState(7);
 
   // Inputs for adding a new Exam
   const [newExamTitle, setNewExamTitle] = useState("");
@@ -96,6 +127,71 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
 
   // New Checklist item temp state map
   const [newChecklistText, setNewChecklistText] = useState<{ [examId: string]: string }>({});
+
+  const handleHabitToggle = (habitId: string, dateStr?: string) => {
+    if (onToggleHabit) {
+      onToggleHabit(habitId, dateStr);
+    } else {
+      const targetDate = dateStr || new Date().toISOString().split("T")[0];
+      setLocalHabits(prev => {
+        const next = prev.map(h => {
+          if (h.id !== habitId) return h;
+          const isDone = h.completedDates.includes(targetDate);
+          const nextDates = isDone ? h.completedDates.filter(d => d !== targetDate) : [...h.completedDates, targetDate];
+          const nextStreak = isDone ? Math.max(0, h.streak - 1) : h.streak + 1;
+          return {
+            ...h,
+            completedDates: nextDates,
+            streak: nextStreak,
+            bestStreak: Math.max(h.bestStreak, nextStreak)
+          };
+        });
+        localStorage.setItem("f5_habits_state", JSON.stringify(next));
+        return next;
+      });
+      onAddXp("Daily Habit Progress (+25 XP) 🔥", 25);
+    }
+  };
+
+  const handleCreateHabit = () => {
+    if (!newHabitTitle.trim()) return;
+    if (onAddHabit) {
+      onAddHabit(newHabitTitle.trim(), newHabitCategory, newHabitIcon);
+    } else {
+      const newH: Habit = {
+        id: "habit_" + Date.now(),
+        title: newHabitTitle.trim(),
+        category: newHabitCategory,
+        icon: newHabitIcon,
+        streak: 1,
+        bestStreak: 1,
+        targetDaysPerWeek: newHabitTargetDays,
+        completedDates: [new Date().toISOString().split("T")[0]],
+        shieldActive: true,
+        createdAt: new Date().toISOString()
+      };
+      setLocalHabits(prev => {
+        const next = [newH, ...prev];
+        localStorage.setItem("f5_habits_state", JSON.stringify(next));
+        return next;
+      });
+      onAddXp(`New Habit Formed: ${newHabitTitle} 🌱 (+20 XP)`, 20);
+    }
+    setNewHabitTitle("");
+    setShowAddHabitModal(false);
+  };
+
+  const handleDeleteHabit = (habitId: string) => {
+    if (onRemoveHabit) {
+      onRemoveHabit(habitId);
+    } else {
+      setLocalHabits(prev => {
+        const next = prev.filter(h => h.id !== habitId);
+        localStorage.setItem("f5_habits_state", JSON.stringify(next));
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchRoadmapData = async () => {
@@ -574,6 +670,52 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
     };
   }, [courses]);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const last7Days = useMemo(() => {
+    const list = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      list.push({
+        dateStr,
+        dayNum: d.getDate(),
+        label: dayLabels[d.getDay()],
+        isToday: dateStr === todayStr
+      });
+    }
+    return list;
+  }, [todayStr]);
+
+  const last30Days = useMemo(() => {
+    const list = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      list.push(`${year}-${month}-${day}`);
+    }
+    return list;
+  }, []);
+
+  const filteredHabits = useMemo(() => {
+    return habits.filter(h => {
+      if (habitCategoryFilter === "all") return true;
+      return h.category === habitCategoryFilter;
+    });
+  }, [habits, habitCategoryFilter]);
+
+  const completedTodayCount = habits.filter(h => h.completedDates.includes(todayStr)).length;
+  const habitCompletionPct = habits.length > 0 ? Math.round((completedTodayCount / habits.length) * 100) : 0;
+  const bestOverallStreak = habits.reduce((max, h) => Math.max(max, h.streak), 0);
+
   const getUrgencyBadgeColor = (urgency: string) => {
     switch (urgency) {
       case "Critical":
@@ -610,19 +752,31 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
             )}
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white font-sans leading-none">
-            Target Roadmaps & Projections
+            Target Roadmaps & Habits
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
-            Design your academic path. Add exam target countdowns which calculate study urgency, and use the Grade Projector to plan scores required to ace your classes.
+            Build consistent daily study habits, track exam countdowns with calculated urgency, and use the Grade Projector to plan targets.
           </p>
         </div>
         
-        {/* Dynamic Navigation Tabs inside Target Suite */}
-        <div className="flex bg-slate-100/50 dark:bg-black/25 p-1 rounded-2xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md shrink-0 select-none self-start md:self-center shadow-inner">
+        {/* Navigation Selector inside Target Suite */}
+        <div className="flex bg-slate-100/50 dark:bg-black/25 p-1 rounded-2xl border border-slate-200/30 dark:border-white/5 backdrop-blur-md shrink-0 select-none self-start md:self-center shadow-inner gap-1">
           <button
-            onClick={() => setActiveSubTab("milestones")}
+            onClick={() => setViewMode("habits")}
             className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer duration-350 ${
-              activeSubTab === "milestones"
+              viewMode === "habits"
+                ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            Habits & Streaks
+          </button>
+
+          <button
+            onClick={() => setViewMode("milestones")}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer duration-350 ${
+              viewMode === "milestones"
                 ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
@@ -632,21 +786,230 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
           </button>
           
           <button
-            onClick={() => setActiveSubTab("gpa")}
+            onClick={() => setViewMode("gpa")}
             className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer duration-350 ${
-              activeSubTab === "gpa"
+              viewMode === "gpa"
                 ? "bg-[#f26419] text-white dark:bg-white dark:text-slate-950 shadow-md font-extrabold scale-[1.02]"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <Calculator className="w-3.5 h-3.5" />
-            Class Grade Calculator
+            Grade Calculator
           </button>
         </div>
       </div>
 
-      {/* Main View Segment */}
-      {activeSubTab === "milestones" ? (
+      {/* 1. Habit Consistency Matrix View */}
+      {viewMode === "habits" && (
+        <div className="space-y-6">
+          {/* Section Actions bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-left">
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-400">Daily Habit Consistency Hub</h3>
+              <p className="text-[11px] text-slate-450">Track discipline rituals, build unbroken streaks, and protect consistency records</p>
+            </div>
+            
+            <button
+              onClick={() => setShowAddHabitModal(true)}
+              className="flex items-center gap-1.5 bg-[#f26419] hover:bg-orange-600 active:scale-95 text-white text-xs font-black px-4 py-2 rounded-xl z-10 shadow-lg shadow-orange-500/25 transition-all text-center cursor-pointer self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              Add Custom Habit
+            </button>
+          </div>
+
+          {/* Habit Metrics Dashboard Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-left">
+            <div className="bg-slate-50/70 dark:bg-[#121212]/90 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-850">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Today's Discipline</span>
+              <div className="flex items-baseline justify-between mt-1">
+                <span className="text-2xl font-black text-slate-800 dark:text-white font-mono">
+                  {completedTodayCount}/{habits.length}
+                </span>
+                <span className="text-xs font-bold text-emerald-500 font-mono">{habitCompletionPct}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${habitCompletionPct}%` }} />
+              </div>
+            </div>
+
+            <div className="bg-slate-50/70 dark:bg-[#121212]/90 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-850">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Best Habit Streak</span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Flame className="w-5 h-5 text-amber-500 fill-amber-500" />
+                <span className="text-2xl font-black text-amber-500 font-mono">{bestOverallStreak} Days</span>
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1 block">Unbroken consistency high score</span>
+            </div>
+
+            <div className="bg-slate-50/70 dark:bg-[#121212]/90 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-850 col-span-1 sm:col-span-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-500">Streak Shield Protection</span>
+              </div>
+              <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mt-1">
+                🛡️ Active Shield: 1 missed day is automatically forgiven without resetting your streaks.
+              </p>
+              <p className="text-[10px] text-slate-450 mt-0.5">
+                Maintain consistency over perfection. Rest days don't erase accumulated neural momentum.
+              </p>
+            </div>
+          </div>
+
+          {/* Category Filter bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-left">
+            {[
+              { id: "all", label: "All Habits" },
+              { id: "study", label: "⚡ Study Focus" },
+              { id: "review", label: "🧠 Active Recall" },
+              { id: "discipline", label: "📝 Discipline" },
+              { id: "health", label: "💧 Health & Rest" }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setHabitCategoryFilter(cat.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  habitCategoryFilter === cat.id
+                    ? "bg-[#f26419] text-white shadow-xs"
+                    : "bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Habits Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-left">
+            {filteredHabits.map(h => {
+              const isDoneToday = h.completedDates.includes(todayStr);
+              return (
+                <div
+                  key={h.id}
+                  className={`bg-white dark:bg-[#151515] p-4 sm:p-5 rounded-2xl border transition-all space-y-4 shadow-xs ${
+                    isDoneToday
+                      ? "border-emerald-500/30 dark:border-emerald-500/20"
+                      : "border-slate-200/60 dark:border-slate-800"
+                  }`}
+                >
+                  {/* Habit Top Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl p-2 bg-slate-100 dark:bg-slate-900 rounded-xl">{h.icon}</span>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">
+                          {h.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                          <span className="capitalize">{h.category}</span>
+                          <span>·</span>
+                          <span>Target: {h.targetDaysPerWeek}d/week</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border border-amber-500/20">
+                        <Flame className="w-3.5 h-3.5 fill-current" />
+                        <span>{h.streak}d streak</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteHabit(h.id)}
+                        className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Delete habit"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 7-Day Interactive Week Matrix */}
+                  <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
+                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                      <span>7-Day Interactive History (click to toggle)</span>
+                      <span>Best: {h.bestStreak}d</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center">
+                      {last7Days.map(day => {
+                        const isCompletedOnDay = h.completedDates.includes(day.dateStr);
+                        return (
+                          <button
+                            key={day.dateStr}
+                            type="button"
+                            onClick={() => handleHabitToggle(h.id, day.dateStr)}
+                            className={`flex flex-col items-center py-1.5 rounded-lg transition-all cursor-pointer ${
+                              isCompletedOnDay
+                                ? "bg-emerald-500 text-white font-bold shadow-xs scale-102"
+                                : day.isToday
+                                ? "bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 ring-1 ring-[#f26419]"
+                                : "bg-slate-100 dark:bg-slate-900/60 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+                            }`}
+                            title={`${day.label} (${day.dateStr}): ${isCompletedOnDay ? "Completed" : "Not completed"}`}
+                          >
+                            <span className="text-[9px] uppercase font-mono">{day.label.slice(0, 2)}</span>
+                            <span className="text-[11px] font-mono mt-0.5">{day.dayNum}</span>
+                            {isCompletedOnDay ? (
+                              <Check className="w-3 h-3 stroke-[3] mt-0.5" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mt-1" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 30-Day Heatmap Bar */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400">30-Day Consistency Heatmap</span>
+                    <div className="flex items-center gap-1 overflow-x-auto py-1 no-scrollbar">
+                      {last30Days.map(dStr => {
+                        const done = h.completedDates.includes(dStr);
+                        return (
+                          <div
+                            key={dStr}
+                            className={`w-2.5 h-2.5 rounded-xs shrink-0 ${
+                              done
+                                ? "bg-emerald-500"
+                                : "bg-slate-200 dark:bg-slate-800"
+                            }`}
+                            title={`${dStr}: ${done ? "Completed" : "Missed"}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Primary 1-Click Action Button */}
+                  <button
+                    onClick={() => handleHabitToggle(h.id, todayStr)}
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      isDoneToday
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                        : "bg-[#f26419] hover:bg-[#e05612] text-white shadow-md active:scale-98"
+                    }`}
+                  >
+                    {isDoneToday ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Completed Today (Click to Uncheck)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 fill-current" />
+                        <span>Mark Done Today (+25 XP)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Exam Milestones View */}
+      {viewMode === "milestones" && (
         <div className="space-y-6">
           
           {/* Section Actions bar */}
@@ -833,8 +1196,10 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
             )}
           </div>
         </div>
-      ) : (
-        // Course Grade GPA Calculator View
+      )}
+
+      {/* 3. Course Grade GPA Calculator View */}
+      {viewMode === "gpa" && (
         <div className="space-y-6">
           
           <div className="flex items-center justify-between">
@@ -1237,9 +1602,103 @@ function TargetRoadmap({ subjects, userXp, onAddXp, themePreset = "dark-classic"
         </div>
       )}
 
+      {/* Add Custom Habit Modal Overlay */}
+      {showAddHabitModal && (
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-left space-y-4">
+            <div>
+              <h3 className="text-base font-black text-slate-850 dark:text-white">Create Daily Habit Ritual</h3>
+              <p className="text-xs text-slate-400">Build automatic cognitive momentum through consistent repetition</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400 tracking-wider">Habit Title</label>
+                <input 
+                  placeholder="e.g. 1 Pomodoro Deep Flow, Revise Flashcards..."
+                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl text-xs text-slate-700 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#f26419]"
+                  value={newHabitTitle}
+                  onChange={(e) => setNewHabitTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCreateHabit();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase text-slate-400 tracking-wider">Category</label>
+                  <select
+                    value={newHabitCategory}
+                    onChange={(e) => setNewHabitCategory(e.target.value as any)}
+                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl text-xs text-slate-700 dark:text-slate-100 focus:outline-none focus:border-[#f26419]"
+                  >
+                    <option value="study">⚡ Study Focus</option>
+                    <option value="review">🧠 Active Recall</option>
+                    <option value="discipline">📝 Discipline</option>
+                    <option value="health">💧 Health & Rest</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase text-slate-400 tracking-wider">Target Days/Week</label>
+                  <select
+                    value={newHabitTargetDays}
+                    onChange={(e) => setNewHabitTargetDays(parseInt(e.target.value))}
+                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl text-xs text-slate-700 dark:text-slate-100 focus:outline-none focus:border-[#f26419]"
+                  >
+                    <option value={7}>7 Days (Every Day)</option>
+                    <option value={6}>6 Days (With 1 Rest)</option>
+                    <option value={5}>5 Days (Weekdays)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400 tracking-wider">Icon Badge</label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {["⚡", "🧠", "📖", "📐", "📝", "💧", "🎯", "🔬", "🧘", "🏆"].map(ic => (
+                    <button
+                      key={ic}
+                      type="button"
+                      onClick={() => setNewHabitIcon(ic)}
+                      className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all cursor-pointer ${
+                        newHabitIcon === ic
+                          ? "bg-[#f26419] text-white scale-110 shadow-xs"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:scale-105"
+                      }`}
+                    >
+                      {ic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddHabitModal(false)}
+                className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs px-4 py-2.5 rounded-xl text-slate-500 dark:hover:text-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateHabit}
+                disabled={!newHabitTitle.trim()}
+                className="bg-[#f26419] hover:bg-orange-600 disabled:opacity-40 text-white text-xs font-black px-5 py-2.5 rounded-xl cursor-pointer"
+              >
+                Create Habit (+20 XP)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
-
-export default React.memo(TargetRoadmap);
-

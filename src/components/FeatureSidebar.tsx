@@ -11,8 +11,6 @@ import { ALL_STUDENT_LEVELS, calculateStudentLevel } from "../types";
 interface FeatureSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  activeTab: string;
-  setActiveTab: (tab: any) => void;
   onThemeSelect: (themePreset: string) => void;
   isOfflineMode: boolean;
   setIsOfflineMode: (val: boolean) => void;
@@ -31,13 +29,12 @@ interface FeatureSidebarProps {
   trialDaysRemaining?: number;
   isPermanentlyUnlocked?: boolean;
   onResetTrial?: () => void;
+  setActiveView?: (view: any) => void;
 }
 
 export default function FeatureSidebar({
   isOpen,
   onClose,
-  activeTab,
-  setActiveTab,
   onThemeSelect,
   isOfflineMode,
   setIsOfflineMode,
@@ -55,7 +52,8 @@ export default function FeatureSidebar({
   isTrialActive = false,
   trialDaysRemaining = 0,
   isPermanentlyUnlocked = false,
-  onResetTrial
+  onResetTrial,
+  setActiveView,
 }: FeatureSidebarProps) {
   const [activeSubView, setActiveSubView] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -65,7 +63,7 @@ export default function FeatureSidebar({
   // ==========================================
   // --- STUDENT BEAST UTILITY CENTER STATES ---
   // ==========================================
-  const [beastTab, setBeastTab] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
+  const [beastCategory, setBeastCategory] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
 
   // 2. Flashcards state (Spaced Repetition)
   const [flashcards, setFlashcards] = useState<any[]>(() => {
@@ -734,14 +732,14 @@ export default function FeatureSidebar({
     setActiveSubView(viewName);
   };
 
-  const handleActionClick = (targetTab: string) => {
-    setActiveTab(targetTab);
+  const handleActionClick = (targetView: string) => {
+    if (setActiveView) setActiveView(targetView);
     onClose();
   };
 
   return (
     <div 
-      className={`fixed sm:absolute right-0 top-16 bottom-0 w-full sm:w-[385px] liquid-glass border-l-2 z-50 flex flex-col justify-between overflow-y-auto no-scrollbar sm:rounded-l-[32px] p-6 text-slate-800 dark:text-slate-100 transition-all duration-500 ease-in-out ${
+      className={`fixed sm:absolute right-0 top-16 bottom-0 w-full sm:w-[385px] liquid-glass border-l-2 z-50 flex flex-col justify-between overflow-y-auto no-scrollbar overscroll-contain sm:rounded-l-[32px] p-6 text-slate-800 dark:text-slate-100 transition-all duration-500 ease-in-out ${
         isOpen ? "translate-x-0 opacity-100 scale-100" : "translate-x-full opacity-0 scale-95 pointer-events-none"
       }`}
       style={{
@@ -842,26 +840,10 @@ export default function FeatureSidebar({
             </button>
           </div>
 
-          {/* Section 1: Main Features */}
+          {/* Section 1: Main Tools & Utilities */}
           <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Main Features</p>
+            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Main Utilities</p>
             <div className="grid grid-cols-2 gap-2.5">
-              <button 
-                onClick={() => handleActionClick("analytics")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-              >
-                <BarChart2 className="w-4 h-4 text-emerald-550 dark:text-emerald-450" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Statistics</span>
-              </button>
-              
-              <button 
-                onClick={() => handleActionClick("target-suite")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-              >
-                <Target className="w-4 h-4" style={{ color: currentThemeStyle?.primary || '#f26419' }} />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Target Suite</span>
-              </button>
-
               <button 
                 onClick={() => handleSubViewSelect("pomodoro")}
                 className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
@@ -879,14 +861,30 @@ export default function FeatureSidebar({
               </button>
 
               <button 
-                onClick={() => {
-                  setActiveTab("reminders");
-                  onClose();
-                }}
+                onClick={() => handleSubViewSelect("music")}
                 className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
               >
-                <Bell className="w-4 h-4 text-amber-500 animate-pulse" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Reminders</span>
+                <Music className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Music Player</span>
+              </button>
+
+              <button 
+                onClick={() => handleSubViewSelect("challenge")}
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
+              >
+                <Dumbbell className="w-4 h-4 text-violet-500 dark:text-violet-400" />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Challenge</span>
+              </button>
+
+              <button 
+                onClick={() => handleSubViewSelect("themes")}
+                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
+                style={{ 
+                  borderColor: (currentThemeStyle?.primary || '#f26419') + '35'
+                }}
+              >
+                <Palette className="w-4 h-4 text-teal-500 dark:text-teal-400" />
+                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Themes Colors</span>
               </button>
 
               <button 
@@ -929,64 +927,6 @@ export default function FeatureSidebar({
                   </span>
                 </span>
               </div>
-            </div>
-          </div>
-
-          {/* Section 2: Extra Features */}
-          <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Extra Features</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button 
-                onClick={() => handleSubViewSelect("challenge")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-              >
-                <Dumbbell className="w-4 h-4 text-violet-500 dark:text-violet-400" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Challenge</span>
-              </button>
-
-              <button 
-                onClick={() => handleSubViewSelect("music")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-              >
-                <Music className="w-4 h-4 text-rose-500 dark:text-rose-400" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Music Player</span>
-              </button>
-
-              <button 
-                onClick={() => handleActionClick("workspace")}
-                className="col-span-2 flex items-center justify-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 hover:border-slate-350 dark:hover:border-white/15 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-center cursor-pointer shadow-xs"
-              >
-                <Sparkles className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Google Hub Integration</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Section 3: Customize */}
-          <div className="space-y-3.5">
-            <p className="text-[10px] uppercase font-black tracking-widest text-slate-500/80">Customize Mode</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button 
-                onClick={() => handleSubViewSelect("themes")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-                style={{ 
-                  borderColor: (currentThemeStyle?.primary || '#f26419') + '35'
-                }}
-              >
-                <Palette className="w-4 h-4 text-teal-500 dark:text-teal-400" />
-                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">Themes Colors</span>
-              </button>
-
-              <button 
-                onClick={() => handleActionClick("rewards")}
-                className="flex items-center gap-2.5 bg-white/40 dark:bg-[#12121e]/35 backdrop-blur-md border border-white/50 dark:border-white/5 hover:bg-white/65 dark:hover:bg-[#181826]/50 p-2.5 px-3 rounded-2xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-300 text-left cursor-pointer shadow-xs"
-                style={{ 
-                  borderColor: (currentThemeStyle?.primary || '#f26419') + '35'
-                }}
-              >
-                <Trophy className="w-4 h-4 text-amber-500 animate-pulse" />
-                <span className="text-xs font-black" style={{ color: currentThemeStyle?.primary || '#f26419' }}>Wishlist Store</span>
-              </button>
             </div>
           </div>
 
@@ -1100,14 +1040,14 @@ export default function FeatureSidebar({
                     { id: "planners", label: "🃏 study", icon: Layers },
                     { id: "analytics", label: "📈 target", icon: BarChart2 },
                     { id: "quick", label: "⚡ quick", icon: Sparkles }
-                  ].map((tab) => {
-                    const Icon = tab.icon;
-                    const isSelected = beastTab === tab.id;
+                  ].map((cat) => {
+                    const Icon = cat.icon;
+                    const isSelected = beastCategory === cat.id;
                     return (
                       <button
-                        key={tab.id}
+                        key={cat.id}
                         onClick={() => {
-                          setBeastTab(tab.id as any);
+                          setBeastCategory(cat.id as any);
                           playKeyboardClack();
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shrink-0 transition-all duration-300 cursor-pointer ${
@@ -1122,14 +1062,14 @@ export default function FeatureSidebar({
                         } : {}}
                       >
                         <Icon className="w-3 h-3" />
-                        {tab.label}
+                        {cat.label}
                       </button>
                     );
                   })}
                 </div>
 
-                {/* Sub-tab: 🎛️ sound */}
-                {beastTab === "acoustics" && (
+                {/* Module: 🎛️ sound */}
+                {beastCategory === "acoustics" && (
                   <div className="space-y-4 text-left">
                     {/* Big Feature 5: Binaural beats Mixer */}
                     <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -1340,8 +1280,8 @@ export default function FeatureSidebar({
                   </div>
                 )}
 
-                {/* Sub-tab: 🃏 study */}
-                {beastTab === "planners" && (
+                {/* Module: 🃏 study */}
+                {beastCategory === "planners" && (
                   <div className="space-y-4 text-left">
                     {/* Big Feature 3: Syllabus Progression Checker */}
                     <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -1620,8 +1560,8 @@ export default function FeatureSidebar({
                   </div>
                 )}
 
-                {/* Sub-tab: 📈 target */}
-                {beastTab === "analytics" && (
+                {/* Module: 📈 target */}
+                {beastCategory === "analytics" && (
                   <div className="space-y-4 text-left">
                     {/* Big Feature 6: GPA & Marks Target Calculator */}
                     <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -1882,8 +1822,8 @@ export default function FeatureSidebar({
                   </div>
                 )}
 
-                {/* Sub-tab: ⚡ quick */}
-                {beastTab === "quick" && (
+                {/* Module: ⚡ quick */}
+                {beastCategory === "quick" && (
                   <div className="space-y-4 text-left font-sans">
                     {/* Big Feature 9: Study Coin Rewards Store & Pinning Board */}
                     <div className="bg-slate-50 dark:bg-[#161616] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -2643,7 +2583,7 @@ export default function FeatureSidebar({
                 <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">Pomodoro Intervals</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-sans leading-relaxed">Customize ticking structures to trigger smart study intervals:</p>
                 
-                {/* Preset switcher tabs */}
+                {/* Preset switcher pills */}
                 <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl">
                   {[
                     { id: "classic", label: "Classic 25/5" },

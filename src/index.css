@@ -38,195 +38,101 @@
   filter: drop-shadow(0 0 8px rgba(242, 100, 25, 0.5));
 }
 
-/* Glassmorphism utility classes with pristine transparency and refraction */
+html {
+  background-color: #08090d;
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #08090d;
+  color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100vh;
+  background-color: #08090d;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism utility classes optimized for 120 FPS buttery smooth scrolling */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.22) !important;
-  backdrop-filter: blur(32px) saturate(200%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.65) !important;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 16px 40px -10px rgba(15, 23, 42, 0.05), 
-    0 4px 12px -2px rgba(15, 23, 42, 0.02),
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08) !important;
 }
 
 .dark .glass-panel {
-  background: rgba(15, 17, 26, 0.5) !important;
-  backdrop-filter: blur(32px) saturate(175%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 16px 48px -8px rgba(0, 0, 0, 0.5),
-    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.16) !important;
+  background: rgba(14, 16, 24, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Liquid glass panel design system with realistic fluid gradients, high transparency, and crisp edges */
+/* Liquid glass panel design system with realistic fluid gradients and lightweight blur */
 .liquid-glass {
-  background: linear-gradient(
-    135deg, 
-    rgba(255, 255, 255, 0.28) 0%, 
-    rgba(255, 255, 255, 0.12) 50%,
-    rgba(255, 255, 255, 0.06) 100%
-  ) !important;
-  backdrop-filter: blur(40px) saturate(220%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.75) !important;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.4), /* Double border look */
-    0 25px 65px -12px rgba(15, 23, 42, 0.08), 
-    0 10px 24px -8px rgba(15, 23, 42, 0.03),
-    inset 0 2.5px 4.5px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 3px 0 rgba(255, 255, 255, 0.35) !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 16px 36px -10px rgba(15, 23, 42, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.9) !important;
 }
 
 .dark .liquid-glass {
-  background: linear-gradient(
-    135deg, 
-    rgba(20, 22, 32, 0.55) 0%, 
-    rgba(14, 15, 23, 0.35) 50%, 
-    rgba(8, 9, 14, 0.22) 100%
-  ) !important;
-  backdrop-filter: blur(40px) saturate(190%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(13, 15, 22, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.08), /* Outer micro glowing edge */
-    0 35px 80px -15px rgba(0, 0, 0, 0.78), 
-    0 12px 32px -12px rgba(0, 0, 0, 0.45),
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.26), /* Glowing top highlight */
-    inset 0 -1.5px 3.5px 0 rgba(0, 0, 0, 0.65) !important;
+    0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 24px 48px -12px rgba(0, 0, 0, 0.75), 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Nested inside a liquid-glass panel to provide crisp contrast, depth, and realistic liquid refraction */
 .glass-card-inner {
-  background: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.85) !important;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.5), /* Sharp secondary ring */
-    0 10px 30px -10px rgba(15, 23, 42, 0.08), 
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 4px 14px -3px rgba(15, 23, 42, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.8) !important;
 }
 
 .dark .glass-card-inner {
-  background: rgba(10, 11, 16, 0.72) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(18, 20, 29, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
   box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.08), /* Outer micro ring */
-    0 12px 35px -12px rgba(0, 0, 0, 0.6),
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.12) !important;
+    0 8px 24px -8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Liquid glass inset pill structure - perfect for tabs, segmented selectors, and high-visibility status chips */
+/* Liquid glass inset pill structure - perfect for segmented controls, filters, and high-visibility status chips */
 .liquid-glass-inset {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.12) 100%
-  ) !important;
-  backdrop-filter: blur(24px) saturate(210%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 4px 12px -2px rgba(15, 23, 42, 0.03),
-    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.85) !important;
+  background: rgba(241, 245, 249, 0.8) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 .dark .liquid-glass-inset {
-  background: linear-gradient(
-    135deg,
-    rgba(25, 28, 41, 0.65) 0%,
-    rgba(12, 13, 20, 0.4) 100%
-  ) !important;
-  backdrop-filter: blur(24px) saturate(165%) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 6px 16px -4px rgba(0, 0, 0, 0.45),
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.15) !important;
+  background: rgba(24, 27, 39, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35) !important;
 }
 
-/* Realme UI 7 Inspired Capsule Sliders & Circular Toggle Buttons */
-.realme-slider-track {
-  width: 52px;
-  height: 120px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 26px;
-  backdrop-filter: blur(12px);
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.dark .realme-slider-track {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-.realme-slider-track:hover {
-  transform: scale(1.03);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.realme-slider-fill {
-  width: 100%;
-  background: #ffffff;
-  border-radius: 24px;
-  transition: height 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-.dark .realme-slider-fill {
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.realme-toggle-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(16px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #334155;
-  cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.dark .realme-toggle-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
-}
-.realme-toggle-btn:hover {
-  transform: scale(1.08) translateY(-1px);
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-.realme-toggle-btn.active {
-  background: #ffffff !important;
-  color: #2563eb !important;
-  border-color: #ffffff !important;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15), 0 0 12px rgba(255, 255, 255, 0.4);
-}
-.dark .realme-toggle-btn.active {
-  background: #ffffff !important;
-  color: #1e3a8a !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
-/* Premium noise-overlay and glass grid style overlays */
+/* Premium, highly optimized, non-lagging static noise-overlay that caches on GPU */
 .noise-overlay {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAV7isXAAAABlBMVEUAAAD///+l2Z/dAAAAn0lEQVR42uXPMQ6AQAwEwZfP/7/MscIF6UKvcaXInWfmbO/xve9Xv9V+6v3uW9/PPrWfe9v7XNvetf3XvrXvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfv7Z39bA99L3t3PwAAAABJRU55ErkJggg==");
+  background-repeat: repeat;
+  pointer-events: none;
+  opacity: 0.08;
+}
+
+.dark .noise-overlay {
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAV7isXAAAABlBMVEUAAAD///+l2Z/dAAAAn0lEQVR42uXPMQ6AQAwEwZfP/7/MscIF6UKvcaXInWfmbO/xve9Xv9V+6v3uW9/PPrWfe9v7XNvetf3XvrXvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfvdz/6vvffvrfv7Z39bA99L3t3PwAAAABJRU55ErkJggg==");
+  background-repeat: repeat;
+  opacity: 0.12;
 }
 
 .glass-grid {
@@ -240,14 +146,14 @@
 /* Glass-card-tint for active study components */
 .glass-card-tint {
   background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
   border: 1px solid rgba(15, 23, 42, 0.05);
   box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.015);
 }
 
 .dark .glass-card-tint {
   background: rgba(24, 25, 33, 0.88);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 6px 20px 0 rgba(0, 0, 0, 0.5);
 }
@@ -326,9 +232,11 @@
 .interactive-card {
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.interactive-card:hover {
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.25);
+@media (hover: hover) and (pointer: fine) {
+  .interactive-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.25);
+  }
 }
 .liquid-reflection {
   background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%);
@@ -338,9 +246,7 @@
 }
 
 html, body {
-  @apply antialiased font-sans transition-colors duration-300;
-  overflow-x: hidden;
-  width: 100%;
+  @apply antialiased font-sans;
 }
 
 /* Hide scrollbars for focus views while studying */
@@ -371,152 +277,62 @@ html, body {
 }
 
 /* ==========================================================================
-   ADVANCED HIGH-CONTRAST DARK MODE ENHANCEMENTS & LAYERED UI DEPTH
+   ADVANCED SCROLLBARS & CUSTOM UTILITIES (Compositor Threaded)
    ========================================================================== */
 
-.dark {
-  /* Overwrite Tailwind root color declarations inside .dark to render high-contrast boundaries */
-  --color-slate-800: rgba(255, 255, 255, 0.16) !important;
-  --color-slate-850: rgba(255, 255, 255, 0.12) !important;
-  --color-slate-700: rgba(255, 255, 255, 0.22) !important;
-  --color-gray-800: rgba(255, 255, 255, 0.16) !important;
-  --color-zinc-800: rgba(255, 255, 255, 0.15) !important;
+/* Standard hardware-accelerated scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
-/* Explicit layout styling overrides to optimize contrast and element isolation on very dark presets */
-.dark .dark\:bg-slate-900,
-.dark .bg-slate-900 {
-  background-color: #111219;
-  border-color: rgba(255, 255, 255, 0.16);
+/* Desktop-only custom scrollbar skin */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.65);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
 }
 
-.dark .dark\:bg-slate-950,
-.dark .bg-slate-950 {
-  background-color: #06070b;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Sub-card container depth (translucent white surface highlights over cards) */
-.dark .bg-slate-50,
-.dark .bg-slate-50\/50,
-.dark .dark\:bg-slate-50\/50,
-.dark .dark\:bg-slate-950\/20,
-.dark .dark\:bg-slate-950\/25,
-.dark .dark\:bg-slate-950\/40,
-.dark .bg-slate-100\/40,
-.dark .bg-slate-100\/50 {
-  background-color: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.11);
-}
-
-.dark .bg-slate-100,
-.dark .dark\:bg-slate-800,
-.dark .bg-slate-200 {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: #f8fafc;
-}
-
-/* Direct input and controller styles for crisp form fields */
-.dark input[type="text"],
-.dark input[type="number"],
-.dark input[type="password"],
-.dark input[type="email"],
-.dark select,
-.dark textarea {
-  background-color: #06070a !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  color: #f8fafc !important;
-}
-
-.dark input[type="text"]:focus,
-.dark input[type="number"]:focus,
-.dark select:focus,
-.dark textarea:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
-}
-
-/* Absolute text contrast upgrades to prevent grey-on-dark washout */
-.dark .text-slate-400,
-.dark .dark\:text-slate-400 {
-  color: #94a3b8 !important; /* Light slate for readable captions */
-}
-
-.dark .text-slate-500,
-.dark .dark\:text-slate-500 {
-  color: #cbd5e1 !important; /* Silver for standard body descriptions */
-}
-
-.dark .text-slate-600,
-.dark .dark\:text-slate-600 {
-  color: #e2e8f0 !important; /* Soft white/light gray for maximum readability */
-}
-
-.dark .text-slate-700,
-.dark .dark\:text-slate-300 {
-  color: #f1f5f9 !important; /* Prominent readable elements */
-}
-
-/* Contrast enhancement for standard dividers and borders */
-.dark .border-slate-100,
-.dark .dark\:border-slate-800,
-.dark .border-slate-150,
-.dark .border-slate-200,
-.dark .dark\:border-slate-250,
-.dark .border-slate-205,
-.dark .dark\:border-slate-850 {
-  border-color: rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Custom visual accent states for workspace list selection */
-.dark .border-blue-500,
-.dark .dark\:border-blue-400 {
-  border-color: #3b82f6 !important;
-  background-color: rgba(59, 130, 246, 0.08) !important;
-}
-
-/* Premium Scrollbar Customizations */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
-  border-radius: 9999px;
-  transition: background 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.55);
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-/* Elevating Cards with Hover Lifts */
+/* Elevating Cards with Hover Lifts (Desktop cursor only) */
 .hover-lift {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s;
 }
 
-.hover-lift:hover {
-  transform: translateY(-3px) scale(1.006);
-  box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.02);
-}
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift:hover {
+    transform: translateY(-3px) scale(1.006);
+    box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.02);
+  }
 
-.dark .hover-lift:hover {
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25) !important;
+  .dark .hover-lift:hover {
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25) !important;
+  }
 }
 
 /* Elegant Text Gradient styles */
@@ -542,6 +358,72 @@ html, body {
 .focus-ring-glow:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(242, 100, 25, 0.2);
+}
+
+/* Instant paint without opacity-0 pop-in lag */
+.animate-fade-in {
+  opacity: 1;
+}
+
+/* 1. Disable hover transforms on touch screens to completely eliminate scroll fluttering/jumping when finger touches down */
+@media (hover: none) or (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [class*="hover:scale-"],
+  [class*="group-hover:scale-"],
+  [class*="hover:-translate-"],
+  [class*="hover:translate-"],
+  .hover-lift:hover,
+  .interactive-card:hover {
+    transform: none !important;
+  }
+}
+
+/* 2. Mobile & Tablet Performance: Disable expensive multi-pass backdrop filters and background keyframe animations */
+@media (max-width: 1024px) {
+  .animate-blob-1,
+  .animate-blob-2,
+  .animate-blob-3 {
+    animation: none !important;
+    will-change: auto !important;
+  }
+  
+  .glass-panel,
+  .liquid-glass,
+  .glass-card-inner,
+  .liquid-glass-inset,
+  .glass-card-tint {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.94) !important;
+  }
+  .dark .liquid-glass {
+    background: rgba(14, 16, 24, 0.95) !important;
+  }
+  
+  .glass-card-inner {
+    background: rgba(255, 255, 255, 0.96) !important;
+  }
+  .dark .glass-card-inner {
+    background: rgba(18, 20, 28, 0.96) !important;
+  }
+
+  .liquid-glass-inset {
+    background: rgba(240, 243, 248, 0.92) !important;
+  }
+  .dark .liquid-glass-inset {
+    background: rgba(22, 25, 36, 0.92) !important;
+  }
+
+  header {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 

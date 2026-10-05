@@ -25,12 +25,33 @@ import {
   Brain,
   Award,
   Flame,
-  Heart
+  Heart,
+  Coffee,
+  Star,
+  CheckCircle2,
+  ArrowRight,
+  Wind,
+  Eye,
+  Compass,
+  Lightbulb,
+  Dumbbell
 } from "lucide-react";
-import { Subject, StudyLog, ALL_STUDENT_LEVELS, calculateStudentLevel, formatStudyTimeExact, NotificationSettings } from "../types";
-import { playChime } from "./RemindersHub";
-import { Info, X, Target, Lock, History, Settings, ShieldAlert, Trash2, PlusCircle, UserCheck, Crown, CloudRain, Waves, Radio } from "lucide-react"; // Import Info, X, Target, Lock, History icon specifically
+import { 
+  Subject, 
+  StudyLog, 
+  ALL_STUDENT_LEVELS, 
+  calculateStudentLevel, 
+  formatStudyTimeExact, 
+  NotificationSettings,
+  Task,
+  BrainDumpItem,
+  CognitiveMindset,
+  COGNITIVE_PRESETS
+} from "../types";
+import { playChime } from "../lib/audio";
+import { Info, X, Target, Lock, History, Settings, ShieldAlert, Trash2, PlusCircle, UserCheck, Crown, CloudRain, Waves, Radio, Minimize2 } from "lucide-react";
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { motion, AnimatePresence } from "motion/react";
 
 function getLocalDateString(d: Date = new Date()): string {
   const year = d.getFullYear();
@@ -43,7 +64,17 @@ interface TimelineViewProps {
   subjects: Subject[];
   studyLogs: StudyLog[];
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
-  onAddStudyMinutes: (subjectId: string, minutes: number) => Promise<void>;
+  onAddStudyMinutes: (
+    subjectId: string, 
+    minutes: number, 
+    customDate?: string, 
+    meta?: {
+      focusQuality?: number;
+      mindsetState?: CognitiveMindset;
+      restMinutes?: number;
+    }
+  ) => Promise<void>;
+  onAddRestMinutes?: (minutes: number, sessionId?: string) => Promise<void> | void;
   activeSubjectId: string;
   setActiveSubjectId: (id: string) => void;
   isStudying: boolean;
@@ -73,8 +104,8 @@ interface TimelineViewProps {
   themePreset?: string;
   onThemeSelect?: (preset: string) => void;
   userXp?: number;
-  onAddXp?: (reason: string, amount: number) => Promise<void>;
-  onChangeTab?: (tab: any) => void;
+  onAddXp?: (reason: string, amount: number) => Promise<void> | void;
+  onChangeView?: (view: any) => void;
   onResetTimer?: () => void;
   showSystemNotification?: (title: string, body: string) => void;
   setFiredNotification?: (message: string | null) => void;
@@ -85,6 +116,9 @@ interface TimelineViewProps {
   trialDaysRemaining?: number;
   isPermanentlyUnlocked?: boolean;
   onResetTrial?: () => void;
+  tasks?: Task[];
+  onToggleTask?: (taskId: string) => void;
+  onAddTask?: (title: string, subjectId: string) => void;
 }
 
 function AdminThemeAccessPanel() {
@@ -226,11 +260,12 @@ function AdminThemeAccessPanel() {
   );
 }
 
-function TimelineView({
+export default function TimelineView({
   subjects,
   studyLogs,
   setSubjects,
   onAddStudyMinutes,
+  onAddRestMinutes,
   activeSubjectId,
   setActiveSubjectId,
   isStudying,
@@ -259,7 +294,7 @@ function TimelineView({
   onThemeSelect,
   userXp = 0,
   onAddXp,
-  onChangeTab,
+  onChangeView,
   onResetTimer,
   showSystemNotification,
   setFiredNotification,
@@ -270,9 +305,100 @@ function TimelineView({
   trialDaysRemaining = 0,
   isPermanentlyUnlocked = false,
   onResetTrial,
+  tasks = [],
+  onToggleTask,
+  onAddTask,
 }: TimelineViewProps) {
-  // Navigation inside the Focus subtab
-  const [subView, setSubView] = useState<"timer" | "timeline" | "atmosphere">("timer");
+  // Navigation inside the Focus workspace
+  const [subView, setSubView] = useState<"timer" | "timeline" | "objectives">("timer");
+  
+  // YPT Inspired Rest Mode states
+  const [isResting, setIsResting] = useState<boolean>(() => {
+    return localStorage.getItem("study_is_resting") === "true";
+  });
+  const [restSeconds, setRestSeconds] = useState<number>(() => {
+    return parseInt(localStorage.getItem("study_rest_seconds") || "0", 10);
+  });
+  const [restStartTime, setRestStartTime] = useState<number | null>(() => {
+    const val = localStorage.getItem("study_rest_start_time_ms");
+    return val ? parseInt(val, 10) : null;
+  });
+  const [restBaselineSeconds, setRestBaselineSeconds] = useState<number>(() => {
+    const val = localStorage.getItem("study_rest_baseline_seconds");
+    return val ? parseInt(val, 10) : 0;
+  });
+
+  // Ticking effect for background-resilient rest counting
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isResting && restStartTime !== null) {
+      const tickRest = () => {
+        const elapsed = Math.floor((Date.now() - restStartTime) / 1000);
+        const currentRest = restBaselineSeconds + elapsed;
+        setRestSeconds(currentRest);
+        localStorage.setItem("study_rest_seconds", String(currentRest));
+      };
+      tickRest();
+      interval = setInterval(tickRest, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isResting, restStartTime, restBaselineSeconds]);
+
+  const startRestMode = () => {
+    setIsStudying(false); // Pause study timer
+    setIsResting(true);
+    const now = Date.now();
+    setRestStartTime(now);
+    setRestBaselineSeconds(0);
+    setRestSeconds(0);
+    localStorage.setItem("study_is_resting", "true");
+    localStorage.setItem("study_rest_start_time_ms", String(now));
+    localStorage.setItem("study_rest_baseline_seconds", "0");
+    localStorage.setItem("study_rest_seconds", "0");
+    setToast({
+      message: "Focus paused. Shifting into Rest Mode! ☕",
+      type: "success"
+    });
+  };
+
+  const resumeStudyFromRest = () => {
+    setIsResting(false);
+    localStorage.setItem("study_is_resting", "false");
+    localStorage.removeItem("study_rest_start_time_ms");
+    localStorage.removeItem("study_rest_baseline_seconds");
+    localStorage.removeItem("study_rest_seconds");
+
+    const minsRested = restSeconds / 60;
+    if (minsRested > 0 && onAddRestMinutes) {
+      onAddRestMinutes(minsRested);
+    }
+
+    // Resume study session
+    setIsStudying(true);
+    setToast({
+      message: "Rest completed. Resuming focus! ⚡",
+      type: "success"
+    });
+  };
+
+  const endStudyAndSaveWithRest = async () => {
+    setIsResting(false);
+    localStorage.setItem("study_is_resting", "false");
+    localStorage.removeItem("study_rest_start_time_ms");
+    localStorage.removeItem("study_rest_baseline_seconds");
+    localStorage.removeItem("study_rest_seconds");
+
+    const minsRested = restSeconds / 60;
+    if (minsRested > 0 && onAddRestMinutes) {
+      await onAddRestMinutes(minsRested);
+    }
+
+    // Stop study timer & save
+    await handleStopAndSave();
+  };
+
   // renderChronoOrb is defined as a clean helper function below
   const [showLevelGuide, setShowLevelGuide] = useState(false);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(() => localStorage.getItem("f5_launchpad_open") !== "false");
@@ -433,6 +559,20 @@ function TimelineView({
     
     return logged + liveMinutes;
   }, [studyLogs, isStudying, timerType, activeSeconds, pomoState, pomoSecondsLeft, pomoFocusDuration]);
+
+  // ==================== TOTAL REST SECONDS / MINUTES OF TODAY ====================
+  const totalRestMinutesToday = useMemo(() => {
+    const todayStr = getLocalDateString();
+    const loggedRest = studyLogs
+      .filter(l => l.date === todayStr)
+      .reduce((acc, l) => acc + (l.restMinutes || 0), 0);
+    
+    let liveRest = 0;
+    if (isResting) {
+      liveRest = restSeconds / 60;
+    }
+    return loggedRest + liveRest;
+  }, [studyLogs, isResting, restSeconds]);
 
   // ==================== CIRCULAR WHEEL ARC COORDINATES GENERATOR ====================
   const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
@@ -649,9 +789,9 @@ function TimelineView({
     return () => clearInterval(interval);
   }, [isStudying, showBreathingCoach]);
 
-  // Focus guard tab auto-pause listener (disabled completely)
+  // Focus guard background auto-pause listener (disabled completely)
   useEffect(() => {
-    // Tab switching auto-pause has been disabled to allow undisturbed background tracking.
+    // Window blur auto-pause has been disabled to allow undisturbed background tracking.
   }, []);
 
   // ==================== NEW CUSTOM TIMER STUDY STATES ====================
@@ -701,6 +841,100 @@ function TimelineView({
     localStorage.setItem("study_session_todos", JSON.stringify(sessionTodos));
   }, [sessionTodos]);
 
+  // Cognitive Mindset & Psychology States
+  const [cognitiveMindset, setCognitiveMindset] = useState<CognitiveMindset>(() => {
+    return (localStorage.getItem("f5_cognitive_mindset") as CognitiveMindset) || "classic";
+  });
+
+  // Working Memory Brain Dump / Intrusion Pad
+  const [brainDumps, setBrainDumps] = useState<BrainDumpItem[]>(() => {
+    const saved = localStorage.getItem("f5_brain_dumps");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showBrainDumpPad, setShowBrainDumpPad] = useState(false);
+  const [newDumpThought, setNewDumpThought] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("f5_cognitive_mindset", cognitiveMindset);
+  }, [cognitiveMindset]);
+
+  useEffect(() => {
+    localStorage.setItem("f5_brain_dumps", JSON.stringify(brainDumps));
+  }, [brainDumps]);
+
+  const handleSelectMindset = (presetId: CognitiveMindset) => {
+    const preset = COGNITIVE_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    setCognitiveMindset(presetId);
+
+    if (presetId === "micro-start") {
+      setTimerType("custom");
+      setCustomTargetMinutes(5);
+      setCustomTargetMinutesInput("5");
+      setToast({
+        message: "⚡ Micro-Start Armed (5m): Break the activation barrier and let momentum take over!",
+        type: "info"
+      });
+    } else if (presetId === "classic") {
+      setTimerType("pomodoro");
+      setPomoFocusDuration(25);
+      setPomoShortBreakDuration(5);
+      setPomoSecondsLeft(25 * 60);
+      setToast({
+        message: "🍅 Classic Pomodoro: 25m focus with synaptic rest breaks.",
+        type: "info"
+      });
+    } else if (presetId === "deep-flow") {
+      setTimerType("custom");
+      setCustomTargetMinutes(50);
+      setCustomTargetMinutesInput("50");
+      setToast({
+        message: "🌌 Deep Flow Ultradian Block: 50m of high neuro-retention focus.",
+        type: "info"
+      });
+    } else if (presetId === "stress-reset") {
+      setTimerType("custom");
+      setCustomTargetMinutes(3);
+      setCustomTargetMinutesInput("3");
+      setShowBreathingCoach(true);
+      setToast({
+        message: "🌿 Stress Reset: 3 minutes of physiological sighs to downregulate cortisol.",
+        type: "info"
+      });
+    }
+  };
+
+  const handleParkThought = () => {
+    if (!newDumpThought.trim()) return;
+    const item: BrainDumpItem = {
+      id: "bd-" + Date.now(),
+      thought: newDumpThought.trim(),
+      timestamp: new Date().toISOString(),
+      subjectId: activeSubjectId || undefined
+    };
+    setBrainDumps(prev => [item, ...prev]);
+    setNewDumpThought("");
+    setToast({
+      message: "🧠 Thought parked! Prefrontal cortex working memory cleared.",
+      type: "success"
+    });
+  };
+
+  const handleConvertDumpToTask = (dump: BrainDumpItem) => {
+    if (onAddTask) {
+      onAddTask(dump.thought, activeSubjectId || "general");
+      setBrainDumps(prev => prev.filter(d => d.id !== dump.id));
+      setToast({
+        message: "✅ Parked thought converted to Planner task!",
+        type: "success"
+      });
+    }
+  };
+
+  const handleDismissDump = (id: string) => {
+    setBrainDumps(prev => prev.filter(d => d.id !== id));
+  };
+
   const handleAddTodo = () => {
     if (!newTodoText.trim()) return;
     const newTodo: SessionTodo = {
@@ -731,6 +965,7 @@ function TimelineView({
       const finishedGoalText = sessionGoalText || 'Study Session';
       setReflectionNotes(sessionGoalText ? `Completed custom quest: ${sessionGoalText}` : "Achieved custom study target session! 🚀");
       setReflectionErrorText(null);
+      setShowReflectionModal(true);
       
       const currentActiveSubjectId = activeSubjectId;
       const targetMins = customTargetMinutes;
@@ -809,6 +1044,143 @@ function TimelineView({
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const volumeCapsuleRef = useRef<HTMLDivElement>(null);
 
+  // ==================== NEW YPT-STYLE ENHANCED STATES ====================
+  const [isFullscreenFocus, setIsFullscreenFocus] = useState(false);
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+
+  const focusQuotes = [
+    "The pain of study is temporary, the pain of regret is permanent.",
+    "Your future self is depending on you. Keep going!",
+    "It is not that I'm so smart, it's just that I stay with problems longer. — Albert Einstein",
+    "Focus is a muscle, and you are building it right now.",
+    "Great things are done by a series of small things brought together. — Vincent Van Gogh",
+    "Believe you can and you're halfway there.",
+    "Success is the sum of small efforts, repeated day in and day out.",
+    "Your potential is endless. Go do hard things!",
+    "No distraction can compete with a clear direction."
+  ];
+
+  useEffect(() => {
+    if (!isFullscreenFocus) return;
+    const interval = setInterval(() => {
+      setCurrentQuoteIndex(prev => (prev + 1) % focusQuotes.length);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [isFullscreenFocus]);
+
+  // D-Day Countdowns
+  interface DDayTarget {
+    id: string;
+    title: string;
+    date: string;
+  }
+
+  const [ddays, setDdays] = useState<DDayTarget[]>(() => {
+    const cached = localStorage.getItem("study_ddays_list");
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    // Set up some inspiring defaults if none exist
+    return [
+      { id: "d-1", title: "College Semester Exams 📝", date: getLocalDateString(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)) },
+      { id: "d-2", title: "Major Project Showcase 💻", date: getLocalDateString(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)) }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("study_ddays_list", JSON.stringify(ddays));
+  }, [ddays]);
+
+  const [newDDayTitle, setNewDDayTitle] = useState("");
+  const [newDDayDate, setNewDDayDate] = useState("");
+  const [showAddDDayForm, setShowAddDDayForm] = useState(false);
+
+  const handleAddDDay = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDDayTitle.trim() || !newDDayDate) return;
+    const newTarget = {
+      id: "dd-" + Date.now(),
+      title: newDDayTitle.trim(),
+      date: newDDayDate
+    };
+    setDdays(prev => [...prev, newTarget]);
+    setNewDDayTitle("");
+    setNewDDayDate("");
+    setShowAddDDayForm(false);
+    setToast({
+      message: `Added D-Day Countdown for: "${newTarget.title}"! 📅`,
+      type: "success"
+    });
+  };
+
+  const handleDeleteDDay = (id: string) => {
+    setDdays(prev => prev.filter(d => d.id !== id));
+    setToast({
+      message: "D-Day target removed! 🧹",
+      type: "info"
+    });
+  };
+
+  const getDDayDaysLeft = (targetDateStr: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(targetDateStr);
+    target.setHours(0, 0, 0, 0);
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const handleToggleStudyForSubject = (subId: string) => {
+    const isSelected = activeSubjectId === subId;
+    if (isResting) {
+      if (isSelected) {
+        resumeStudyFromRest();
+      } else {
+        const minsRested = restSeconds / 60;
+        if (minsRested > 0 && onAddRestMinutes) {
+          onAddRestMinutes(minsRested);
+        }
+        setIsResting(false);
+        localStorage.setItem("study_is_resting", "false");
+        localStorage.removeItem("study_rest_start_time_ms");
+        localStorage.removeItem("study_rest_baseline_seconds");
+        localStorage.removeItem("study_rest_seconds");
+
+        handleStopAndSave().then(() => {
+          setActiveSubjectId(subId);
+          setIsStudying(true);
+          setToast({
+            message: `Switched Focus to: "${subjects.find(s => s.id === subId)?.name}"! 🚀`,
+            type: "success"
+          });
+        });
+      }
+    } else if (isStudying) {
+      if (isSelected) {
+        startRestMode();
+      } else {
+        handleStopAndSave().then(() => {
+          setActiveSubjectId(subId);
+          setIsStudying(true);
+          setToast({
+            message: `Switched Focus to: "${subjects.find(s => s.id === subId)?.name}"! 🚀`,
+            type: "success"
+          });
+        });
+      }
+    } else {
+      setActiveSubjectId(subId);
+      setIsStudying(true);
+      setToast({
+        message: `Focus started for: "${subjects.find(s => s.id === subId)?.name}"! ⚡`,
+        type: "success"
+      });
+    }
+  };
+
   // Clear stale activeSubjectId if it does not exist in the loaded subject lists
   useEffect(() => {
     if (activeSubjectId && subjects.length > 0) {
@@ -852,12 +1224,18 @@ function TimelineView({
     return () => clearInterval(interval);
   }, []);
 
-  // Scroll to current time in timeline schedule mode
+  // Scroll to current time in timeline schedule mode only upon entering timeline view
+  const hasScrolledTimelineRef = useRef(false);
   useEffect(() => {
-    if (subView === "timeline" && timelineContainerRef.current) {
-      const container = timelineContainerRef.current;
-      const targetScroll = Math.max(0, currentTimeOffset - 200);
-      container.scrollTop = targetScroll;
+    if (subView === "timeline") {
+      if (timelineContainerRef.current && !hasScrolledTimelineRef.current) {
+        const container = timelineContainerRef.current;
+        const targetScroll = Math.max(0, currentTimeOffset - 200);
+        container.scrollTop = targetScroll;
+        hasScrolledTimelineRef.current = true;
+      }
+    } else {
+      hasScrolledTimelineRef.current = false;
     }
   }, [currentTimeOffset, subView]);
 
@@ -1108,100 +1486,27 @@ function TimelineView({
   };
 
   const handleStopAndSave = async () => {
-    let secondsToSave = timerType === "pomodoro"
-      ? (pomoState === "focus" ? Math.max(0, pomoFocusDuration * 60 - pomoSecondsLeft) : 0)
-      : activeSeconds;
-
-    // Smart Fallback: If secondsToSave is 0 (e.g. state reset or page loaded in background), recover exact elapsed seconds from localStorage start time
-    if (secondsToSave <= 0) {
-      const rawStart = localStorage.getItem("study_start_time_ms");
-      if (rawStart) {
-        const startTimeMs = parseInt(rawStart, 10);
-        const rawBaseline = localStorage.getItem("study_seconds_baseline");
-        const baselineSecs = rawBaseline ? parseInt(rawBaseline, 10) : 0;
-        const elapsed = Math.floor((Date.now() - startTimeMs) / 1000);
-        secondsToSave = baselineSecs + elapsed;
-      }
+    setIsStudying(false);
+    
+    if (activeSeconds >= 30) {
+      const mins = Math.max(1, Math.round(activeSeconds / 60));
+      setSessionSavedMinutes(mins);
+      setReflectionNotes(sessionGoalText ? `Focused on ${sessionGoalText}` : "");
+      setShowReflectionModal(true);
+    } else {
+      setSessionTodos([]);
+      setSessionGoalText("");
     }
 
-    // Smart Fallback: Resolve active subject from multiple layers: activeSubjectId, localStorage, or first subject
-    let currentActiveSubjectId = activeSubjectId;
-    if (!currentActiveSubjectId) {
-      currentActiveSubjectId = localStorage.getItem("study_active_subject_id") || "";
-    }
-    if (!currentActiveSubjectId && subjects.length > 0) {
-      currentActiveSubjectId = subjects[0].id;
-    }
+    // Try playing triumph sound
+    try {
+      playChime("success");
+    } catch (e) {}
 
-    if (secondsToSave > 0 && currentActiveSubjectId) {
-      setReflectionErrorText(null);
-      
-      // Precise hours, minutes, seconds decimal value (no more 15-second minimum limit!)
-      const preciseMinutes = secondsToSave / 60;
-
-      // Save focus minutes to database and states IMMEDIATELY (no risk of loss)
-      try {
-        await onAddStudyMinutes(currentActiveSubjectId, preciseMinutes);
-        setShowDiscardConfirm(false);
-
-        // Reset the active timer after saving succeeds
-        if (onResetTimer) {
-          onResetTimer();
-        } else {
-          setActiveSeconds(0);
-          setIsStudying(false);
-        }
-        
-        // Reset Pomodoro timer left if applicable
-        if (timerType === "pomodoro" && setPomoSecondsLeft) {
-          setPomoSecondsLeft(pomoFocusDuration * 60);
-        }
-
-        // Prep the reflection details
-        setSessionSavedMinutes(preciseMinutes);
-        const hitTarget = timerType === "custom" ? preciseMinutes >= customTargetMinutes : true;
-        setIsTargetCompleted(hitTarget);
-        setReflectionErrorText(null); // Clear errors since we succeeded!
-
-        // Automatically award milestone XP without popup disruption
-        if (timerType === "custom") {
-          if (hitTarget && onAddXp) {
-            onAddXp(`Completed Target Countdown: "${sessionGoalText || 'Study Goal'}" 🏆`, 100);
-          } else if (onAddXp) {
-            onAddXp(`Custom study effort completed successfully ☕`, 20);
-          }
-        }
-
-        // Clear custom states cleanly
-        setSessionTodos([]);
-        setSessionGoalText("");
-
-        // Try playing triumph sound
-        try {
-          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-2019.wav");
-          audio.volume = 0.35;
-          audio.play().catch(() => {});
-        } catch (e) {}
-
-      } catch (e) {
-        // Ensure active timer is still reset even if backend save rejects
-        if (onResetTimer) {
-          onResetTimer();
-        } else {
-          setActiveSeconds(0);
-          setIsStudying(false);
-        }
-        if (timerType === "pomodoro" && setPomoSecondsLeft) {
-          setPomoSecondsLeft(pomoFocusDuration * 60);
-        }
-
-        // Fallback warning logging without popup disruption
-        setSessionSavedMinutes(preciseMinutes);
-        setIsTargetCompleted(false);
-        setReflectionNotes("Daily focus limit warning");
-        setReflectionErrorText(e instanceof Error ? e.message : "Network sync delayed, but session is saved offline.");
-      }
-    }
+    setToast({
+      message: "Study session paused & saved automatically! ☕",
+      type: "success"
+    });
   };
 
   // Global Keyboard Shortcuts for peak focus flow productivity UX
@@ -1223,9 +1528,10 @@ function TimelineView({
         if (subjects.length > 0) {
           const verifiedSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
           if (verifiedSubject) {
-            const currentStudyingState = !isStudying;
-            if (!currentStudyingState) {
-              handleStopAndSave();
+            if (isResting) {
+              resumeStudyFromRest();
+            } else if (isStudying) {
+              startRestMode();
             } else {
               setIsStudying(true);
               setToast({
@@ -1280,32 +1586,55 @@ function TimelineView({
   }, [subjects, activeSubjectId, isStudying, ambientSound, showBreathingCoach, subView, handleStopAndSave]);
 
   const handleSubmitReflection = async () => {
-    if (sessionSavedMinutes > 0 && activeSubjectId) {
+    if (activeSubjectId) {
       setReflectionErrorText(null);
       try {
+        if (onAddXp) {
+          onAddXp(`Metacognitive Reflection logged (+30 XP) 🧠`, 30);
+        }
+        
         // Extra milestone reward XP for completing custom targets
-        if (timerType === "custom") {
-          if (isTargetCompleted && onAddXp) {
-            onAddXp(`Completed Target Countdown: "${sessionGoalText || 'Study Goal'}" 🏆`, 100);
-          } else if (onAddXp) {
-            onAddXp(`Custom study effort completed successfully ☕`, 20);
-          }
+        if (timerType === "custom" && isTargetCompleted && onAddXp) {
+          onAddXp(`Completed Target Countdown: "${sessionGoalText || 'Study Goal'}" 🏆`, 100);
+        } else if (onAddXp && sessionSavedMinutes >= 5) {
+          onAddXp(`Focus session reflection bonus ☕`, 15);
+        }
+
+        // If there are minutes to save
+        if (sessionSavedMinutes > 0) {
+          await onAddStudyMinutes(activeSubjectId, sessionSavedMinutes, undefined, {
+            focusQuality: reflectionRating,
+            mindsetState: cognitiveMindset,
+            restMinutes: restSeconds > 0 ? Math.round(restSeconds / 60) : undefined
+          });
+        }
+
+        if (onResetTimer) {
+          onResetTimer();
+        } else {
+          setActiveSeconds(0);
         }
         
         // Clear the custom states safely
         setSessionTodos([]);
         setSessionGoalText("");
         setShowReflectionModal(false);
+        setReflectionNotes("");
+        setIsTargetCompleted(false);
         
-        // Try playing triumph sound
         try {
-          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-2019.wav");
-          audio.volume = 0.35;
-          audio.play().catch(() => {});
+          playChime("success");
         } catch (e) {}
+
+        setToast({
+          message: "🧠 Metacognitive debrief saved to your cognitive journal! +30 XP",
+          type: "success"
+        });
       } catch (err) {
         setReflectionErrorText(err instanceof Error ? err.message : "Failed to record study reflection.");
       }
+    } else {
+      setShowReflectionModal(false);
     }
   };
 
@@ -1463,14 +1792,14 @@ function TimelineView({
     const orbDotY = 128 + 112 * Math.sin(orbitAngleRad);
 
     return (
-      <div className="w-full flex flex-col items-center justify-center p-6 rounded-[32px] glass-card-inner relative space-y-5 overflow-hidden group transition-all duration-500 hover:shadow-orange-500/10 hover:border-white/95">
+      <div className="w-full flex flex-col items-center justify-center p-6 rounded-[32px] glass-card-inner relative space-y-5 overflow-hidden border border-slate-200/50 dark:border-white/[0.08] shadow-xl">
         {/* Glowing Ambient Mesh backing */}
         <div 
-          className="absolute -top-12 -left-12 w-28 h-28 rounded-full filter blur-[35px] opacity-20 dark:opacity-35 transition-all duration-1000 group-hover:scale-150" 
+          className="absolute -top-10 -left-10 w-28 h-28 rounded-full filter blur-[30px] opacity-25 dark:opacity-30 pointer-events-none" 
           style={{ backgroundColor: themeHexAccent }}
         />
         <div 
-          className="absolute -bottom-12 -right-12 w-28 h-28 rounded-full filter blur-[35px] opacity-10 dark:opacity-20 transition-all duration-1000 group-hover:scale-150" 
+          className="absolute -bottom-10 -right-10 w-28 h-28 rounded-full filter blur-[30px] opacity-15 dark:opacity-20 pointer-events-none" 
           style={{ backgroundColor: gradientStops.end }}
         />
 
@@ -1486,9 +1815,19 @@ function TimelineView({
             <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
             Chrono Orb
           </span>
-          <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            Precision Focus
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Precision Focus
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsFullscreenFocus(true)}
+              className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200/50 dark:border-white/5 text-[9px] text-[#f26419] font-mono font-bold uppercase transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
+              title="Maximize Focus Theatre"
+            >
+              <Maximize2 className="w-2.5 h-2.5" /> Theatre
+            </button>
+          </div>
         </div>
 
         <div className="relative w-48 h-48 xs:w-52 xs:h-52 sm:w-56 sm:h-56 md:w-60 md:h-60 lg:w-64 lg:h-64 xl:w-72 xl:h-72 flex items-center justify-center relative z-10">
@@ -1609,9 +1948,11 @@ function TimelineView({
 
             <span 
               className="text-4xl xs:text-5xl lg:text-5xl xl:text-5xl font-mono font-extrabold tracking-tight text-slate-800 dark:text-white tabular-nums leading-none"
-              style={{ textShadow: isStudying ? `0 0 24px ${themeHexAccent}30` : "none" }}
+              style={{ textShadow: isStudying ? `0 0 24px ${themeHexAccent}30` : isResting ? `0 0 24px rgba(14, 165, 233, 0.45)` : "none" }}
             >
-              {timerType === "custom" 
+              {isResting
+                ? formatTickingTime(restSeconds)
+                : timerType === "custom" 
                 ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
                 : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
               }
@@ -1624,6 +1965,8 @@ function TimelineView({
                     ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
                       ? "animate-pulse" 
                       : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
+                    : isResting
+                    ? "bg-sky-500/15 border-sky-500/30 text-sky-500 animate-pulse"
                     : "bg-slate-100 dark:bg-black/40 border-transparent text-slate-500"
                   }`}
                 style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
@@ -1632,7 +1975,9 @@ function TimelineView({
                   color: themeHexAccent
                 } : {}}
               >
-                {timerType === "custom" ? (
+                {isResting ? (
+                  "Rest Mode Active ☕"
+                ) : timerType === "custom" ? (
                   isStudying ? "Countdown Active" : "Target Paused"
                 ) : timerType === "stopwatch" ? (
                   isStudying ? "Focus Flowing" : "Stopwatch Paused"
@@ -1681,8 +2026,12 @@ function TimelineView({
                 setIsEditingSubjectsList(true);
                 return;
               }
+              if (isResting) {
+                resumeStudyFromRest();
+                return;
+              }
               if (isStudying) {
-                handleStopAndSave();
+                startRestMode();
                 return;
               }
 
@@ -1719,12 +2068,9 @@ function TimelineView({
                 setActiveSubjectId(resolvedActiveSubjectId);
                 setIsStudying(true);
                 setToast({
-                  message: "⏱️ Auto-restoring and saving active study session...",
-                  type: "info"
+                  message: "⏱️ Active study session auto-restored! Keep focusing! 🚀",
+                  type: "success"
                 });
-                setTimeout(() => {
-                  handleStopAndSave();
-                }, 350);
                 return;
               }
 
@@ -1744,20 +2090,132 @@ function TimelineView({
             }}
             className="w-16 h-16 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 group/play shadow-xl border focus:outline-none"
             style={{
-              backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : themeHexAccent + "1a",
-              borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : themeHexAccent + "40",
-              boxShadow: isStudying ? "0 0 20px rgba(245, 158, 11, 0.15)" : `0 0 24px ${themeHexAccent}20`
+              backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : isResting ? "rgba(14, 165, 233, 0.15)" : themeHexAccent + "1a",
+              borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : isResting ? "rgba(14, 165, 233, 0.4)" : themeHexAccent + "40",
+              boxShadow: isStudying ? "0 0 20px rgba(245, 158, 11, 0.15)" : isResting ? "0 0 20px rgba(14, 165, 233, 0.15)" : `0 0 24px ${themeHexAccent}20`
             }}
-            title={isStudying ? "Stop & Save Study Session" : "Start Focus Session"}
+            title={isStudying ? "Pause Focus (Shift to Rest)" : isResting ? "Resume Focus" : "Start Focus Session"}
           >
-            <span className="absolute inset-0 rounded-full scale-[0.85] border border-dashed opacity-45 group-hover/play:scale-100 transition-all duration-500" style={{ borderColor: isStudying ? "#f59e0b" : themeHexAccent }} />
+            <span className="absolute inset-0 rounded-full scale-[0.85] border border-dashed opacity-45 group-hover/play:scale-100 transition-all duration-500" style={{ borderColor: isStudying ? "#f59e0b" : isResting ? "#0ea5e9" : themeHexAccent }} />
             {isStudying ? (
               <Pause className="w-6 h-6 text-amber-500 fill-amber-500/20 stroke-[3.5] transform group-hover/play:scale-110 transition-transform" />
+            ) : isResting ? (
+              <Coffee className="w-6 h-6 text-sky-500 fill-sky-500/20 stroke-[2] transform group-hover/play:scale-110 transition-transform animate-pulse" />
             ) : (
               <Play className="w-6 h-6 text-emerald-500 fill-emerald-500/20 stroke-[3.5] ml-1 transform group-hover/play:scale-110 transition-transform animate-pulse" style={{ color: themeHexAccent, fill: `${themeHexAccent}20` }} />
             )}
           </button>
         </div>
+
+        {/* 1. Active Focus Objective Card (Bridge to Planner Tasks) */}
+        {sessionGoalText && (
+          <div className="w-full max-w-sm px-3.5 py-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-between gap-2.5 text-left animate-fade-in shadow-sm relative z-10">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                <Target className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[8px] font-mono uppercase font-black tracking-widest text-indigo-400 block leading-tight">Focus Quest Objective</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate block leading-tight">{sessionGoalText}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const matchingTask = tasks?.find(t => t.title.toLowerCase() === sessionGoalText.toLowerCase() && !t.isCompleted);
+                  if (matchingTask && onToggleTask) {
+                    onToggleTask(matchingTask.id);
+                  }
+                  if (onAddXp) {
+                    onAddXp(`Conquered Focus Quest: "${sessionGoalText}" 🎯`, 50);
+                  }
+                  setToast({
+                    message: `🎉 Conquered Quest: "${sessionGoalText}"! +50 XP bonus earned!`,
+                    type: "success"
+                  });
+                  setSessionGoalText("");
+                  try { playChime("success"); } catch (e) {}
+                }}
+                className="px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 rounded-xl text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                title="Mark this target completed and earn 50 XP"
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>Conquered</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSessionGoalText("")}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                title="Clear focus objective"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Working Memory Brain-Dump Trigger Pill */}
+        <div className="flex items-center gap-2 relative z-10">
+          <button
+            type="button"
+            onClick={() => setShowBrainDumpPad(true)}
+            className="text-[10px] font-mono font-black text-slate-500 hover:text-indigo-400 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Offload intrusive thoughts to preserve working memory bandwidth"
+          >
+            <Brain className="w-3 h-3 text-indigo-400" />
+            <span>Brain-Dump Pad</span>
+            {brainDumps.length > 0 && (
+              <span className="w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] font-mono font-black flex items-center justify-center">
+                {brainDumps.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* 3. Rest Recovery Protocol Station */}
+        {isResting && (
+          <div className="flex flex-col gap-3 mt-3 w-full relative z-10 px-2 animate-fade-in">
+            {/* 3 Science-Backed Rest Pillars */}
+            <div className="grid grid-cols-3 gap-2 w-full text-center">
+              <div className="p-2.5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-left">
+                <div className="flex items-center gap-1 text-sky-400 text-[9px] font-bold uppercase font-mono">
+                  <Wind className="w-3 h-3" /> Double Inhale
+                </div>
+                <p className="text-[8.5px] text-slate-400 dark:text-slate-300 mt-1 leading-tight">Physiological sigh resets autonomic heart rate in 30s.</p>
+              </div>
+              <div className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left">
+                <div className="flex items-center gap-1 text-teal-400 text-[9px] font-bold uppercase font-mono">
+                  <Eye className="w-3 h-3" /> 20-20-20 Rule
+                </div>
+                <p className="text-[8.5px] text-slate-400 dark:text-slate-300 mt-1 leading-tight">Look 20ft away to relax optic nerve ciliary muscle strain.</p>
+              </div>
+              <div className="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-left">
+                <div className="flex items-center gap-1 text-indigo-400 text-[9px] font-bold uppercase font-mono">
+                  <Coffee className="w-3 h-3" /> Hydrate / Stand
+                </div>
+                <p className="text-[8.5px] text-slate-400 dark:text-slate-300 mt-1 leading-tight">Spinal stretch maintains prefrontal acetylcholine supply.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 mt-1 w-full">
+              <button
+                onClick={resumeStudyFromRest}
+                className="w-full sm:w-1/2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-450 hover:to-teal-550 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 border border-emerald-400/20"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                Resume Focus
+              </button>
+              <button
+                onClick={endStudyAndSaveWithRest}
+                className="w-full sm:w-1/2 px-4 py-3 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-450 hover:to-red-550 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20 border border-rose-400/20"
+              >
+                <X className="w-3.5 h-3.5" />
+                Finish & Reflect
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Pomodoro Rounds Progress Indicator */}
         {timerType === "pomodoro" && (
@@ -1786,54 +2244,31 @@ function TimelineView({
           </div>
         )}
 
-        {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
-        <div className="flex items-center gap-3.5 mt-4 w-full relative z-10 px-2">
-          {(timerType === "stopwatch" || timerType === "custom") ? (
-            activeSeconds > 0 && (
-              <>
-                <button
-                  onClick={handleStopAndSave}
-                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-105 text-white font-extrabold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2 active:scale-95 border border-white/10"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" /> Finish & Save
-                </button>
-                <button
-                  onClick={handleDiscardProgress}
-                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                    showDiscardConfirm 
-                      ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse w-full text-xs font-black" 
-                      : "bg-white/50 hover:bg-white dark:bg-black/30 dark:hover:bg-black/50 border-slate-200/40 dark:border-white/5 text-slate-500 dark:text-slate-400"
-                  }`}
-                >
-                  {showDiscardConfirm ? "Reset?" : <RotateCcw className="w-4 h-4" />}
-                </button>
-              </>
-            )
-          ) : (
-            <>
-              <button
-                onClick={handleResetPomo}
-                className="flex-1 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-black text-xs py-2.5 rounded-xl border bg-white/45 hover:bg-white dark:bg-black/20 dark:hover:bg-black/35 border-slate-200/40 dark:border-white/5 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                title="Reset Pomodoro"
-              >
-                <RotateCw className="w-3.5 h-3.5" /> Reset
-              </button>
-              <button
-                onClick={handleSkipPomo}
-                className="flex-1 text-[#f26419] font-black text-xs py-2.5 rounded-xl border bg-orange-500/10 dark:bg-orange-500/5 border-[#f26419]/25 hover:bg-orange-500/15 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                title="Skip period"
-              >
-                <SkipForward className="w-3.5 h-3.5" /> Skip
-              </button>
-            </>
-          )}
-        </div>
+        {/* Control buttons under progress: Pomodoro reset/skip */}
+        {timerType === "pomodoro" && (
+          <div className="flex items-center gap-3.5 mt-4 w-full relative z-10 px-2">
+            <button
+              onClick={handleResetPomo}
+              className="flex-1 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-black text-xs py-2.5 rounded-xl border bg-white/45 hover:bg-white dark:bg-black/20 dark:hover:bg-black/35 border-slate-200/40 dark:border-white/5 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              title="Reset Pomodoro"
+            >
+              <RotateCw className="w-3.5 h-3.5" /> Reset
+            </button>
+            <button
+              onClick={handleSkipPomo}
+              className="flex-1 text-[#f26419] font-black text-xs py-2.5 rounded-xl border bg-orange-500/10 dark:bg-orange-500/5 border-[#f26419]/25 hover:bg-orange-500/15 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              title="Skip period"
+            >
+              <SkipForward className="w-3.5 h-3.5" /> Skip
+            </button>
+          </div>
+        )}
       </div>
     );
   };
 
   return (
-    <div id="f5-active-focus-pane" className="liquid-glass relative flex flex-col h-full rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-350 border">
+    <div id="f5-active-focus-pane" className="liquid-glass relative flex flex-col rounded-3xl shadow-xl border">
       {/* Dynamic Toast / Premium Study notification banner */}
       {toast && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900/90 dark:bg-slate-50/95 text-white dark:text-slate-900 border border-slate-700/30 dark:border-slate-200/50 shadow-2xl backdrop-blur-md transition-all duration-300">
@@ -1843,8 +2278,7 @@ function TimelineView({
           <span className="text-xs font-bold tracking-tight">{toast.message}</span>
         </div>
       )}
-      {/* Dynamic layout tabs control bar */}
-      {/* Dynamic layout tabs control bar */}
+      {/* Dynamic layout mode selector bar */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between px-6 pt-5 pb-3.5 border-b border-slate-100/60 dark:border-slate-900/40 relative z-10">
         <div className="flex items-center gap-1 font-sans liquid-glass-inset p-1.5 rounded-2xl flex-wrap w-full sm:w-auto justify-center sm:justify-start">
           <button 
@@ -1868,14 +2302,14 @@ function TimelineView({
             <Calendar className="w-3.5 h-3.5" /> Hour Timeline
           </button>
           <button 
-            onClick={() => setSubView("atmosphere")}
+            onClick={() => setSubView("objectives")}
             className={`px-4.5 py-2.5 rounded-xl text-xs font-black tracking-tight transition-all duration-300 cursor-pointer flex items-center gap-2 ${
-              subView === "atmosphere" 
+              subView === "objectives" 
                 ? "bg-white/80 dark:bg-white/10 text-indigo-600 dark:text-indigo-300 shadow-lg shadow-indigo-500/10 dark:shadow-none border border-white dark:border-indigo-500/20 scale-[1.02] backdrop-blur-md" 
                 : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-white/5"
             }`}
           >
-            <Heart className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Zen Space 🧘
+            <Target className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Focus Tasks & Notes
           </button>
         </div>
 
@@ -1911,8 +2345,43 @@ function TimelineView({
 
       {(subView === "timer" || subView === "atmosphere") ? (
         /* ==================== SCREEN A: PREMIUM STUDY CHROMOPHORE TIMER & POMODORO ==================== */
-        <div className="flex-1 p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 flex flex-col justify-between overflow-y-auto no-scrollbar relative">
-          
+        <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 flex flex-col justify-between relative">
+          {/* Cognitive Mindset Presets (Psychology-Backed Focus Priming) */}
+          <div className="w-full max-w-2xl mx-auto mb-2 text-left">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-black flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5 text-indigo-400" /> Evidence-Based Cognitive Priming
+              </span>
+              <span className="text-[8.5px] font-mono text-slate-400 font-bold">
+                Psychology of Learning
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {COGNITIVE_PRESETS.map((preset) => {
+                const isSelected = cognitiveMindset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSelectMindset(preset.id)}
+                    className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? "bg-indigo-500/15 border-indigo-500/40 text-slate-900 dark:text-white shadow-md shadow-indigo-500/10 scale-[1.02]"
+                        : "bg-white/40 dark:bg-black/20 border-slate-200/40 dark:border-white/5 text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[10px] font-mono font-black">{preset.badge}</span>
+                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />}
+                    </div>
+                    <span className="text-xs font-black truncate mt-1">{preset.title.split("(")[0]}</span>
+                    <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1">{preset.principle}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Stopwatch vs Pomodoro vs Custom Countdown Segmented Controls */}
           <div className="flex justify-center mb-4">
             <div className="liquid-glass-inset p-1.5 rounded-[22px] flex items-center gap-2 flex-wrap justify-center">
@@ -1968,402 +2437,9 @@ function TimelineView({
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4.5 items-start flex-1 w-full">
             {/* Subject Selection (Visualized on the Right Side using order-2 / lg:order-2) */}
-            <div className="lg:col-span-4 col-span-12 order-2 lg:order-2 flex flex-col h-full min-h-[550px]">
-              {/* Assign Chrono Orb Render Function (Deactivated in favor of component-level definition) */}
-              {false && (() => {
-                const dummyRenderChronoOrb = () => {
-                  const currentPercent = (() => {
-                  if (timerType === "pomodoro") {
-                    const maxSecs = pomoState === "focus" ? pomoFocusDuration * 60 :
-                                     pomoState === "shortBreak" ? pomoShortBreakDuration * 60 :
-                                     pomoLongBreakDuration * 60;
-                    return Math.min(100, Math.round(((maxSecs - pomoSecondsLeft) / maxSecs) * 100));
-                  } else if (timerType === "custom") {
-                    return Math.min(100, Math.round((activeSeconds / (customTargetMinutes * 60)) * 100));
-                  } else {
-                    return getProgressRingPercent();
-                  }
-                })();
-
-                // Calculate the indicator dot position on the 112px radius orbit path
-                const orbitAngleRad = (currentPercent / 100) * 2 * Math.PI - Math.PI / 2;
-                const orbDotX = 128 + 112 * Math.cos(orbitAngleRad);
-                const orbDotY = 128 + 112 * Math.sin(orbitAngleRad);
-
-                return (
-                  <div className="w-full flex flex-col items-center justify-center p-6 rounded-[32px] bg-white/20 dark:bg-[#0c0d12]/55 border border-white/50 dark:border-white/[0.08] shadow-2xl backdrop-blur-xl relative space-y-5 overflow-hidden group transition-all duration-500 hover:shadow-orange-500/5 hover:border-white/80">
-                  {/* Glowing Ambient Mesh backing */}
-                  <div 
-                    className="absolute -top-12 -left-12 w-28 h-28 rounded-full filter blur-[35px] opacity-20 dark:opacity-35 transition-all duration-1000 group-hover:scale-150" 
-                    style={{ backgroundColor: themeHexAccent }}
-                  />
-                  <div 
-                    className="absolute -bottom-12 -right-12 w-28 h-28 rounded-full filter blur-[35px] opacity-10 dark:opacity-20 transition-all duration-1000 group-hover:scale-150" 
-                    style={{ backgroundColor: gradientStops.end }}
-                  />
-
-                  <div className="w-full flex items-center justify-between px-1 relative z-10">
-                    <span 
-                      className="text-[9px] font-mono tracking-widest uppercase font-black px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all duration-300"
-                      style={{ 
-                        backgroundColor: themeHexAccent + "15", 
-                        borderColor: themeHexAccent + "30",
-                        color: themeHexAccent 
-                      }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
-                      Chrono Orb
-                    </span>
-                    <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                      Precision Focus
-                    </span>
-                  </div>
-
-                  <div className="relative w-48 h-48 xs:w-52 xs:h-52 sm:w-56 sm:h-56 md:w-60 md:h-60 lg:w-64 lg:h-64 xl:w-72 xl:h-72 flex items-center justify-center relative z-10">
-                    {/* Breathing Ripples when Breathing Coach is active */}
-                    {showBreathingCoach && isStudying && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-full z-0 overflow-hidden">
-                        <div 
-                          className="absolute rounded-full transition-all duration-[4000ms] ease-in-out"
-                          style={{ 
-                            borderColor: themeHexAccent + "25", 
-                            backgroundColor: themeHexAccent + "09",
-                            animation: "breatheExpand 8s ease-in-out infinite",
-                            inset: breathState === "inhale" ? "0.25rem" : breathState === "hold" ? "0.1rem" : "1.5rem"
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {/* Outer Rotating Dotted Border Halo */}
-                    {isStudying && (
-                      <div 
-                        className="absolute inset-0 rounded-full border border-dashed opacity-40 animate-spin" 
-                        style={{ animationDuration: '45s', borderColor: themeHexAccent + "55" }} 
-                      />
-                    )}
-
-                    <svg viewBox="0 0 256 256" className="w-full h-full transform" style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}>
-                      <defs>
-                        <linearGradient id="timerSunsetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor={gradientStops.start} />
-                          <stop offset="50%" stopColor={gradientStops.mid} />
-                          <stop offset="100%" stopColor={gradientStops.end} />
-                        </linearGradient>
-                        <radialGradient id="ringBackground" cx="50%" cy="50%" r="50%">
-                          <stop offset="70%" stopColor="transparent" />
-                          <stop offset="100%" stopColor={`${gradientStops.start}0c`} />
-                        </radialGradient>
-                      </defs>
-                      
-                      {/* Outer shadow ring */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="110" 
-                        fill="url(#ringBackground)" 
-                        className="stroke-slate-100/40 dark:stroke-white/[0.04]" 
-                        strokeWidth="1"
-                      />
-                      
-                      {/* Light Tick markers around the dial */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="105" 
-                        stroke="rgba(148, 163, 184, 0.15)" 
-                        strokeWidth="3" 
-                        strokeDasharray="2 6"
-                        fill="none"
-                      />
-
-                      {/* Master Background Orbit */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="112" 
-                        className="stroke-slate-200/30 dark:stroke-white/[0.03]" 
-                        strokeWidth="6" 
-                        fill="none" 
-                      />
-
-                      {/* Active Ticking Path */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="112" 
-                        stroke={timerType === "pomodoro" && pomoState !== "focus" ? "rgba(16, 185, 129, 0.85)" : "url(#timerSunsetGrad)"}
-                        className="progress-glow transition-all duration-300"
-                        strokeWidth="7" 
-                        fill="none" 
-                        strokeDasharray={`${(703.7 * currentPercent) / 100} 703.7`}
-                        strokeDashoffset={0}
-                        strokeLinecap="round"
-                      />
-
-                      {/* Orbiting indicator node */}
-                      {currentPercent > 0 && (
-                        <circle
-                          cx={orbDotX}
-                          cy={orbDotY}
-                          r="6"
-                          fill="#ffffff"
-                          stroke={gradientStops.start}
-                          strokeWidth="2.5"
-                          className="shadow-md transition-all duration-100"
-                          style={{ filter: "drop-shadow(0 0 6px " + themeHexAccent + ")" }}
-                        />
-                      )}
-                    </svg>
-
-                    {/* Holographic readout inside the glass crystal */}
-                    <div className="absolute flex flex-col items-center justify-center text-center px-4 z-10">
-                      {activeSubject ? (
-                        <div className="flex flex-col items-center max-w-[210px] mb-1.5">
-                          <span className="text-[10px] md:text-xs font-sans font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block truncate max-w-[170px]">
-                            {activeSubject.name}
-                          </span>
-                          <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-mono font-black mt-1" style={{ color: themeHexAccent }}>
-                            <span>Goal: {timerType === "custom" ? `${customTargetMinutes}m` : `${activeSubject.goalMinutes}m`}</span>
-                            <span className="opacity-40">•</span>
-                            <span className="bg-white/50 dark:bg-white/5 px-1.5 py-0.5 rounded-md">
-                              {currentPercent}%
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Study Focus</span>
-                      )}
-
-                      <span 
-                        className="text-4xl xs:text-5xl lg:text-5xl xl:text-5xl font-mono font-extrabold tracking-tight text-slate-800 dark:text-white tabular-nums leading-none"
-                        style={{ textShadow: isStudying ? `0 0 24px ${themeHexAccent}30` : "none" }}
-                      >
-                        {timerType === "custom" 
-                          ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
-                          : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
-                        }
-                      </span>
-
-                      <div className="mt-3.5 flex flex-col items-center gap-1.5">
-                        <div 
-                          className={`text-[9px] uppercase tracking-widest font-mono px-3.5 py-1 rounded-full border transition-all duration-300 font-extrabold shadow-sm ${
-                            isStudying 
-                              ? pomoState === "focus" || timerType === "stopwatch" || timerType === "custom"
-                                ? "animate-pulse" 
-                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 animate-pulse"
-                              : "bg-slate-100 dark:bg-black/40 border-transparent text-slate-500"
-                            }`}
-                          style={isStudying && (pomoState === "focus" || timerType === "stopwatch" || timerType === "custom") ? {
-                            backgroundColor: themeHexAccent + "1a",
-                            borderColor: themeHexAccent + "40",
-                            color: themeHexAccent
-                          } : {}}
-                        >
-                          {timerType === "custom" ? (
-                            isStudying ? "Countdown Active" : "Target Paused"
-                          ) : timerType === "stopwatch" ? (
-                            isStudying ? "Focus Flowing" : "Stopwatch Paused"
-                          ) : (
-                            pomoState === "focus" ? (
-                              isStudying ? "Focus Period" : "Pomo Standby"
-                            ) : (
-                              pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
-                            )
-                          )}
-                        </div>
-
-                        {showBreathingCoach && isStudying && (
-                          <div 
-                            className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-full border backdrop-blur-md shadow-inner"
-                            style={{
-                              backgroundColor: themeHexAccent + "14",
-                              borderColor: themeHexAccent + "26"
-                            }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
-                            <span 
-                              className="text-[8px] font-sans font-black uppercase tracking-widest leading-none"
-                              style={{ color: themeHexAccent }}
-                            >
-                              {breathState === "inhale" ? "Inhale..." : breathState === "hold" ? "Hold..." : "Exhale..."}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Ultimate Play Circle Button just down of the watch */}
-                  <div className="flex justify-center items-center relative z-20 mt-1 mb-2">
-                    <button
-                      type="button"
-                      id="f5-play-circle-button"
-                      onClick={async () => {
-                        if (subjects.length === 0) {
-                          setToast({
-                            message: "⚠️ Please enroll a Subject or Topic first using the '+' button!",
-                            type: "warning"
-                          });
-                          setShowSubjectsModal(true);
-                          setIsEditingSubjectsList(true);
-                          return;
-                        }
-                        if (isStudying) {
-                          handleStopAndSave();
-                          return;
-                        }
-
-                        // Smart Unended Session Recovery
-                        const localIsStudying = localStorage.getItem("study_is_studying") === "true";
-                        const localActiveSubjectId = localStorage.getItem("study_active_subject_id") || activeSubjectId;
-                        
-                        let dbIsStudying = false;
-                        let dbActiveSubjectId = "";
-                        try {
-                          const { getAuth } = await import("firebase/auth");
-                          const { getFirestore, doc, getDoc } = await import("firebase/firestore");
-                          const auth = getAuth();
-                          if (auth.currentUser) {
-                            const db = getFirestore();
-                            const userDocRef = doc(db, "users", auth.currentUser.uid);
-                            const docSnap = await getDoc(userDocRef);
-                            if (docSnap.exists()) {
-                              const userData = docSnap.data();
-                              if (userData.isStudyingUser) {
-                                dbIsStudying = true;
-                                dbActiveSubjectId = userData.activeSubjectId || "";
-                              }
-                            }
-                          }
-                        } catch (err) {
-                          console.warn("Firestore active study check failed on play circle button click:", err);
-                        }
-
-                        const resolvedActiveSubjectId = dbActiveSubjectId || localActiveSubjectId;
-                        const hasRunningSession = dbIsStudying || localIsStudying;
-
-                        if (hasRunningSession && resolvedActiveSubjectId) {
-                          setActiveSubjectId(resolvedActiveSubjectId);
-                          setIsStudying(true);
-                          setToast({
-                            message: "⏱️ Auto-restoring and saving active study session...",
-                            type: "info"
-                          });
-                          setTimeout(() => {
-                            handleStopAndSave();
-                          }, 350);
-                          return;
-                        }
-
-                        const verifiedSubject = subjects.find(s => s.id === activeSubjectId);
-                        if (verifiedSubject) {
-                          setIsStudying(true);
-                          setToast({
-                            message: `Study session started for: "${verifiedSubject.name}" ⚡`,
-                            type: "info"
-                          });
-                        } else {
-                          setToast({
-                            message: "⚠️ Please select an active Subject/Topic from the disciplines list below first!",
-                            type: "warning"
-                          });
-                        }
-                      }}
-                      className="w-16 h-16 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 group/play shadow-xl border focus:outline-none"
-                      style={{
-                        backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : themeHexAccent + "1a",
-                        borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : themeHexAccent + "40",
-                        boxShadow: isStudying ? "0 0 20px rgba(245, 158, 11, 0.15)" : `0 0 24px ${themeHexAccent}20`
-                      }}
-                      title={isStudying ? "Stop & Save Study Session" : "Start Focus Session"}
-                    >
-                      <span className="absolute inset-0 rounded-full scale-[0.85] border border-dashed opacity-45 group-hover/play:scale-100 transition-all duration-500" style={{ borderColor: isStudying ? "#f59e0b" : themeHexAccent }} />
-                      {isStudying ? (
-                        <Pause className="w-6 h-6 text-amber-500 fill-amber-500/20 stroke-[3.5] transform group-hover/play:scale-110 transition-transform" />
-                      ) : (
-                        <Play className="w-6 h-6 text-emerald-500 fill-emerald-500/20 stroke-[3.5] ml-1 transform group-hover/play:scale-110 transition-transform animate-pulse" style={{ color: themeHexAccent, fill: `${themeHexAccent}20` }} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Pomodoro Rounds Progress Indicator */}
-                  {timerType === "pomodoro" && (
-                    <div className="flex flex-col items-center gap-2 mt-2 w-full max-w-[220px] bg-white/40 dark:bg-black/10 border border-slate-200/30 dark:border-white/5 px-4 py-3 rounded-2xl relative z-10 shadow-inner">
-                      <span className="text-[9px] font-mono font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Pomo Rounds</span>
-                      <div className="flex items-center gap-2.5 mt-0.5">
-                        {[1, 2, 3, 4].map(r => {
-                          const isActive = pomoRound === r && pomoState === "focus";
-                          const isDone = pomoRound > r || (pomoRound === r && pomoState !== "focus");
-                          return (
-                            <div 
-                              key={r}
-                              className={`w-6 h-6 rounded-xl flex items-center justify-center text-[10px] font-mono font-black transition-all ${
-                                isActive 
-                                  ? "bg-rose-500 text-white shadow-lg shadow-rose-500/30 animate-pulse scale-110 border border-white/20" 
-                                  : isDone 
-                                  ? "bg-emerald-500 text-white border border-white/20" 
-                                  : "bg-slate-200/60 dark:bg-white/5 text-slate-455 dark:text-slate-500 border border-transparent"
-                              }`}
-                            >
-                              {isDone ? "✓" : r}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Control buttons under progress: Save/Discard or Pomodoro reset/skip */}
-                  <div className="flex items-center gap-3.5 mt-4 w-full relative z-10 px-2">
-                    {(timerType === "stopwatch" || timerType === "custom") ? (
-                      activeSeconds > 0 && (
-                        <>
-                          <button
-                            onClick={handleStopAndSave}
-                            className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-105 text-white font-extrabold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-600/10 flex items-center justify-center gap-2 active:scale-95 border border-white/10"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" /> Finish & Save
-                          </button>
-                          <button
-                            onClick={handleDiscardProgress}
-                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                              showDiscardConfirm 
-                                ? "bg-rose-600 border-rose-500 text-white hover:bg-rose-500 animate-pulse w-full text-xs font-black" 
-                                : "bg-white/50 hover:bg-white dark:bg-black/30 dark:hover:bg-black/50 border-slate-200/40 dark:border-white/5 text-slate-500 dark:text-slate-400"
-                            }`}
-                          >
-                            {showDiscardConfirm ? "Reset?" : <RotateCcw className="w-4 h-4" />}
-                          </button>
-                        </>
-                      )
-                    ) : (
-                      <>
-                        <button
-                          onClick={handleResetPomo}
-                          className="flex-1 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-black text-xs py-2.5 rounded-xl border bg-white/45 hover:bg-white dark:bg-black/20 dark:hover:bg-black/35 border-slate-200/40 dark:border-white/5 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                          title="Reset Pomodoro"
-                        >
-                          <RotateCw className="w-3.5 h-3.5" /> Reset
-                        </button>
-                        <button
-                          onClick={handleSkipPomo}
-                          className="flex-1 text-[#f26419] font-black text-xs py-2.5 rounded-xl border bg-orange-500/10 dark:bg-orange-500/5 border-[#f26419]/25 hover:bg-orange-500/15 transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
-                          title="Skip period"
-                        >
-                          <SkipForward className="w-3.5 h-3.5" /> Skip
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            };
-            return null;
-          })()}
-
+            <div className="lg:col-span-4 col-span-12 order-2 lg:order-2 flex flex-col">
             {/* Redesigned Academic Study Disciplines Card */}
-            <div id="f5-subject-selection-container" className="w-full h-full flex flex-col glass-card-inner p-5.5 rounded-[32px] shadow-2xl space-y-4 text-left">
+            <div id="f5-subject-selection-container" className="w-full flex flex-col glass-card-inner p-5.5 rounded-[32px] shadow-2xl space-y-4 text-left">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col text-left">
                   <span className="text-[8.5px] font-mono tracking-widest uppercase font-black text-slate-450 dark:text-slate-500 leading-none">
@@ -2386,7 +2462,7 @@ function TimelineView({
               </div>
 
               {/* Subjects List */}
-              <div id="f5-subject-selection" className="space-y-2.5 flex-1 overflow-y-auto no-scrollbar pr-0.5">
+              <div id="f5-subject-selection" className="space-y-2.5 flex-1">
                 {subjects.length === 0 ? (
                   <div className="py-8 text-center text-slate-450 dark:text-slate-500 text-[10.5px] font-bold">
                     No subjects enrolled yet. Click Manage to add! 🎓
@@ -2400,13 +2476,7 @@ function TimelineView({
                     return (
                       <div
                         key={sub.id}
-                        onClick={() => {
-                          if (isStudying && isSelected) {
-                            // ignore
-                          } else {
-                            handleStartStudy(sub.id);
-                          }
-                        }}
+                        onClick={() => handleToggleStudyForSubject(sub.id)}
                         className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-300 relative overflow-hidden group/sub cursor-pointer active:scale-[0.99] ${
                           isSelected
                             ? "border-[#f26419]/60 bg-[#f26419]/5 dark:bg-[#f26419]/10 text-slate-800 dark:text-slate-100 shadow-md shadow-orange-500/[0.02]"
@@ -2425,13 +2495,42 @@ function TimelineView({
                             <span className={`text-[7.5px] font-mono uppercase font-black tracking-widest block leading-none ${isSelected ? 'text-[#f26419]' : 'text-slate-450'}`}>
                               {isSelected ? 'Active Focus Domain' : 'Subject'}
                             </span>
-                            <span className="text-xs font-bold truncate block mt-1.5 text-slate-850 dark:text-neutral-200 group-hover/sub:text-[#f26419] transition-colors leading-tight">
+                            <span className="text-xs font-bold truncate block mt-1.5 text-slate-850 dark:text-neutral-200 group-hover/sub:text-[#f26419] transition-all leading-tight">
                               {sub.name}
                             </span>
                           </div>
 
-                          {/* Edit action */}
-                          <div className="flex items-center gap-1.5 shrink-0 opacity-40 group-hover/sub:opacity-100 transition-opacity">
+                          {/* Edit and Play/Pause actions */}
+                          <div className="flex items-center gap-2 shrink-0 opacity-40 group-hover/sub:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStudyForSubject(sub.id);
+                              }}
+                              className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                                isSelected && isStudying
+                                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse"
+                                  : isSelected && isResting
+                                  ? "bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30 animate-pulse"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:scale-105"
+                              }`}
+                              title={
+                                isSelected && isStudying
+                                  ? "Pause Focus (Shift to Rest)"
+                                  : isSelected && isResting
+                                  ? "Resume Focus"
+                                  : "Start Focus"
+                              }
+                            >
+                              {isSelected && isStudying ? (
+                                <Pause className="w-2.5 h-2.5 fill-current stroke-none" />
+                              ) : isSelected && isResting ? (
+                                <Coffee className="w-2.5 h-2.5" />
+                              ) : (
+                                <Play className="w-2.5 h-2.5 fill-current stroke-none ml-0.5" />
+                              )}
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2442,7 +2541,7 @@ function TimelineView({
                                 setIsEditingSubjectsList(true);
                                 setShowSubjectsModal(true);
                               }}
-                              className="p-1 rounded-md hover:bg-slate-150 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                              className="p-1 rounded-md hover:bg-slate-150 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all"
                               title="Configure Discipline"
                             >
                               <Edit className="w-3 h-3" />
@@ -2478,10 +2577,187 @@ function TimelineView({
                 )}
               </div>
             </div>
+
+            {/* Milestone D-Day Countdowns Widget */}
+            <div className="w-full glass-card-inner p-5.5 rounded-[32px] shadow-2xl space-y-4 text-left mt-4.5 animate-fade-in relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-16 w-16 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-full filter blur-md pointer-events-none" />
+              
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col text-left">
+                  <span className="text-[8.5px] font-mono tracking-widest uppercase font-black text-slate-450 dark:text-slate-500 leading-none">
+                    Milestones
+                  </span>
+                  <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 mt-1.5 leading-none flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-500" /> D-Day Tracker
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddDDayForm(!showAddDDayForm)}
+                  className="flex items-center gap-1 text-[9px] font-mono font-black text-indigo-500 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/15 hover:bg-indigo-500/20 transition-all cursor-pointer"
+                >
+                  {showAddDDayForm ? "Cancel" : "Add D-Day"}
+                </button>
+              </div>
+
+              {/* Add D-Day form */}
+              {showAddDDayForm && (
+                <form onSubmit={handleAddDDay} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-black/30 border border-slate-200/50 dark:border-white/5 space-y-3.5 animate-fade-in">
+                  <div className="space-y-1">
+                    <label className="text-[8.5px] font-mono uppercase font-black text-slate-400">Exam or Milestone Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. UPSC Prelims, Final Exam"
+                      value={newDDayTitle}
+                      onChange={(e) => setNewDDayTitle(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-neutral-50 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8.5px] font-mono uppercase font-black text-slate-400">Target Exam Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={newDDayDate}
+                      onChange={(e) => setNewDDayDate(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-[#121215]/50 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-neutral-50 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black shadow-md cursor-pointer transition-all active:scale-98"
+                  >
+                    Confirm Target Milestone
+                  </button>
+                </form>
+              )}
+
+              {/* D-Day List */}
+              <div className="space-y-2">
+                {ddays.length === 0 ? (
+                  <div className="py-6 text-center text-slate-450 dark:text-slate-500 text-[10.5px] font-bold">
+                    No milestone targets set.
+                  </div>
+                ) : (
+                  ddays.map((d) => {
+                    const daysLeft = getDDayDaysLeft(d.date);
+                    const isUrgent = daysLeft >= 0 && daysLeft <= 3;
+                    const isToday = daysLeft === 0;
+                    const isPast = daysLeft < 0;
+
+                    return (
+                      <div
+                        key={d.id}
+                        className="p-3 rounded-2xl bg-white/45 dark:bg-[#121217]/35 border border-slate-200/20 dark:border-white/5 flex items-center justify-between group/dday hover:border-indigo-500/30 transition-all"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">{d.title}</p>
+                          <p className="text-[9px] font-mono text-slate-400 font-bold mt-1">
+                            Target: {new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {/* Days Left badge */}
+                          <span
+                            className={`text-[10px] font-mono font-black px-2.5 py-1 rounded-xl shadow-xs border ${
+                              isToday
+                                ? "bg-red-500 text-white border-transparent animate-pulse"
+                                : isUrgent
+                                ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
+                                : isPast
+                                ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-550 border-transparent"
+                                : "bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-500/25"
+                            }`}
+                          >
+                            {isToday ? "D-DAY" : isPast ? `D+${Math.abs(daysLeft)}` : `D-${daysLeft}`}
+                          </span>
+
+                          {/* Delete action */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDDay(d.id)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover/dday:opacity-100 transition-opacity cursor-pointer"
+                            title="Delete Milestone"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
             {/* Watch / Timer & Planners (Visualized on the Left Side using order-1 / lg:order-1) */}
             <div className="lg:col-span-8 col-span-12 order-1 lg:order-1 flex flex-col gap-4.5">
+              {/* Today's Total Focus HUD & Goal Progress Bar */}
+              {subView === "timer" && (
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 animate-fade-in">
+                  {/* Today's Total Focus HUD & Goal Progress Bar */}
+                  <div className="md:col-span-8 glass-card-inner p-5 rounded-[28px] border border-slate-200/50 dark:border-white/[0.04] text-left relative overflow-hidden shadow-xl">
+                    <div className="absolute top-0 right-0 h-24 w-24 bg-gradient-to-br from-[#f26419]/10 to-transparent rounded-full filter blur-xl pointer-events-none" />
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-black block">
+                          Today's Total Focus Time
+                        </span>
+                        <h2 className="text-2xl font-mono font-black text-slate-800 dark:text-white flex items-baseline gap-1.5 leading-none">
+                          {formatStudyTimeExact(totalFocusMinutesToday)}
+                          <span className="text-[10px] font-sans font-bold text-slate-400 dark:text-slate-500">/ 6h goal</span>
+                        </h2>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-mono font-extrabold text-[#f26419] bg-[#f26419]/10 px-2.5 py-1 rounded-full border border-[#f26419]/15">
+                          {Math.min(100, Math.round((totalFocusMinutesToday / 360) * 100))}% Completed
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-4.5 space-y-2">
+                      <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-200/20 dark:border-white/5">
+                        <div 
+                          className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[#f26419] to-amber-500 shadow-md shadow-orange-500/10"
+                          style={{ width: `${Math.min(100, Math.round((totalFocusMinutesToday / 360) * 100))}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 font-bold px-0.5">
+                        <span>Start Study</span>
+                        <span>Daily 6-Hour Milestone reached! 🏆</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Today's Total Rest HUD */}
+                  <div className="md:col-span-4 glass-card-inner p-5 rounded-[28px] border border-sky-500/20 dark:border-sky-500/10 bg-sky-500/[0.02] text-left relative overflow-hidden shadow-xl flex flex-col justify-between">
+                    <div className="absolute top-0 right-0 h-20 w-20 bg-gradient-to-br from-sky-500/10 to-transparent rounded-full filter blur-lg pointer-events-none" />
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-mono uppercase tracking-widest text-sky-400 dark:text-sky-400 font-black flex items-center gap-1.5">
+                        <Coffee className="w-3 h-3" />
+                        Today's Total Rest
+                      </span>
+                      <h2 className="text-2xl font-mono font-black text-slate-800 dark:text-slate-100 leading-none">
+                        {formatStudyTimeExact(totalRestMinutesToday)}
+                      </h2>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-slate-200/30 dark:border-white/5 flex items-center justify-between">
+                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-bold">
+                        Resting State:
+                      </span>
+                      <span className={`text-[9.5px] font-mono font-black px-2 py-0.5 rounded-full ${
+                        isResting 
+                          ? "bg-sky-500/15 text-sky-500 border border-sky-500/20 animate-pulse" 
+                          : "bg-slate-100 dark:bg-black/30 text-slate-400 dark:text-slate-500"
+                      }`}>
+                        {isResting ? "Resting ☕" : "Active / Idle"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Chrono Orb card at the top */}
               {renderChronoOrb && renderChronoOrb()}
 
@@ -2520,7 +2796,7 @@ function TimelineView({
                           </span>
                         </div>
 
-                        {/* Preset Minute Tabs */}
+                        {/* Preset Minute Selectors */}
                         <div className="space-y-1.5">
                           <label className="text-[8.5px] font-mono tracking-wider font-extrabold uppercase text-slate-400 dark:text-slate-500">
                             General Focus Intervals
@@ -2717,235 +2993,118 @@ function TimelineView({
                   </>
                 )}
 
-                {subView === "atmosphere" && (
-                  <>
-                    {/* Realme UI 7 Control Center Glass Sound Deck */}
-                    <div className="glass-card-inner p-5 rounded-3xl space-y-4 mt-1.5 text-left relative overflow-hidden shadow-2xl">
-                      
-                      {/* Interactive Faux Status Bar (Realme UI style) */}
-                      <div className="flex items-center justify-between border-b border-slate-200/10 pb-2.5 mb-1 text-[11px] font-sans font-medium text-slate-505 dark:text-slate-450">
-                        <div className="flex items-center gap-1">
-                          <span className="font-bold">Tue, Oct 21</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] opacity-85">
-                          <span>Vi India | Jio True5G</span>
-                          <span className="inline-flex gap-0.5 items-end h-2.5">
-                            <span className="w-[1.5px] h-1.5 bg-current rounded-full"></span>
-                            <span className="w-[1.5px] h-2 bg-current rounded-full"></span>
-                            <span className="w-[1.5px] h-2.5 bg-current rounded-full"></span>
-                          </span>
-                          <span className="font-mono text-[9px] border border-current px-0.5 rounded text-[8px] leading-none font-black">5G</span>
-                          <span className="flex items-center gap-0.5">
-                            <span className="w-4 h-2.5 border border-current rounded-xs relative flex items-center p-0.5">
-                              <span className="h-full w-[90%] bg-current rounded-2xs"></span>
-                            </span>
-                            <span>92%</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Header with Title */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] uppercase font-display font-bold tracking-widest text-slate-450 dark:text-slate-500 block">
-                            Realme UI 7 Fluid Deck
-                          </span>
-                          <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mt-0.5 block">
-                            Flow Ambient Synthesizer
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {ambientSound !== "none" ? (
-                            <Volume2 className="w-4 h-4 text-blue-500 dark:text-blue-400 animate-pulse" />
-                          ) : (
-                            <VolumeX className="w-4 h-4 text-slate-400" />
-                          )}
-                          <span className="text-xs font-mono text-slate-600 dark:text-slate-350 capitalize font-bold">{ambientSound === "none" ? "Muted" : ambientSound}</span>
-                        </div>
-                      </div>
-
-                      {/* Side by side grid layout mimicking Realme UI 7 Control Center panel */}
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        
-                        {/* Left Side: 2x3 Circle Button Layout (Control Center widgets) */}
-                        <div className="col-span-8 grid grid-cols-3 gap-3">
-                          {[
-                            { id: "none", label: "Mute", icon: VolumeX },
-                            { id: "brown", label: "Brownian", icon: Radio },
-                            { id: "rain", label: "Cozy Rain", icon: CloudRain },
-                            { id: "waves", label: "Ocean Tide", icon: Waves },
-                            { id: "fire", label: "Campfire", icon: Flame },
-                            { id: "binaural", label: "Gamma Beats", icon: Sparkles }
-                          ].map((s) => {
-                            const IconComponent = s.icon;
-                            const isActive = ambientSound === s.id;
-                            return (
-                              <div key={s.id} className="flex flex-col items-center gap-1.5">
-                                <button
-                                  onClick={() => {
-                                    setAmbientSound(s.id as any);
-                                    setToast({
-                                      message: s.id === "none" 
-                                        ? "Ambient soundscapes muted." 
-                                        : `Synthesizing active ${s.label} flow track 🎧`,
-                                      type: s.id === "none" ? "info" : "success"
-                                    });
-                                  }}
-                                  className={`realme-toggle-btn ${isActive ? "active" : ""}`}
-                                  style={isActive && s.id !== "none" ? {
-                                    backgroundColor: "rgba(255, 255, 255, 1)",
-                                    borderColor: "rgba(255, 255, 255, 1)",
-                                    boxShadow: `0 12px 24px -4px rgba(37, 99, 235, 0.25)`
-                                  } : undefined}
-                                  title={s.label}
-                                >
-                                  <IconComponent className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110 text-blue-600 dark:text-blue-900" : "text-slate-600 dark:text-slate-300"}`} />
-                                </button>
-                                <span className={`text-[10px] text-center truncate w-full font-sans font-semibold tracking-tight transition-colors ${isActive ? "text-blue-600 dark:text-blue-450 font-bold" : "text-slate-500 dark:text-slate-400"}`}>
-                                  {s.label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Right Side: Large Vertical Tactile Capsule Volume Slider (Exactly like Realme CC volume) */}
-                        <div className="col-span-4 flex flex-col items-center justify-center gap-2 h-full">
-                          <div 
-                            ref={volumeCapsuleRef}
-                            onMouseDown={handleCapsuleMouseDown}
-                            onTouchStart={handleCapsuleTouchStart}
-                            className="realme-slider-track w-14 h-[130px] shadow-lg relative flex items-end overflow-hidden cursor-row-resize"
-                            title="Drag vertically to adjust master ambiance volume"
-                          >
-                            {/* Filled active capsule volume bar */}
-                            <div 
-                              className="realme-slider-fill w-full bg-white flex flex-col items-center justify-end pb-3 transition-all duration-75 relative"
-                              style={{ height: `${(volume / 0.5) * 100}%`, minHeight: "24px" }}
-                            >
-                              {/* Sliding Speaker volume icon */}
-                              <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-100 dark:bg-slate-200 p-1 rounded-full shadow-xs">
-                                {volume > 0 ? (
-                                  <Volume2 className="w-4 h-4 text-blue-600" />
-                                ) : (
-                                  <VolumeX className="w-4 h-4 text-slate-500" />
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Ghost Icon background when empty */}
-                            {volume === 0 && (
-                              <div className="absolute top-2 left-1/2 -translate-x-1/2 text-slate-400 dark:text-slate-600">
-                                <VolumeX className="w-4 h-4" />
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Tactile Percentage Readout Label */}
-                          <div className="text-center">
-                            <span className="text-[10px] font-mono font-black text-slate-600 dark:text-slate-350 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
-                              {Math.round((volume / 0.5) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* Smooth Sound Equalizer Animation */}
-                      {isStudying && ambientSound !== "none" && (
-                        <div className="flex items-end justify-between px-3 pt-2.5 pb-1 gap-1 h-7 bg-blue-50/20 dark:bg-blue-950/10 rounded-2xl border border-blue-500/10">
-                          {Array.from({ length: 24 }).map((_, barIdx) => {
-                            const animationDuration = `${0.4 + (barIdx % 5) * 0.15}s`;
-                            const animDelay = `${barIdx * 50}ms`;
-                            return (
-                              <span 
-                                key={barIdx}
-                                className="flex-1 bg-blue-500/80 dark:bg-blue-400/80 rounded-full transition-transform"
-                                style={{
-                                  height: "100%",
-                                  transformOrigin: "bottom",
-                                  animation: `equalizerPulse ${animationDuration} ease-in-out infinite alternate`,
-                                  animationDelay: animDelay
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-
-                    </div>
-
-                    {/* Cognitive Companion Enhancers Deck */}
-                    <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
-                      <div>
-                        <span className="text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 font-extrabold tracking-wider block">
-                          Focus Boosters
+                {subView === "objectives" && (
+                  <div className="glass-card-inner p-5 rounded-[28px] border border-slate-200/50 dark:border-white/[0.04] space-y-5 mt-1.5 text-left relative overflow-hidden shadow-xl animate-fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-black block">
+                          Deep Work Session Focus
                         </span>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Activate real-time cognitive state assistants:</p>
+                        <h3 className="text-sm font-sans font-bold text-slate-800 dark:text-white">
+                          Target Objectives & Checklist
+                        </h3>
+                      </div>
+                      {sessionGoalText && (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          Active Goal Armed
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Active Objective Pinned Card */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Primary Objective</span>
+                        {sessionGoalText && (
+                          <button
+                            type="button"
+                            onClick={() => setSessionGoalText("")}
+                            className="text-[10px] text-slate-400 hover:text-rose-400 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Type active session objective..."
+                        value={sessionGoalText}
+                        onChange={(e) => setSessionGoalText(e.target.value)}
+                        className="w-full bg-transparent border-b border-dashed border-slate-300 dark:border-slate-750 pb-1 text-sm font-bold text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#f26419]"
+                      />
+                    </div>
+
+                    {/* In-Session Subtasks Checklist */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          Session Steps ({sessionTodos.filter(t => t.isDone).length}/{sessionTodos.length})
+                        </span>
                       </div>
 
-                      <div className="space-y-2.5">
-                        {/* Focus Guard Protection Switch */}
-                        <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`p-1.5 rounded-lg transition-transform ${focusGuard ? 'bg-[#f26419]/10 text-[#f26419] scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
-                              <Shield className="w-4 h-4 stroke-[2.5]" />
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Anti-Distraction Shield</span>
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Auto-pauses study if you switch browser tabs</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setFocusGuard(!focusGuard)}
-                            aria-label="Toggle focus guard"
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              focusGuard ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
-                            }`}
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                        {sessionTodos.map(todo => (
+                          <div
+                            key={todo.id}
+                            onClick={() => handleToggleTodo(todo.id)}
+                            className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-black/20 border border-slate-200/50 dark:border-slate-800 cursor-pointer"
                           >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                                focusGuard ? 'translate-x-4' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
-                        </div>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                              todo.isDone ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 dark:border-slate-700"
+                            }`}>
+                              {todo.isDone && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                            <span className={`text-xs ${todo.isDone ? "line-through text-slate-400" : "text-slate-700 dark:text-slate-200"}`}>
+                              {todo.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
 
-                        {/* Mindful Breathing Anchor Switch */}
-                        <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100/50 dark:border-slate-900">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`p-1.5 rounded-lg transition-transform ${showBreathingCoach ? 'bg-indigo-500/10 text-indigo-500 scale-110' : 'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-600'}`}>
-                              <Brain className="w-4 h-4 stroke-[2.5]" />
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block truncate">Rhythmic Breath Coach</span>
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 block truncate leading-none mt-0.5">Pulsing 4-4-4 visual guide for stress reduction</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setShowBreathingCoach(!showBreathingCoach)}
-                            aria-label="Toggle breathing guide"
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              showBreathingCoach ? 'bg-[#f26419]' : 'bg-slate-200 dark:bg-slate-800'
-                            }`}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                                showBreathingCoach ? 'translate-x-4' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
-                        </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="Add quick milestone step..."
+                          value={newTodoText}
+                          onChange={(e) => setNewTodoText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddTodo();
+                            }
+                          }}
+                          className="flex-1 bg-white dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddTodo}
+                          className="px-3 py-1.5 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer"
+                        >
+                          Add
+                        </button>
                       </div>
                     </div>
-                  </>
+
+                    {/* Brain Dump Quick Pad button */}
+                    <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">Distracting thoughts during focus?</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowBrainDumpPad(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                      >
+                        <Brain className="w-3.5 h-3.5" />
+                        <span>Open Brain Dump ({brainDumps.length})</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* Right Column of Right Panel: Active subjects and aesthetic themes */}
               <div className="flex flex-col space-y-4.5 w-full">
 
-                {subView === "atmosphere" && (
+                {subView === "objectives" && (
                   <>
                     {/* Advanced Aesthetic Workspace Canvas Palette */}
                     <div className="bg-slate-50/70 dark:bg-slate-950/40 p-4.5 rounded-3xl border border-slate-200/50 dark:border-slate-900 space-y-3.5 text-left relative overflow-hidden">
@@ -3271,8 +3430,14 @@ function TimelineView({
                           <span className={`w-2.5 h-2.5 rounded-full ${colorBg.startsWith("bg-") ? colorBg : `bg-gradient-to-r ${colorBg}`}`}></span>
                           {log.subjectName}
                         </span>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-                          {formatStudyTimeExact(log.durationMinutes)}
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                          <span>⏱️ {formatStudyTimeExact(log.durationMinutes)}</span>
+                          {log.restMinutes && log.restMinutes > 0 ? (
+                            <span className="text-sky-500 font-black border-l border-slate-250 dark:border-slate-800 pl-1.5 flex items-center gap-1">
+                              <Coffee className="w-2.5 h-2.5" />
+                              {formatStudyTimeExact(log.restMinutes)}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                     </div>
@@ -3343,6 +3508,262 @@ function TimelineView({
         </div>
       )}
 
+      {/* 1. Metacognitive Reflection & Debrief Modal */}
+      {showReflectionModal && (
+        <div className="fixed inset-0 bg-[#08090d]/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in text-slate-800 dark:text-slate-100 select-none">
+          <div className="liquid-glass border border-slate-200/50 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl p-6 relative">
+            {/* Ambient background glow */}
+            <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent rounded-full filter blur-xl pointer-events-none" />
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/5 relative z-10 text-left">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+                  <Brain className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-mono uppercase tracking-widest text-indigo-400 font-black block">Metacognitive Debrief</span>
+                  <h3 className="text-sm font-black text-slate-800 dark:text-white">Session Reflection</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReflectionModal(false)}
+                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 relative z-10 text-left">
+              {/* Session Stats snapshot */}
+              <div className="p-3 rounded-2xl bg-white/40 dark:bg-black/30 border border-slate-200/40 dark:border-white/5 flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-mono uppercase text-slate-400 font-bold block">Study Duration</span>
+                  <span className="text-sm font-mono font-black text-slate-800 dark:text-slate-100">
+                    {formatStudyTimeExact(sessionSavedMinutes || (Math.round(activeSeconds / 60) || 1))}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[8px] font-mono uppercase text-emerald-500 font-bold block">XP Reward</span>
+                  <span className="text-xs font-mono font-black text-emerald-400">+30 Reflection XP</span>
+                </div>
+              </div>
+
+              {/* 1. Focus Quality Rating (1 to 5 Stars with Psychological Labels) */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono uppercase tracking-wider font-extrabold text-slate-400 dark:text-slate-400 flex items-center justify-between">
+                  <span>Cognitive Friction / Flow State</span>
+                  <span className="text-amber-400 font-black font-sans text-xs">{reflectionRating} / 5 Stars</span>
+                </label>
+                <div className="flex items-center justify-between gap-1.5 p-2 rounded-2xl bg-white/40 dark:bg-black/20 border border-slate-200/40 dark:border-white/5">
+                  {[1, 2, 3, 4, 5].map((starVal) => {
+                    const isFilled = starVal <= reflectionRating;
+                    return (
+                      <button
+                        key={starVal}
+                        type="button"
+                        onClick={() => setReflectionRating(starVal)}
+                        className={`flex-1 py-2 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          isFilled 
+                            ? "bg-amber-500/15 border border-amber-500/30 text-amber-400 scale-[1.03]" 
+                            : "text-slate-500 hover:text-slate-300 hover:bg-white/5 border border-transparent"
+                        }`}
+                      >
+                        <Star className={`w-4 h-4 ${isFilled ? "fill-amber-400" : ""}`} />
+                        <span className="text-[8px] font-mono font-bold mt-1">{starVal}★</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[9.5px] font-medium text-slate-500 dark:text-slate-400 px-1 italic">
+                  {reflectionRating === 1 && "🌧️ High Friction: Mind wandered or high distraction. Showing up still builds neuroplasticity!"}
+                  {reflectionRating === 2 && "⛅ Scattered: Resistance was present, but you persevered through cognitive inertia."}
+                  {reflectionRating === 3 && "🌤️ Steady Focus: Solid concentration and productive baseline work."}
+                  {reflectionRating === 4 && "⚡ High-Density: Strong immersion with minimal distraction costs."}
+                  {reflectionRating === 5 && "🌌 Deep Flow: Effortless neuro-retention, peak dopamine & acetylcholine alignment!"}
+                </p>
+              </div>
+
+              {/* 2. Mindset Mode Tag */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono uppercase tracking-wider font-extrabold text-slate-400">
+                  Cognitive Modality
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {COGNITIVE_PRESETS.map((p) => {
+                    const isSelected = cognitiveMindset === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setCognitiveMindset(p.id)}
+                        className={`py-1.5 px-2 rounded-xl text-center text-[9px] font-mono font-bold border transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 shadow-sm"
+                            : "bg-white/20 dark:bg-black/20 border-slate-200/30 dark:border-white/5 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        {p.badge}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Reflection Breakthrough Note */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono uppercase tracking-wider font-extrabold text-slate-400">
+                  Cognitive Breakthrough / Insight Note (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Mastered organic mechanisms; hit flow after 10 mins..."
+                  value={reflectionNotes}
+                  onChange={(e) => setReflectionNotes(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl bg-white dark:bg-black/30 border-slate-200 dark:border-white/10 text-xs font-medium text-slate-800 dark:text-neutral-100 placeholder-slate-400 dark:placeholder-slate-550 focus:border-indigo-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              {reflectionErrorText && (
+                <p className="text-[10px] text-rose-400 font-bold bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                  ⚠️ {reflectionErrorText}
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-2 relative z-10">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReflectionModal(false);
+                  setSessionGoalText("");
+                  setSessionTodos([]);
+                }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200/50 dark:border-white/10 hover:bg-white/5 text-xs font-mono font-bold text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitReflection}
+                className="flex-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:opacity-95 text-white font-mono font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Save Reflection (+30 XP)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Working Memory Brain-Dump Pad */}
+      {showBrainDumpPad && (
+        <div className="fixed inset-0 bg-[#08090d]/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in text-slate-800 dark:text-slate-100 select-none">
+          <div className="liquid-glass border border-slate-200/50 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl p-6 relative max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-white/5 text-left">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+                  <Brain className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-mono uppercase tracking-widest text-indigo-400 font-black block">Zeigarnik Intrusion Pad</span>
+                  <h3 className="text-sm font-black text-slate-800 dark:text-white">Working Memory Brain-Dump</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBrainDumpPad(false)}
+                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[10.5px] text-slate-400 dark:text-slate-400 pt-3 text-left leading-normal">
+              Educational psychology: Suppressing intrusive thoughts depletes prefrontal executive glucose. Park intrusions here in 2 seconds to immediately clear your mind.
+            </p>
+
+            {/* Input */}
+            <div className="flex items-center gap-2 pt-3">
+              <input
+                type="text"
+                placeholder="Intrusive thought (e.g. check lecture slides, email prof...)"
+                value={newDumpThought}
+                onChange={(e) => setNewDumpThought(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleParkThought();
+                }}
+                className="flex-1 bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-neutral-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleParkThought}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-mono font-bold cursor-pointer transition-all active:scale-95 shrink-0"
+              >
+                Park
+              </button>
+            </div>
+
+            {/* Parked list */}
+            <div className="mt-4 flex-1 overflow-y-auto space-y-2 no-scrollbar pr-1 max-h-[260px] text-left">
+              {brainDumps.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs italic">
+                  Working memory is completely clear. No parked intrusions! 🍃
+                </div>
+              ) : (
+                brainDumps.map((dump) => (
+                  <div
+                    key={dump.id}
+                    className="p-2.5 rounded-xl bg-white/40 dark:bg-black/30 border border-slate-200/40 dark:border-white/5 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 pr-1">
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate block">
+                        {dump.thought}
+                      </span>
+                      <span className="text-[8px] font-mono text-slate-400">
+                        Parked {new Date(dump.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {onAddTask && (
+                        <button
+                          type="button"
+                          onClick={() => handleConvertDumpToTask(dump)}
+                          className="px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[9px] font-mono font-bold cursor-pointer transition-all"
+                          title="Convert to Planner task"
+                        >
+                          → Task
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDismissDump(dump.id)}
+                        className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                        title="Dismiss thought"
+                      >
+                        <Trash className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-3 flex justify-between items-center text-[10px] font-mono text-slate-400">
+              <span>{brainDumps.length} thought{brainDumps.length !== 1 ? 's' : ''} parked</span>
+              <button
+                type="button"
+                onClick={() => setShowBrainDumpPad(false)}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-xl text-slate-200 font-bold transition-all cursor-pointer"
+              >
+                Return to Focus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating Subjects List Popover Form */}
       {showSubjectsModal && (
         <div className="fixed inset-0 bg-[#0a0a0ade] backdrop-blur-md flex items-center justify-center p-5 z-50 animate-fade-in text-slate-800 dark:text-slate-100 leading-normal">
@@ -3353,7 +3774,7 @@ function TimelineView({
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setIsEditingSubjectsList(!isEditingSubjectsList)}
-                  className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200 dark:hover:bg-slate-800 px-3 py-1 rounded-full cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200 dark:hover:bg-slate-800 px-3 py-1 rounded-full cursor-pointer"
                 >
                   <Edit className="w-3 h-3" />
                   {isEditingSubjectsList ? "Done" : "New subject"}
@@ -3580,12 +4001,12 @@ function TimelineView({
               )}
 
               <div className="flex gap-2">
-                {activeSeconds > 0 && (
+                {isStudying && (
                   <button 
                     onClick={handleStopAndSave}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-md"
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-md"
                   >
-                    Finish Session ({formatStudyTimeExact(activeSeconds / 60)})
+                    Pause Study
                   </button>
                 )}
               </div>
@@ -3733,11 +4154,216 @@ function TimelineView({
         </div>
       )}
 
+      {/* Fullscreen Focus Theatre Overlay */}
+      <AnimatePresence>
+        {isFullscreenFocus && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 bg-slate-950 z-[999] flex flex-col justify-between p-6 sm:p-12 text-center text-white select-none"
+          >
+            {/* Background glowing rings */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div 
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[800px] max-h-[800px] rounded-full border border-dashed opacity-10 animate-spin"
+                style={{ animationDuration: "120s", borderColor: themeHexAccent }}
+              />
+              <div 
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] rounded-full border border-dashed opacity-15 animate-spin"
+                style={{ animationDuration: "60s", borderColor: themeHexAccent, animationDirection: "reverse" }}
+              />
+              <div 
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40vw] h-[40vw] max-w-[400px] max-h-[400px] rounded-full opacity-10 blur-3xl"
+                style={{ backgroundColor: themeHexAccent }}
+              />
+            </div>
+
+            {/* Top row: Status/Header */}
+            <div className="relative z-10 flex items-center justify-between w-full max-w-5xl mx-auto">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                <span className="text-[10px] sm:text-xs font-mono font-black uppercase tracking-widest text-[#f26419]">
+                  IMMERSIVE STUDY THEATRE
+                </span>
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setIsFullscreenFocus(false)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-mono font-black transition-all cursor-pointer hover:scale-105 active:scale-95"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-indigo-400" /> Minimize Theatre
+              </button>
+            </div>
+
+            {/* Mid row: Large timer readout & subject */}
+            <div className="relative z-10 my-auto flex flex-col items-center justify-center space-y-6 max-w-3xl mx-auto">
+              <div className="space-y-2">
+                <span className="text-xl font-sans font-black text-slate-100 uppercase tracking-widest block">
+                  {activeSubject ? activeSubject.name : "Select a Subject to begin"}
+                </span>
+                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider block">
+                  CURRENT DOMAIN OF FOCUS
+                </span>
+              </div>
+
+              {/* Huge Timer */}
+              <div className="relative flex items-center justify-center my-4">
+                <span 
+                  className="text-7xl xs:text-8xl sm:text-9xl font-mono font-black tracking-tighter text-white tabular-nums select-none drop-shadow-[0_0_35px_rgba(255,255,255,0.15)]"
+                  style={{ textShadow: isStudying ? `0 0 45px ${themeHexAccent}50` : isResting ? `0 0 45px rgba(14, 165, 233, 0.65)` : "none" }}
+                >
+                  {isResting
+                    ? formatTickingTime(restSeconds)
+                    : timerType === "custom" 
+                    ? formatTickingTime(Math.max(0, (customTargetMinutes * 60) - activeSeconds)) 
+                    : (timerType === "stopwatch" ? formatTickingTime(activeSeconds) : formatPomoTime(pomoSecondsLeft))
+                  }
+                </span>
+              </div>
+
+              {/* Status Pill & breathing */}
+              <div className="space-y-3.5 flex flex-col items-center">
+                <div 
+                  className={`text-[10px] sm:text-xs uppercase tracking-widest font-mono px-5 py-1.5 rounded-full border font-black shadow-lg ${
+                    isStudying ? "animate-pulse" : isResting ? "bg-sky-500/10 border-sky-500/35 text-sky-450 animate-pulse" : "bg-white/5 border-transparent text-slate-500"
+                  }`}
+                  style={isStudying ? {
+                    backgroundColor: themeHexAccent + "1a",
+                    borderColor: themeHexAccent + "40",
+                    color: themeHexAccent,
+                    boxShadow: `0 0 20px ${themeHexAccent}20`
+                  } : isResting ? {
+                    boxShadow: "0 0 20px rgba(14, 165, 233, 0.25)"
+                  } : {}}
+                >
+                  {isResting ? (
+                    "Rest Mode Active ☕"
+                  ) : timerType === "custom" ? (
+                    isStudying ? "Countdown Ticking" : "Countdown Paused"
+                  ) : timerType === "stopwatch" ? (
+                    isStudying ? "Active focus stopwatch" : "Stopwatch Paused"
+                  ) : (
+                    pomoState === "focus" ? (
+                      isStudying ? "Focus Round Active" : "Standby"
+                    ) : (
+                      pomoState === "shortBreak" ? "Short Break ☕" : "Long Break 🌴"
+                    )
+                  )}
+                </div>
+
+                {showBreathingCoach && isStudying && (
+                  <div 
+                    className="flex items-center justify-center gap-2.5 px-4.5 py-1.5 rounded-full border backdrop-blur-md shadow-inner transition-all duration-1000 scale-105"
+                    style={{
+                      backgroundColor: themeHexAccent + "15",
+                      borderColor: themeHexAccent + "30"
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: themeHexAccent }} />
+                    <span 
+                      className="text-[9.5px] font-sans font-black uppercase tracking-widest leading-none"
+                      style={{ color: themeHexAccent }}
+                    >
+                      {breathState === "inhale" ? "Breathe In (Expand)..." : breathState === "hold" ? "Hold Breath..." : "Breathe Out (Release)..."}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Cumulative Today's Time HUD */}
+              <div className="pt-2">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold">Today's Cumulative Focus</p>
+                <p className="text-xl font-mono font-black text-slate-100 mt-1">
+                  {formatStudyTimeExact(totalFocusMinutesToday)}
+                </p>
+              </div>
+
+              {/* Cycling Quote card */}
+              <div className="bg-white/5 border border-white/5 px-6 py-4.5 rounded-2xl max-w-xl mx-auto text-center shadow-inner relative overflow-hidden">
+                <p className="text-xs sm:text-sm italic font-medium text-slate-300 leading-relaxed">
+                  "{focusQuotes[currentQuoteIndex]}"
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom row: Interactive Soundbar and Play/Pause */}
+            <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center gap-6 pt-6 border-t border-white/5">
+              
+              {/* Play/Pause and Close Subject buttons inside Fullscreen Theatre */}
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (subjects.length === 0) {
+                      setToast({
+                        message: "Please enroll a subject first in the main dashboard!",
+                        type: "warning"
+                      });
+                      return;
+                    }
+                    if (isResting) {
+                      resumeStudyFromRest();
+                    } else if (isStudying) {
+                      startRestMode();
+                    } else {
+                      const verifiedSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+                      if (verifiedSubject) {
+                        setActiveSubjectId(verifiedSubject.id);
+                        setIsStudying(true);
+                      }
+                    }
+                  }}
+                  className="w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 border cursor-pointer"
+                  style={{
+                    backgroundColor: isStudying ? "rgba(245, 158, 11, 0.15)" : isResting ? "rgba(14, 165, 233, 0.15)" : themeHexAccent + "1a",
+                    borderColor: isStudying ? "rgba(245, 158, 11, 0.4)" : isResting ? "rgba(14, 165, 233, 0.4)" : themeHexAccent + "40"
+                  }}
+                  title={isStudying ? "Shift to Rest" : isResting ? "Resume Focus" : "Start Focus"}
+                >
+                  {isStudying ? (
+                    <Pause className="w-6 h-6 text-amber-500 fill-amber-500/20 stroke-[3]" />
+                  ) : isResting ? (
+                    <Coffee className="w-6 h-6 text-sky-400 fill-sky-400/20 stroke-[2] animate-pulse" />
+                  ) : (
+                    <Play className="w-6 h-6 text-emerald-500 fill-emerald-500/20 ml-1 stroke-[3]" style={{ color: themeHexAccent }} />
+                  )}
+                </button>
+
+                {isResting && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await endStudyAndSaveWithRest();
+                      setIsFullscreenFocus(false);
+                    }}
+                    className="px-5 py-3.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-450 hover:to-red-550 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-rose-500/20 border border-rose-400/25"
+                    title="Finish session and save"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Close Subject
+                  </button>
+                )}
+              </div>
+
+              {/* Active Pinned Target inside fullscreen */}
+              {sessionGoalText && (
+                <div className="flex items-center justify-center gap-2 w-full bg-white/[0.04] border border-white/[0.06] p-3 rounded-2xl text-center">
+                  <Target className="w-3.5 h-3.5 text-[#f26419]" />
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    Active Focus Target: <span className="text-white font-semibold">{sessionGoalText}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
 
     </div>
   );
 }
-
-export default React.memo(TimelineView);
-

@@ -14,8 +14,8 @@ interface BeastHubProps {
   onAddXp: (reason: string, amount: number) => void;
 }
 
-function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
-  const [activeBeastTab, setActiveBeastTab] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
+export default function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
+  const [activeModule, setActiveModule] = useState<"acoustics" | "planners" | "analytics" | "quick">("acoustics");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const [focusAura, setFocusAura] = useState<"hyper" | "zen" | "scholar">(() => {
@@ -716,21 +716,6 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
     return () => clearInterval(timerId);
   }, [sleepTimerMinutes, sleepTimerSecondsLeft, binauralActive]);
 
-  // Clean-up all synthesis and close AudioContext on unmount
-  useEffect(() => {
-    return () => {
-      if (binLeftOscRef.current) { try { binLeftOscRef.current.stop(); } catch (e) {} binLeftOscRef.current.disconnect(); binLeftOscRef.current = null; }
-      if (binRightOscRef.current) { try { binRightOscRef.current.stop(); } catch (e) {} binRightOscRef.current.disconnect(); binRightOscRef.current = null; }
-      if (binGainRef.current) { binGainRef.current.disconnect(); binGainRef.current = null; }
-      if (noiseSourceRef.current) { try { noiseSourceRef.current.stop(); } catch (e) {} noiseSourceRef.current.disconnect(); noiseSourceRef.current = null; }
-      if (noiseGainRef.current) { noiseGainRef.current.disconnect(); noiseGainRef.current = null; }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(err => console.warn("Failed to close AudioContext in BeastHub on unmount:", err));
-        audioCtxRef.current = null;
-      }
-    };
-  }, []);
-
   const startSleepTimer = (minutes: number) => {
     setSleepTimerMinutes(minutes);
     setSleepTimerSecondsLeft(minutes * 60);
@@ -1063,28 +1048,28 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
         </div>
       </div>
 
-      {/* TABS SELECTOR */}
+      {/* MODULE SELECTOR */}
       <div className="liquid-glass p-1.5 rounded-2xl flex gap-1.5 overflow-x-auto no-scrollbar font-sans shrink-0 border shadow-sm">
         {[
           { id: "acoustics", label: "Sound Synth", icon: Volume2, color: "text-rose-500" },
           { id: "planners", label: "Study Planner", icon: Layers, color: "text-indigo-500" },
           { id: "analytics", label: "Grade Target", icon: BarChart2, color: "text-emerald-500" },
           { id: "quick", label: "Vision & Game", icon: Sparkles, color: "text-amber-500" }
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeBeastTab === tab.id;
+        ].map(mod => {
+          const Icon = mod.icon;
+          const isActive = activeModule === mod.id;
           return (
             <button
-              key={tab.id}
-              onClick={() => { setActiveBeastTab(tab.id as any); playKeyboardClack(); }}
+              key={mod.id}
+              onClick={() => { setActiveModule(mod.id as any); playKeyboardClack(); }}
               className={`py-2.5 px-5 rounded-xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 shrink-0 cursor-pointer active:scale-95 ${
                 isActive 
                   ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-md font-black scale-[1.02]" 
                   : "hover:bg-slate-550/10 text-slate-600 dark:text-slate-400 dark:hover:bg-white/5"
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 transition-transform duration-300 ${isActive ? "scale-110" : ""} ${tab.color}`} />
-              <span>{tab.label}</span>
+              <Icon className={`w-3.5 h-3.5 transition-transform duration-300 ${isActive ? "scale-110" : ""} ${mod.color}`} />
+              <span>{mod.label}</span>
             </button>
           );
         })}
@@ -1106,8 +1091,8 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
 
       <div className="space-y-6">
 
-        {/* TAB 1: SOUND SYNTH */}
-        {activeBeastTab === "acoustics" && (
+        {/* MODULE 1: SOUND SYNTH */}
+        {activeModule === "acoustics" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Binaural Generator */}
@@ -1218,8 +1203,8 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
           </div>
         )}
 
-        {/* TAB 3: PLATINUM PLANNER */}
-        {activeBeastTab === "planners" && (
+        {/* MODULE 2: PLATINUM PLANNER */}
+        {activeModule === "planners" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Eisenhower Quad Priority Grid */}
@@ -1445,8 +1430,8 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
           </div>
         )}
 
-        {/* TAB 4: GRADE ANALYTICS */}
-        {activeBeastTab === "analytics" && (
+        {/* MODULE 3: GRADE ANALYTICS */}
+        {activeModule === "analytics" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* GPA modeling required final exam grades */}
@@ -1468,6 +1453,25 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
                     {requiredFinalScore > 100 ? "Out of Reach" : `${requiredFinalScore}%`}
                   </span>
                 </div>
+              </div>
+
+              {/* Dynamic Target GPA selector */}
+              <div className="bg-indigo-50/30 dark:bg-indigo-950/10 p-3 rounded-2xl border border-indigo-100/10 space-y-1.5 text-xs">
+                <div className="flex justify-between font-mono">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Configure Target GPA</span>
+                  <span className="font-bold text-[#f26419]">{gpaTarget}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="60" 
+                  max="100" 
+                  value={gpaTarget} 
+                  onChange={(e) => setGpaTarget(parseInt(e.target.value))}
+                  className="w-full h-1 cursor-pointer accent-[#f26419]" 
+                />
+                <p className="text-[9px] text-slate-400 leading-normal font-medium">
+                  Adjust slider to dynamically update final exam grades required above.
+                </p>
               </div>
 
               {/* Targets weight list slider */}
@@ -1629,8 +1633,8 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
           </div>
         )}
 
-        {/* TAB 5: QUICK UTILITIES */}
-        {activeBeastTab === "quick" && (
+        {/* MODULE 4: QUICK UTILITIES */}
+        {activeModule === "quick" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Beast Study Achievements & Quests Center */}
@@ -2005,6 +2009,3 @@ function BeastHub({ themePreset, userXp, onAddXp }: BeastHubProps) {
     </div>
   );
 }
-
-export default React.memo(BeastHub);
-

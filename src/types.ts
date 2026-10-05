@@ -7,12 +7,99 @@ export interface Subject {
   goalMinutes: number;  // daily target goal for this subject
 }
 
+export interface TaskSubtask {
+  id: string;
+  text: string;
+  isCompleted: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
   isCompleted: boolean;
   subjectId: string; // maps to a Subject id, or "general"
+  priority?: "high" | "medium" | "low";
+  dueDate?: string; // YYYY-MM-DD
+  subtasks?: TaskSubtask[];
 }
+
+export interface Habit {
+  id: string;
+  title: string;
+  category: "study" | "health" | "review" | "discipline";
+  icon: string;
+  streak: number;
+  bestStreak: number;
+  targetDaysPerWeek: number;
+  completedDates: string[]; // YYYY-MM-DD
+  shieldActive?: boolean;
+  createdAt: string;
+}
+
+export const DEFAULT_HABITS: Habit[] = [
+  {
+    id: "habit_1",
+    title: "Daily Active Recall & Flashcards",
+    category: "review",
+    icon: "🧠",
+    streak: 4,
+    bestStreak: 7,
+    targetDaysPerWeek: 7,
+    completedDates: [],
+    shieldActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "habit_2",
+    title: "1 Deep Flow Pomodoro Block",
+    category: "study",
+    icon: "⚡",
+    streak: 6,
+    bestStreak: 12,
+    targetDaysPerWeek: 6,
+    completedDates: [],
+    shieldActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "habit_3",
+    title: "Solve 5 Practice Problems",
+    category: "study",
+    icon: "📐",
+    streak: 3,
+    bestStreak: 5,
+    targetDaysPerWeek: 5,
+    completedDates: [],
+    shieldActive: false,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "habit_4",
+    title: "Evening Schedule & Syllabus Audit",
+    category: "discipline",
+    icon: "📝",
+    streak: 5,
+    bestStreak: 14,
+    targetDaysPerWeek: 7,
+    completedDates: [],
+    shieldActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "habit_5",
+    title: "Hydration & 20-20-20 Eye Breaks",
+    category: "health",
+    icon: "💧",
+    streak: 8,
+    bestStreak: 21,
+    targetDaysPerWeek: 7,
+    completedDates: [],
+    shieldActive: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+export type CognitiveMindset = "deep-flow" | "classic" | "micro-start" | "stress-reset";
 
 export interface StudyLog {
   id: string;
@@ -21,6 +108,9 @@ export interface StudyLog {
   subjectName: string;
   durationMinutes: number;
   timestamp: string; // ISO String
+  restMinutes?: number; // Optional rest duration in minutes
+  focusQuality?: number; // Metacognitive focus rating: 1 to 5 stars
+  mindsetState?: CognitiveMindset; // The mindset state primed for this session
 }
 
 export interface Classmate {
@@ -308,8 +398,64 @@ export const formatStudyTimeExact = (minutes: number): string => {
   return parts.join(" ");
 };
 
+export interface BrainDumpItem {
+  id: string;
+  thought: string;
+  timestamp: string;
+  subjectId?: string;
+  isDismissed?: boolean;
+}
 
+export interface CognitivePreset {
+  id: CognitiveMindset;
+  title: string;
+  badge: string;
+  durationMinutes: number;
+  breakMinutes: number;
+  principle: string;
+  scienceBasis: string;
+  accentColor: string;
+}
 
-
-
-
+export const COGNITIVE_PRESETS: CognitivePreset[] = [
+  {
+    id: "micro-start",
+    title: "Micro-Start (5m)",
+    badge: "⚡ 5m Rule",
+    durationMinutes: 5,
+    breakMinutes: 2,
+    principle: "Crush Procrastination",
+    scienceBasis: "The 5-Minute Rule: Low activation energy bypasses amygdala resistance and triggers the Zeigarnik effect.",
+    accentColor: "from-emerald-500 to-teal-500 text-emerald-400"
+  },
+  {
+    id: "classic",
+    title: "Classic Pomo (25m)",
+    badge: "🍅 25m Focus",
+    durationMinutes: 25,
+    breakMinutes: 5,
+    principle: "Attention Pacing",
+    scienceBasis: "Balances focused prefrontal cortex attention with short synaptic consolidation breaks.",
+    accentColor: "from-rose-500 to-pink-500 text-rose-400"
+  },
+  {
+    id: "deep-flow",
+    title: "Deep Flow (50m)",
+    badge: "🌌 Ultradian",
+    durationMinutes: 50,
+    breakMinutes: 10,
+    principle: "Peak Neuro-Retention",
+    scienceBasis: "Matches biological ultradian rhythms to achieve high-depth cognitive synthesis without neural burnout.",
+    accentColor: "from-indigo-500 to-cyan-500 text-indigo-400"
+  },
+  {
+    id: "stress-reset",
+    title: "Stress Reset (3m)",
+    badge: "🌿 Vagus Reset",
+    durationMinutes: 3,
+    breakMinutes: 1,
+    principle: "Autonomic Calming",
+    scienceBasis: "Physiological sigh breathing resets heart rate variability and clears adrenaline tunnel vision.",
+    accentColor: "from-sky-500 to-blue-500 text-sky-400"
+  }
+];

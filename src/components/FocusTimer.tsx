@@ -281,10 +281,6 @@ export default function FocusTimer({
   useEffect(() => {
     return () => {
       stopAmbientSynthMixer();
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(err => console.warn("Failed to close AudioContext on unmount:", err));
-        audioCtxRef.current = null;
-      }
     };
   }, []);
 

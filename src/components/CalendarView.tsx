@@ -16,7 +16,7 @@ interface CalendarEventItem {
   color: string; // Tailwind class
 }
 
-function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: CalendarViewProps) {
+export default function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date()); // Dynamic current date to support current month (June)
   const [selectedLogsDate, setSelectedLogsDate] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -205,7 +205,7 @@ function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: C
     setLogErrorText(null);
     const targetSubId = manualSubjectId || subjects[0]?.id;
     if (!targetSubId) {
-      setLogErrorText("Please create at least one Subject in the custom Planner or Study workspace tab first.");
+      setLogErrorText("Please create at least one Subject in the Planner or Focus Arena first.");
       return;
     }
 
@@ -478,7 +478,7 @@ function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: C
                 <h5 className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Recorded Study Blocks ({studyLogs.filter(l => l.date === selectedLogsDate).length})</h5>
                 {studyLogs.filter(l => l.date === selectedLogsDate).length === 0 ? (
                   <p className="text-slate-500 text-xs italic bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl text-center border border-slate-100 dark:border-transparent">
-                    No active study sessions logged for this calendar date. Set focus goals on the Dashboard tab to earn points, or backdate them manually!
+                    No active study sessions logged for this calendar date. Set focus goals in Focus Arena to earn points, or backdate them manually!
                   </p>
                 ) : (
                   <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1 no-scrollbar">
@@ -515,7 +515,7 @@ function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: C
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <div>
                       <p className="font-bold">No Subjects created yet</p>
-                      <p className="opacity-90">Please first add subject folders (e.g. "Maths", "Chemistry") in your Planner or Focus clock tab before creating backdated logs.</p>
+                      <p className="opacity-90">Please first add subjects in your Planner or Focus Arena before creating backdated logs.</p>
                     </div>
                   </div>
                 ) : (
@@ -639,6 +639,3 @@ function CalendarView({ studyLogs, subjects = [], onAddStudyMinutes, userXp }: C
     </div>
   );
 }
-
-export default React.memo(CalendarView);
-

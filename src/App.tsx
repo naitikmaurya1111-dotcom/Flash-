@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft, Target, Expand, Shrink, ExternalLink } from "lucide-react";
-import { Subject, Task, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel, formatStudyTimeExact } from "./types";
+import { Clock, Users, ClipboardList, TrendingUp, Sparkles, BookOpen, Award, Flame, CloudLightning, LogOut, LogIn, Home, ClipboardCheck, Calendar, Bell, Sun, Moon, Laptop, Layers, Maximize2, Minimize2, Mail, Lock, X, Info, User as UserIcon, Eye, EyeOff, ChevronLeft, Target, Expand, Shrink, ExternalLink, Gift } from "lucide-react";
+import { Subject, Task, TaskSubtask, Habit, DEFAULT_HABITS, StudyLog, Reminder, GiftReward, XpGainLog, QuestChallenge, NotificationSettings, calculateStudentLevel, ALL_STUDENT_LEVELS, getXpRateForLevel, formatStudyTimeExact, CognitiveMindset } from "./types";
 import { INITIAL_SUBJECTS, INITIAL_CLASSMATES } from "./data";
-import RewardSystem from "./components/RewardSystem";
 import { 
   collection, 
   doc, 
@@ -18,18 +17,19 @@ import { db, auth, initAuth, googleSignIn, logout, getAccessToken, emailPassword
 import { User } from "firebase/auth";
 import { secureStorage } from "./lib/crypto";
 
-// Import modules
+// Custom Flash5tudy-themed modules
+import TimelineView from "./components/TimelineView";
+import FeatureSidebar from "./components/FeatureSidebar";
+import { playChime } from "./lib/audio";
+
 import TargetRoadmap from "./components/TargetRoadmap";
 import PlannerHub from "./components/PlannerHub";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import AICoachCard from "./components/AICoachCard";
 import WorkspaceHub from "./components/WorkspaceHub";
-
-// Custom Flash5tudy-themed modules
-import TimelineView from "./components/TimelineView";
+import RewardSystem from "./components/RewardSystem";
 import CalendarView from "./components/CalendarView";
-import FeatureSidebar from "./components/FeatureSidebar";
-import RemindersHub, { playChime } from "./components/RemindersHub";
+import RemindersHub from "./components/RemindersHub";
 import BeastHub from "./components/BeastHub";
 
 
@@ -410,7 +410,9 @@ export default function App() {
     return false;
   })();
 
-  const [activeTab, setActiveTab] = useState<"focus" | "target-suite" | "planner" | "analytics" | "ai-coach" | "workspace" | "calendar" | "reminders" | "rewards">("focus");
+  type AppWorkspaceView = "focus" | "planner" | "beast" | "calendar" | "rewards" | "target-suite" | "analytics" | "ai-coach" | "workspace" | "reminders";
+  const [currentView, setCurrentView] = useState<AppWorkspaceView>("focus");
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // States for theme trial & permanent unlock
@@ -503,17 +505,12 @@ export default function App() {
     localStorage.setItem("study_notification_settings", JSON.stringify(notificationSettings));
   }, [notificationSettings]);
   const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(() => {
-    return (localStorage.getItem("study_theme_mode") as "light" | "dark" | "system") || "system";
+    return (localStorage.getItem("study_theme_mode") as "light" | "dark" | "system") || "dark";
   });
   const [activeTheme, setActiveTheme] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem("study_theme_mode") || "system";
-    if (saved === "system") {
-      if (typeof window !== "undefined") {
-        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      }
-      return "dark";
-    }
-    return saved as "light" | "dark";
+    const saved = localStorage.getItem("study_theme_mode");
+    if (saved === "light") return "light";
+    return "dark";
   });
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean | null>(null);
@@ -762,7 +759,7 @@ export default function App() {
     if (notifyOutcome === "granted") {
       setFiredNotification("🔔 Awesome! Desktop Push Notifications authorized & Alarm synthesizer sound channel enabled successfully!");
     } else {
-      setFiredNotification("🔊 Alarm synthesizer sound channel enabled! (OS notification permissions were not approved, but within-tab alarms will sound perfectly).");
+      setFiredNotification("🔊 Alarm synthesizer sound channel enabled! (OS notification permissions were not approved, but in-app alarms will sound perfectly).");
     }
   };
 
@@ -824,6 +821,13 @@ export default function App() {
     const val = localStorage.getItem("study_seconds_baseline");
     return val ? parseInt(val, 10) : 0;
   });
+
+  const [activeStudySessionId, setActiveStudySessionId] = useState<string | null>(() => {
+    return localStorage.getItem("study_active_session_id") || null;
+  });
+
+  const lastSyncedSecondsRef = useRef<number>(0);
+  const pendingXpAccumulatorRef = useRef<number>(0);
 
   // Root Study Timer / Pomodoro configurations
   const [timerType, setTimerType] = useState<"stopwatch" | "pomodoro" | "custom">(() => {
@@ -959,6 +963,29 @@ export default function App() {
     }
     return [];
   });
+
+  const [habits, setHabits] = useState<Habit[]>(() => {
+    try {
+      const saved = localStorage.getItem("f5_habits_state");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("Habits parse error", e);
+    }
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    return DEFAULT_HABITS.map((h, i) => ({
+      ...h,
+      completedDates: i % 2 === 0 ? [yesterday, today] : [yesterday]
+    }));
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("f5_habits_state", JSON.stringify(habits));
+    } catch (e) {
+      console.warn("Habits save error", e);
+    }
+  }, [habits]);
 
   const [studyLogs, setStudyLogs] = useState<StudyLog[]>(() => {
     const local = secureStorage.getItem("study_logs");
@@ -1663,7 +1690,7 @@ export default function App() {
           }
 
           // --- ACTIVATE DYNAMIC REAL-TIME ON-SNAPSHOT LISTENERS ---
-          // This keeps 3-4 open application tabs in perfect seamless synchronization!
+          // This keeps multiple open application windows in perfect seamless synchronization!
           const unsubUser = onSnapshot(userDocRef, (snap) => {
             if (snap.exists()) {
               const userData = snap.data();
@@ -1999,14 +2026,21 @@ export default function App() {
     };
   }, []);
 
-  // Auto-prompt unauthenticated new users to sign in with Google on entry to secure their progress
+  // Gentle non-blocking prompt for unauthenticated first-time visitors
   useEffect(() => {
     if (initSyncComplete && !currentUser) {
-      setShowAuthModal(true);
+      const hasPrompted = sessionStorage.getItem("f5_auth_prompted") || localStorage.getItem("f5_auth_dismissed");
+      if (!hasPrompted) {
+        sessionStorage.setItem("f5_auth_prompted", "true");
+        const timer = setTimeout(() => {
+          setShowAuthModal(true);
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
     }
   }, [initSyncComplete, currentUser]);
 
-  // Listen to cross-tab storage changes to prevent multi-tab bypass/double-claim issues in real-time
+  // Listen to cross-window storage changes to prevent multi-window bypass/double-claim issues in real-time
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (!e.key) return;
@@ -2407,7 +2441,7 @@ export default function App() {
   // Synchronize study start time and baseline when isStudyingUser toggles
   const isRecoveringRef = useRef<boolean>(false);
 
-  // Recovery function to catch up on study sessions when returning from offline/closed tab state
+  // Recovery function to catch up on study sessions when returning from offline/closed window state
   const verifyAndRecoverOfflineStudyProgress = async () => {
     if (isRecoveringRef.current) return;
     
@@ -2545,7 +2579,7 @@ export default function App() {
     return () => clearTimeout(delayCheck);
   }, [subjects]);
 
-  // 1. Synchronize study start time and baseline when isStudyingUser toggles
+  // 1. Synchronize study start time and baseline when isStudyingUser toggles, performing final auto-save sync when stopping
   useEffect(() => {
     if (isStudyingUser) {
       if (studyStartTime === null) {
@@ -2557,17 +2591,46 @@ export default function App() {
         localStorage.setItem("study_seconds_baseline", baseline.toString());
         activeTimerTypeRef.current = timerType;
         localStorage.setItem("study_active_timer_type", timerType);
+
+        // Start of a brand new session: generate unique ID & reset lastSyncedSeconds
+        const newSessionId = `session-log-${Date.now()}`;
+        setActiveStudySessionId(newSessionId);
+        localStorage.setItem("study_active_session_id", newSessionId);
+        lastSyncedSecondsRef.current = 0;
       }
     } else {
       if (studyStartTime !== null) {
         const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
         const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+        let finalElapsedSeconds = 0;
         if (sessionType === "stopwatch" || sessionType === "custom") {
-          setActiveSecondsUser(studySecondsBaseline + elapsed);
+          finalElapsedSeconds = studySecondsBaseline + elapsed;
+          setActiveSecondsUser(finalElapsedSeconds);
         } else if (sessionType === "pomodoro") {
+          finalElapsedSeconds = (pomoFocusDuration * 60) - Math.max(0, studySecondsBaseline - elapsed);
           setPomoSecondsLeft(Math.max(0, studySecondsBaseline - elapsed));
         }
+
+        // Final sync of any unsynced elapsed study time
+        const deltaSeconds = finalElapsedSeconds - lastSyncedSecondsRef.current;
+        if (deltaSeconds > 0) {
+          const sessionId = activeStudySessionId || localStorage.getItem("study_active_session_id") || `session-log-${Date.now()}`;
+          const deltaMinutes = deltaSeconds / 60;
+          handleLiveSaveStudyMinutes(activeSubjectId, deltaMinutes, sessionId);
+        }
       }
+
+      // Cleanup active study session metadata
+      setActiveStudySessionId(null);
+      localStorage.removeItem("study_active_session_id");
+      localStorage.removeItem("study_active_seconds_user");
+      lastSyncedSecondsRef.current = 0;
+
+      // Automatically reset stopwatch/custom displays to 0 on stop/pause
+      if (timerType === "stopwatch" || timerType === "custom") {
+        setActiveSecondsUser(0);
+      }
+
       setStudyStartTime(null);
       setStudySecondsBaseline(0);
       activeTimerTypeRef.current = null;
@@ -2575,7 +2638,7 @@ export default function App() {
       localStorage.removeItem("study_seconds_baseline");
       localStorage.removeItem("study_active_timer_type");
     }
-  }, [isStudyingUser]);
+  }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType, activeSubjectId, activeStudySessionId, pomoSecondsLeft, pomoFocusDuration]);
 
   // Synchronize active study session state to Firestore
   useEffect(() => {
@@ -2605,7 +2668,7 @@ export default function App() {
     }
   }, [isStudyingUser, studyStartTime, studySecondsBaseline, activeSubjectId, timerType, currentUser]);
 
-  // 2. Sync timer immediately when browser tab status changes or Chrome minimizes/restores
+  // 2. Sync timer immediately when window focus status changes or browser minimizes/restores, auto-saving live on background transition
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -2622,13 +2685,72 @@ export default function App() {
         } else {
           verifyAndRecoverOfflineStudyProgress();
         }
+      } else if (document.visibilityState === "hidden") {
+        // Document hidden: sync any unsynced seconds live to prevent any potential session crash/discard loss!
+        if (isStudyingUser && studyStartTime !== null) {
+          const elapsed = Math.floor((Date.now() - studyStartTime) / 1000);
+          const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+          let currentSeconds = 0;
+          if (sessionType === "stopwatch" || sessionType === "custom") {
+            currentSeconds = studySecondsBaseline + elapsed;
+          } else if (sessionType === "pomodoro") {
+            currentSeconds = (pomoFocusDuration * 60) - Math.max(0, studySecondsBaseline - elapsed);
+          }
+
+          const deltaSeconds = currentSeconds - lastSyncedSecondsRef.current;
+          if (deltaSeconds > 0) {
+            let sessionId = activeStudySessionId || localStorage.getItem("study_active_session_id");
+            if (!sessionId) {
+              sessionId = `session-log-${Date.now()}`;
+            }
+            const deltaMinutes = deltaSeconds / 60;
+            handleLiveSaveStudyMinutes(activeSubjectId, deltaMinutes, sessionId);
+            lastSyncedSecondsRef.current = currentSeconds;
+          }
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, activeSubjectId, subjects, notificationSettings]);
+  }, [isStudyingUser, studyStartTime, studySecondsBaseline, timerType, pomoState, pomoRound, pomoFocusDuration, pomoShortBreakDuration, pomoLongBreakDuration, activeSubjectId, subjects, notificationSettings, activeStudySessionId]);
+
+  // 2b. Auto-save study progress live to DB and local state as the timer ticks
+  useEffect(() => {
+    if (!isStudyingUser) return;
+
+    let currentSeconds = 0;
+    const sessionType = localStorage.getItem("study_active_timer_type") || activeTimerTypeRef.current || timerType;
+    if (sessionType === "stopwatch" || sessionType === "custom") {
+      currentSeconds = activeSecondsUser;
+    } else if (sessionType === "pomodoro") {
+      currentSeconds = (pomoFocusDuration * 60) - pomoSecondsLeft;
+    }
+
+    // Initialize baseline if the session was recently restored or resumed
+    if (lastSyncedSecondsRef.current === 0 && currentSeconds > 0) {
+      lastSyncedSecondsRef.current = currentSeconds;
+    }
+
+    const deltaSeconds = currentSeconds - lastSyncedSecondsRef.current;
+
+    // Auto-save every 10 seconds of focused study
+    if (deltaSeconds >= 10) {
+      let sessionId = activeStudySessionId || localStorage.getItem("study_active_session_id");
+      if (!sessionId) {
+        sessionId = `session-log-${Date.now()}`;
+        setActiveStudySessionId(sessionId);
+        localStorage.setItem("study_active_session_id", sessionId);
+      }
+
+      const deltaMinutes = deltaSeconds / 60;
+      handleLiveSaveStudyMinutes(activeSubjectId, deltaMinutes, sessionId);
+
+      // Advance baseline
+      lastSyncedSecondsRef.current = currentSeconds;
+    }
+  }, [activeSecondsUser, pomoSecondsLeft, isStudyingUser, activeSubjectId, timerType, activeStudySessionId, pomoFocusDuration]);
 
   // 3. Root Study Ticking loop that uses actual timestamps & Web Workers to be completely resilient against background throttling
   useEffect(() => {
@@ -2699,11 +2821,14 @@ export default function App() {
       if (pomoState === "focus") {
         playPomoChime("success");
         const minsToSave = pomoFocusDuration;
-        handleAddStudyMinutes(activeSubjectId, minsToSave).catch(e => {
-          setFiredNotification(`Academic Limit Warning: ${e.message}`);
-        });
+        if (activeSubjectId) {
+          handleAddStudyMinutes(activeSubjectId, minsToSave, undefined, {
+            mindsetState: "classic",
+            focusQuality: 5
+          }).catch(e => console.warn("Auto save pomodoro study minutes error:", e));
+        }
         
-        const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. +${minsToSave * 10} XP gained!`;
+        const completionMsg = `🍅 Pomodoro Complete! You studied for ${minsToSave} minutes. Keep up the amazing work!`;
         setFiredNotification("You did it! Study session completed!");
         
         showSystemNotification("You did it! Study session completed!", completionMsg);
@@ -3024,7 +3149,7 @@ export default function App() {
     const target = rewards.find(r => r.id === rewardId);
     if (!target || target.isClaimed) return;
 
-    // Double-check raw secureStorage to prevent concurrent multi-tab bypassing!
+    // Double-check raw secureStorage to prevent concurrent multi-window bypassing!
     try {
       const local = secureStorage.getItem("study_rewards");
       if (local) {
@@ -3103,7 +3228,7 @@ export default function App() {
     const targetQ = quests.find(q => q.id === questId);
     if (!targetQ || targetQ.isCompleted) return;
 
-    // Double-check raw secureStorage to prevent concurrent multi-tab bypassing!
+    // Double-check raw secureStorage to prevent concurrent multi-window bypassing!
     try {
       const local = secureStorage.getItem("study_quests");
       if (local) {
@@ -3146,7 +3271,143 @@ export default function App() {
     localStorage.removeItem("study_seconds_baseline");
   };
 
-  const handleAddStudyMinutes = async (subjectId: string, minutes: number, customDate?: string) => {
+  const handleLiveSaveStudyMinutes = async (subjectId: string, minutes: number, sessionId: string) => {
+    let resolvedSubjectId = subjectId;
+    if (!resolvedSubjectId) {
+      resolvedSubjectId = localStorage.getItem("study_active_subject_id") || "";
+    }
+    if (!resolvedSubjectId && subjects.length > 0) {
+      resolvedSubjectId = subjects[0].id;
+    }
+
+    const todayStr = getLocalDateString();
+    const targetSubject = subjects.find(s => s.id === resolvedSubjectId);
+    if (!targetSubject) return;
+
+    // Calculate existing minutes logged on this date to verify goal achievements
+    const existingMinsForDate = studyLogs
+      .filter(l => l.date === todayStr && l.id !== sessionId)
+      .reduce((sum, l) => sum + l.durationMinutes, 0);
+
+    let isNewLog = false;
+    let finalLog: StudyLog;
+    setStudyLogs(prev => {
+      const existingIdx = prev.findIndex(l => l.id === sessionId);
+      let nextLogs = [...prev];
+      if (existingIdx > -1) {
+        const existing = prev[existingIdx];
+        finalLog = {
+          ...existing,
+          durationMinutes: existing.durationMinutes + minutes,
+          timestamp: new Date().toISOString()
+        };
+        nextLogs[existingIdx] = finalLog;
+      } else {
+        isNewLog = true;
+        finalLog = {
+          id: sessionId,
+          date: todayStr,
+          subjectId: resolvedSubjectId,
+          subjectName: targetSubject.name,
+          durationMinutes: minutes,
+          timestamp: new Date().toISOString()
+        };
+        nextLogs = [finalLog, ...nextLogs];
+      }
+      secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
+      return nextLogs;
+    });
+
+    setSubjects(prev => {
+      const nextSubjects = prev.map(s => (s.id === resolvedSubjectId ? { ...s, totalMinutes: s.totalMinutes + minutes } : s));
+      secureStorage.setItem("study_subjects", JSON.stringify(nextSubjects));
+      return nextSubjects;
+    });
+
+    // Earn XP per minute studied based on level: Lvl 1-4 is 5 XP/min, Lvl 5+ is 10 XP/min
+    const currentLevel = calculateStudentLevel(userXp).level;
+    const currentRate = getXpRateForLevel(currentLevel);
+    
+    const earnedXpDecimal = minutes * currentRate;
+    pendingXpAccumulatorRef.current += earnedXpDecimal;
+    const xpToAdd = Math.floor(pendingXpAccumulatorRef.current);
+    if (xpToAdd > 0) {
+      pendingXpAccumulatorRef.current -= xpToAdd;
+      handleAddXp(`Focused on ${targetSubject.name} (+${xpToAdd} XP ⏱️)`, xpToAdd);
+    }
+
+    // Check goals live
+    const previouslyCompleted = targetSubject.totalMinutes >= targetSubject.goalMinutes;
+    const newlyCompleted = (targetSubject.totalMinutes + minutes) >= targetSubject.goalMinutes;
+    if (!previouslyCompleted && newlyCompleted) {
+      const bonusXp = 150;
+      setTimeout(() => {
+        handleAddXp(`🎉 Daily Goal Met: ${targetSubject.name}!`, bonusXp);
+        setFiredNotification(`🎯 Subject Goal Completed! You completed your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. Outstanding persistent effort! (+${bonusXp} XP Bonus)`);
+        
+        if (notificationSettings.notifyOnDailyGoalMet) {
+          showSystemNotification(
+            `🎯 Subject Goal Completed: ${targetSubject.name}!`,
+            `Congratulations! You finished your daily study goal of ${targetSubject.goalMinutes} minutes for ${targetSubject.name}. (+${bonusXp} XP)`
+          );
+        }
+        if (notificationSettings.enableSoundEffects) {
+          playChime("success");
+        }
+      }, 800);
+    }
+
+    const previouslyOverallMet = existingMinsForDate >= dailyTargetMinutes;
+    const newlyOverallMet = (existingMinsForDate + (isNewLog ? minutes : (studyLogs.find(l => l.id === sessionId)?.durationMinutes || 0) + minutes)) >= dailyTargetMinutes;
+    if (!previouslyOverallMet && newlyOverallMet) {
+      const bonusXp = 300;
+      setTimeout(() => {
+        handleAddXp(`🏆 Daily Focus Goal Met (${dailyTargetMinutes}m)!`, bonusXp);
+        setFiredNotification(`🙌 Daily focus goal of ${dailyTargetMinutes} minutes met! Excellent academic persistence. (+${bonusXp} XP Reward!)`);
+        
+        if (notificationSettings.notifyOnDailyGoalMet) {
+          showSystemNotification("Daily Focus Goal Met!", `Congratulations! You have completed your overall daily study goal of ${dailyTargetMinutes} minutes today! (+${bonusXp} XP)`);
+        }
+        if (notificationSettings.enableSoundEffects) {
+          playChime("success");
+        }
+      }, 1500);
+    }
+
+    // Async Cloud sync
+    if (currentUser) {
+      const subRef = doc(db, "users", currentUser.uid, "subjects", resolvedSubjectId);
+      const logRef = doc(db, "users", currentUser.uid, "studyLogs", sessionId);
+      const updatedSubject = { ...targetSubject, totalMinutes: targetSubject.totalMinutes + minutes };
+
+      const dbLog: StudyLog = {
+        id: sessionId,
+        date: todayStr,
+        subjectId: resolvedSubjectId,
+        subjectName: targetSubject.name,
+        durationMinutes: (studyLogs.find(l => l.id === sessionId)?.durationMinutes || 0) + minutes,
+        timestamp: new Date().toISOString()
+      };
+
+      Promise.all([
+        setDoc(subRef, updatedSubject),
+        setDoc(logRef, dbLog)
+      ]).catch((err) => {
+        console.warn("Failed syncing live progress to Firestore:", err);
+      });
+    }
+  };
+
+  const handleAddStudyMinutes = async (
+    subjectId: string, 
+    minutes: number, 
+    customDate?: string,
+    meta?: {
+      focusQuality?: number;
+      mindsetState?: CognitiveMindset;
+      restMinutes?: number;
+    }
+  ) => {
     let resolvedSubjectId = subjectId;
     
     // Fallback: If no subject ID provided, try to find the active subject that was started but not ended yet from Firestore
@@ -3185,14 +3446,17 @@ export default function App() {
       .filter(l => l.date === todayStr)
       .reduce((sum, l) => sum + l.durationMinutes, 0);
 
-    // Create session entry
+    // Create session entry with cognitive meta
     const newLog: StudyLog = {
       id: `log-${Date.now()}`,
       date: todayStr,
       subjectId: resolvedSubjectId,
       subjectName: targetSubject.name,
       durationMinutes: minutes,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      focusQuality: meta?.focusQuality,
+      mindsetState: meta?.mindsetState,
+      restMinutes: meta?.restMinutes
     };
 
     // Update state using functional approach
@@ -3270,6 +3534,57 @@ export default function App() {
     }
   };
 
+  const handleAddRestMinutes = async (minutes: number, sessionId?: string) => {
+    const todayStr = getLocalDateString();
+    setStudyLogs(prev => {
+      const nextLogs = [...prev];
+      let targetLogIdx = -1;
+      if (sessionId) {
+        targetLogIdx = nextLogs.findIndex(l => l.id === sessionId);
+      }
+      if (targetLogIdx === -1) {
+        targetLogIdx = nextLogs.findIndex(l => l.date === todayStr);
+      }
+
+      if (targetLogIdx > -1) {
+        const log = nextLogs[targetLogIdx];
+        const updatedLog = {
+          ...log,
+          restMinutes: (log.restMinutes || 0) + minutes
+        };
+        nextLogs[targetLogIdx] = updatedLog;
+        secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
+        if (currentUser) {
+          import("firebase/firestore").then(({ doc, setDoc }) => {
+            const logRef = doc(db, "users", currentUser.uid, "studyLogs", log.id);
+            setDoc(logRef, updatedLog, { merge: true }).catch(() => {});
+          });
+        }
+      } else {
+        const dummySubjectId = subjects[0]?.id || "general";
+        const dummySubjectName = subjects[0]?.name || "General";
+        const dummyLog: StudyLog = {
+          id: `log-rest-${Date.now()}`,
+          date: todayStr,
+          subjectId: dummySubjectId,
+          subjectName: dummySubjectName,
+          durationMinutes: 0,
+          restMinutes: minutes,
+          timestamp: new Date().toISOString()
+        };
+        nextLogs.unshift(dummyLog);
+        secureStorage.setItem("study_logs", JSON.stringify(nextLogs));
+        if (currentUser) {
+          import("firebase/firestore").then(({ doc, setDoc }) => {
+            const logRef = doc(db, "users", currentUser.uid, "studyLogs", dummyLog.id);
+            setDoc(logRef, dummyLog).catch(() => {});
+          });
+        }
+      }
+      return nextLogs;
+    });
+  };
+
   const handleAddSubject = async (name: string, goalMinutes: number, colorStyle: string) => {
     const nextId = `sub-${Date.now()}`;
     const newSub: Subject = {
@@ -3322,12 +3637,20 @@ export default function App() {
     }
   };
 
-  const handleAddTask = async (title: string, subjectId: string) => {
+  const handleAddTask = async (
+    title: string, 
+    subjectId: string, 
+    priority: "high" | "medium" | "low" = "medium",
+    dueDate?: string
+  ) => {
     const newTask: Task = {
       id: `task-${Date.now()}`,
       title,
       isCompleted: false,
-      subjectId
+      subjectId,
+      priority,
+      dueDate,
+      subtasks: []
     };
     
     setTasks(prev => {
@@ -3340,6 +3663,38 @@ export default function App() {
       setDoc(doc(db, "users", currentUser.uid, "tasks", newTask.id), newTask)
         .catch(err => handleFirestoreError(err, OperationType.CREATE, `users/${currentUser.uid}/tasks/${newTask.id}`));
     }
+  };
+
+  const handleToggleSubtask = async (taskId: string, subtaskId: string) => {
+    setTasks(prev => {
+      const nextTasks = prev.map(t => {
+        if (t.id !== taskId || !t.subtasks) return t;
+        const nextSubtasks = t.subtasks.map(st => st.id === subtaskId ? { ...st, isCompleted: !st.isCompleted } : st);
+        const allDone = nextSubtasks.length > 0 && nextSubtasks.every(st => st.isCompleted);
+        return {
+          ...t,
+          subtasks: nextSubtasks,
+          isCompleted: allDone ? true : t.isCompleted
+        };
+      });
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
+    });
+  };
+
+  const handleAddSubtask = async (taskId: string, text: string) => {
+    setTasks(prev => {
+      const nextTasks = prev.map(t => {
+        if (t.id !== taskId) return t;
+        const newSub: TaskSubtask = { id: `st-${Date.now()}`, text, isCompleted: false };
+        return {
+          ...t,
+          subtasks: [...(t.subtasks || []), newSub]
+        };
+      });
+      secureStorage.setItem("study_tasks", JSON.stringify(nextTasks));
+      return nextTasks;
+    });
   };
 
   const handleToggleTask = async (taskId: string) => {
@@ -3381,6 +3736,62 @@ export default function App() {
       deleteDoc(doc(db, "users", currentUser.uid, "tasks", taskId))
         .catch(err => handleFirestoreError(err, OperationType.DELETE, `users/${currentUser.uid}/tasks/${taskId}`));
     }
+  };
+
+  const handleToggleHabit = (habitId: string, dateStr?: string) => {
+    const targetDate = dateStr || new Date().toISOString().split("T")[0];
+    setHabits(prev => prev.map(h => {
+      if (h.id !== habitId) return h;
+      const isAlreadyDone = h.completedDates.includes(targetDate);
+      let updatedDates: string[];
+      let updatedStreak = h.streak;
+      if (isAlreadyDone) {
+        updatedDates = h.completedDates.filter(d => d !== targetDate);
+        updatedStreak = Math.max(0, h.streak - 1);
+      } else {
+        updatedDates = [...h.completedDates, targetDate];
+        updatedStreak = h.streak + 1;
+        handleAddXp(`Daily Habit Completed: ${h.title} 🔥`, 25);
+        playChime("success");
+      }
+      return {
+        ...h,
+        completedDates: updatedDates,
+        streak: updatedStreak,
+        bestStreak: Math.max(h.bestStreak, updatedStreak)
+      };
+    }));
+  };
+
+  const handleAddHabit = (title: string, category: "study" | "health" | "review" | "discipline", icon: string = "⚡") => {
+    const newHabit: Habit = {
+      id: "habit_" + Date.now(),
+      title,
+      category,
+      icon,
+      streak: 1,
+      bestStreak: 1,
+      targetDaysPerWeek: 7,
+      completedDates: [new Date().toISOString().split("T")[0]],
+      shieldActive: true,
+      createdAt: new Date().toISOString()
+    };
+    setHabits(prev => [newHabit, ...prev]);
+    handleAddXp(`Created Habit: ${title} 🌱`, 20);
+  };
+
+  const handleRemoveHabit = (habitId: string) => {
+    setHabits(prev => prev.filter(h => h.id !== habitId));
+  };
+
+  const handleStartTaskFocus = (task: Task) => {
+    if (task.subjectId && task.subjectId !== "general") {
+      setActiveSubjectId(task.subjectId);
+    }
+    localStorage.setItem("study_session_goal_text", task.title);
+    localStorage.setItem("study_session_goal_task_id", task.id);
+    setCurrentView("focus");
+    setFiredNotification(`🎯 Focus session locked for: "${task.title}". Click play to start your session!`);
   };
 
   // completed checklist tasks today
@@ -3606,8 +4017,19 @@ export default function App() {
     }
   };
 
+  const navigationViews = [
+    { id: "focus", label: "Focus Timer", icon: Clock, color: "#f26419" },
+    { id: "planner", label: "Daily Planner", icon: ClipboardCheck, color: "#10b981" },
+    { id: "target-suite", label: "Habits & Targets", icon: Target, color: "#8b5cf6" },
+    { id: "calendar", label: "Schedule Calendar", icon: Calendar, color: "#eab308" },
+    { id: "analytics", label: "Deep Work Analytics", icon: TrendingUp, color: "#06b6d4" },
+    { id: "reminders", label: "Study Alarms", icon: Bell, color: "#f43f5e" },
+    { id: "rewards", label: "Rewards Store", icon: Gift, color: "#f59e0b" },
+    { id: "beast", label: "Citadel Toolkit", icon: Award, color: "#14b8a6" },
+  ];
+
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between pb-24 transition-all duration-500 relative select-none ${
+    <div className={`min-h-screen w-full flex flex-col justify-between pb-8 relative select-none ${
       activeTheme === "light"
         ? (
             themePreset === "forest" ? "bg-gradient-to-br from-[#f2faf7] via-[#e6f5ef] to-[#d4efe4] text-[#065f46]" :
@@ -3631,18 +4053,15 @@ export default function App() {
           )
     }`} id="f5-immersive-viewport-root">
       
-      {/* Liquid Glass Background Drifting Blobs & Textured Grids */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Dynamic auroral glass blobs */}
-        <div className={`absolute top-[10%] left-[10%] w-72 h-72 sm:w-96 sm:h-96 rounded-full blur-[65px] sm:blur-[95px] animate-blob-1 transition-all duration-1000 ${dynamicBlobs.blob1}`}></div>
-        <div className={`absolute bottom-[20%] right-[8%] w-80 h-80 sm:w-[480px] sm:h-[480px] rounded-full blur-[75px] sm:blur-[105px] animate-blob-2 transition-all duration-1000 ${dynamicBlobs.blob2}`}></div>
-        <div className={`absolute top-[45%] right-[22%] w-60 h-60 sm:w-85 sm:h-85 rounded-full blur-[55px] sm:blur-[85px] animate-blob-3 transition-all duration-1000 ${dynamicBlobs.blob3}`}></div>
+      {/* Sleek Atmospheric Ambient Background (Hardware-composited, zero-lag, no-flicker) */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 select-none">
+        {/* Subtle, hardware-accelerated static ambient radial glows */}
+        <div className="absolute -top-[10%] left-[8%] w-[550px] h-[550px] rounded-full bg-orange-500/[0.06] dark:bg-orange-500/[0.04] blur-[80px]"></div>
+        <div className="absolute -bottom-[10%] right-[8%] w-[650px] h-[650px] rounded-full bg-indigo-600/[0.06] dark:bg-indigo-600/[0.04] blur-[90px]"></div>
+        <div className="absolute top-[40%] right-[22%] w-[450px] h-[450px] rounded-full bg-emerald-500/[0.04] dark:bg-emerald-500/[0.025] blur-[70px]"></div>
         
         {/* Futuristic technical digital glass grid lines */}
-        <div className="absolute inset-0 glass-grid opacity-60"></div>
-        
-        {/* Premium analog organic frosted noise texture */}
-        <div className="absolute inset-0 noise-overlay opacity-[0.4] mix-blend-overlay"></div>
+        <div className="absolute inset-0 glass-grid opacity-25"></div>
       </div>
 
       {/* Floating active alarm overlay banner */}
@@ -3663,7 +4082,7 @@ export default function App() {
               </div>
               <button
                 onClick={() => setFiredNotification(null)}
-                className="text-[10px] uppercase font-black text-slate-300 hover:text-white bg-slate-950 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors shrink-0"
+                className="text-[10px] uppercase font-black text-slate-300 hover:text-white bg-slate-950 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-all shrink-0"
               >
                 Dismiss
               </button>
@@ -3699,7 +4118,7 @@ export default function App() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setIsStudyingUser(!isStudyingUser)}
-                    className={`px-3 py-1.5 rounded-lg text-[9px] uppercase font-black cursor-pointer transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-[9px] uppercase font-black cursor-pointer transition-all ${
                       isStudyingUser
                         ? "bg-amber-600/20 text-amber-500 hover:bg-amber-600/30 border border-amber-500/25"
                         : "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -3774,7 +4193,7 @@ export default function App() {
                     }
 
                     return (
-                      <div key={r.id} className="p-2.5 bg-slate-950/40 border border-slate-900 rounded-xl flex items-center justify-between text-left gap-2 hover:bg-slate-950/70 transition-colors">
+                      <div key={r.id} className="p-2.5 bg-slate-950/40 border border-slate-900 rounded-xl flex items-center justify-between text-left gap-2 hover:bg-slate-950/70 transition-all">
                         <div className="flex items-center gap-2 max-w-[80%]">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#f26419] shrink-0" />
                           <div className="truncate">
@@ -3787,7 +4206,7 @@ export default function App() {
                           onClick={() => {
                             handleToggleReminder(r.id);
                           }}
-                          className="text-[8px] uppercase font-black px-2 py-1 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 rounded-md cursor-pointer transition-colors"
+                          className="text-[8px] uppercase font-black px-2 py-1 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 rounded-md cursor-pointer transition-all"
                         >
                           Mute
                         </button>
@@ -3809,7 +4228,7 @@ export default function App() {
       )}
       
       {/* Top compact account and state toolbar banner */}
-      <header className={`sticky top-0 z-40 backdrop-blur-xl border-b px-6 py-3 px-safe transition-all duration-500 ${
+      <header className={`sticky top-0 z-40 backdrop-blur-xl border-b px-6 py-3 px-safe transition-colors duration-200 ${
         activeTheme === "light"
           ? (
               themePreset === "forest" ? "bg-[#f3f7f4]/85 border-[#e2ece6]" :
@@ -3836,7 +4255,7 @@ export default function App() {
           
           {/* Logo brand & streak info */}
           <div className="flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-2xl ${currentThemeStyle.accentBg} ${currentThemeStyle.glowClass} flex items-center justify-center text-white cursor-pointer hover:rotate-12 active:scale-90 transition-all duration-300`} onClick={() => setActiveTab("focus")}>
+            <div className={`h-10 w-10 rounded-2xl ${currentThemeStyle.accentBg} ${currentThemeStyle.glowClass} flex items-center justify-center text-white cursor-pointer hover:rotate-12 active:scale-90 transition-all duration-300`} onClick={() => setCurrentView("focus")}>
               <Clock className="w-5.5 h-5.5 font-bold" />
             </div>
             <div className="text-left">
@@ -3873,6 +4292,16 @@ export default function App() {
               ) : (
                 <Expand className="w-4 h-4" />
               )}
+            </button>
+
+            {/* Header Rewards XP Quick Access */}
+            <button
+              onClick={() => setCurrentView("rewards")}
+              className="hidden xs:flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/25 font-mono text-[11px] text-amber-600 dark:text-amber-400 shadow-xs backdrop-blur-md transition-all duration-300 cursor-pointer active:scale-95"
+              title="Click to view Rewards & Quests"
+            >
+              <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="font-bold">{userXp} XP</span>
             </button>
 
             {/* Mode Switcher Segmented Control */}
@@ -3920,11 +4349,10 @@ export default function App() {
 
             <button
               onClick={() => {
-                setActiveTab("reminders");
-                setIsSidebarOpen(false);
+                setIsSidebarOpen(!isSidebarOpen);
               }}
               className={`p-2 rounded-full cursor-pointer relative border transition-all ${
-                activeTab === "reminders"
+                isSidebarOpen
                   ? `${currentThemeStyle.accentBg} border-transparent text-white ${currentThemeStyle.glowClass}`
                   : `bg-white/45 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-[#171717] dark:border-[#1e293b]/50 dark:text-slate-400 dark:hover:text-white dark:hover:border-[#1e293b]`
               } shadow-xs backdrop-blur-md`}
@@ -3981,9 +4409,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Tab dashboard container constraint */}
-      <main className="max-w-[1720px] xl:max-w-[1850px] px-4 md:px-6 xl:px-10 w-full mx-auto flex-1 flex flex-col justify-start relative transition-all duration-300">
-        <div className="flex-1 flex flex-col pt-3 py-6" style={{ minHeight: "500px" }}>
+      {/* Main workspace layout container */}
+      <main className="max-w-[1720px] xl:max-w-[1850px] px-4 md:px-6 xl:px-10 w-full mx-auto flex-1 flex flex-col justify-start relative z-10">
+        <div className="flex-1 flex flex-col pt-3 pb-6">
           
           <div className="w-full flex flex-col space-y-3.5">
 
@@ -4004,7 +4432,7 @@ export default function App() {
                         Activate Precision Study Alerts & Sound Alarms
                       </h4>
                       <p className="text-[11px] text-slate-300 leading-normal mt-1.5 max-w-xl">
-                        Ensure you are alerted instantly when study intervals complete! Authorize **OS Push Notifications** and unlock **browser chime audios** so timers notify you even when working in other tabs.
+                        Ensure you are alerted instantly when study intervals complete! Authorize **OS Push Notifications** and unlock **browser chime audios** so timers notify you even when working in other windows or running in the background.
                       </p>
                     </div>
                   </div>
@@ -4015,8 +4443,7 @@ export default function App() {
                         localStorage.setItem("dismissed_perm_banner", "true");
                         setDismissedPermBanner(true);
                       }}
-                      style={{ color: "#118d1b" }}
-                      className="px-3.5 py-2 bg-slate-950/60 hover:bg-slate-900/60 border border-slate-800 font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95"
+                      className="px-3.5 py-2 bg-slate-950/60 hover:bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-slate-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95"
                     >
                       Maybe Later
                     </button>
@@ -4030,240 +4457,242 @@ export default function App() {
                 </div>
               )}
           
-          <AnimatePresence mode="wait">
-            {activeTab === "focus" && (
-              <motion.div
-                key="focus"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <TimelineView
-                  subjects={synchronizedSubjects}
-                  studyLogs={studyLogs}
-                  setSubjects={setSubjects}
-                  onAddStudyMinutes={handleAddStudyMinutes}
-                  onAddSubject={handleAddSubject}
-                  onRemoveSubject={handleRemoveSubject}
-                  activeSubjectId={activeSubjectId}
-                  setActiveSubjectId={setActiveSubjectId}
-                  isStudying={isStudyingUser}
-                  setIsStudying={setIsStudyingUser}
-                  activeSeconds={activeSecondsUser}
-                  setActiveSeconds={setActiveSecondsUser}
-                  onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                  onResetTimer={handleResetStudyTimer}
-                  timerType={timerType}
-                  setTimerType={setTimerType}
-                  pomoState={pomoState}
-                  setPomoState={setPomoState}
-                  pomoRound={pomoRound}
-                  setPomoRound={setPomoRound}
-                  pomoFocusDuration={pomoFocusDuration}
-                  setPomoFocusDuration={setPomoFocusDuration}
-                   pomoShortBreakDuration={pomoShortBreakDuration}
-                  setPomoShortBreakDuration={setPomoShortBreakDuration}
-                  pomoLongBreakDuration={pomoLongBreakDuration}
-                  setPomoLongBreakDuration={setPomoLongBreakDuration}
-                  pomoSecondsLeft={pomoSecondsLeft}
-                  setPomoSecondsLeft={setPomoSecondsLeft}
-                  onUpdateSubjectGoal={handleUpdateSubjectGoal}
-                  themePreset={themePreset}
-                  onThemeSelect={(themeId) => setThemePreset(themeId)}
-                  userXp={userXp}
-                  onAddXp={handleAddXp}
-                  onChangeTab={setActiveTab}
-                  showSystemNotification={showSystemNotification}
-                  setFiredNotification={setFiredNotification}
-                  notificationSettings={notificationSettings}
-                  ownerEmail={ownerEmail}
-                  currentUser={currentUser}
-                  isTrialActive={isTrialActive}
-                  trialDaysRemaining={trialDaysRemaining}
-                  isPermanentlyUnlocked={isPermanentlyUnlocked}
-                  onResetTrial={handleResetTrial}
-                />
-              </motion.div>
-            )}
+          {/* Main workspace layout container */}
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch w-full">
+            
+            {/* 1. Super Premium Left Glass Rail for Desktop (lg and up) */}
+            <div className="hidden lg:flex flex-col items-center justify-between p-3 rounded-3xl bg-slate-900/40 dark:bg-black/30 border border-slate-200/50 dark:border-slate-800/60 backdrop-blur-xl w-20 shrink-0 py-6 sticky top-24 self-start min-h-[580px] shadow-xl z-20">
+              <div className="flex flex-col items-center gap-4.5 w-full">
+                {navigationViews.map((navItem) => {
+                  const Icon = navItem.icon;
+                  const isActive = currentView === navItem.id;
+                  return (
+                    <button
+                      key={navItem.id}
+                      onClick={() => setCurrentView(navItem.id as any)}
+                      className={`group relative p-3 rounded-2xl transition-all duration-300 cursor-pointer flex items-center justify-center ${
+                        isActive
+                          ? "bg-white/95 dark:bg-white/10 text-slate-900 dark:text-white shadow-lg border border-white/60 dark:border-white/15 scale-[1.08]"
+                          : "text-slate-450 hover:text-slate-700 dark:text-slate-550 dark:hover:text-slate-200 hover:bg-white/45 dark:hover:bg-white/5"
+                      }`}
+                      title={navItem.label}
+                    >
+                      <Icon className="w-5 h-5 transition-transform group-hover:scale-110" style={isActive ? { color: navItem.color } : undefined} />
+                      
+                      {/* Premium Side Tooltip */}
+                      <div className="absolute left-full ml-3 px-3 py-1.5 rounded-xl bg-slate-900/95 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-wider shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-350 z-50 whitespace-nowrap border border-white/10 dark:border-slate-200">
+                        {navItem.label}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
 
-            {activeTab === "planner" && (
-              <motion.div
-                key="planner"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <PlannerHub
-                  subjects={synchronizedSubjects}
-                  tasks={tasks}
-                  onAddTask={handleAddTask}
-                  onToggleTask={handleToggleTask}
-                  onRemoveTask={handleRemoveTask}
-                />
-              </motion.div>
-            )}
+              {/* Sidebar Footer Indicator */}
+              <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+            </div>
 
-            {activeTab === "beast" && (
-              <motion.div
-                key="beast"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <BeastHub
-                  themePreset={themePreset}
-                  userXp={userXp}
-                  onAddXp={handleAddXp}
-                />
-              </motion.div>
-            )}
+            {/* 2. Super Premium Floating Horizontal Scroll Deck for Mobile/Tablet (below lg) */}
+            <div className="lg:hidden w-full overflow-x-auto no-scrollbar py-1 mb-2">
+              <div className="flex items-center gap-2 px-1 pb-1">
+                {navigationViews.map((navItem) => {
+                  const Icon = navItem.icon;
+                  const isActive = currentView === navItem.id;
+                  return (
+                    <button
+                      key={navItem.id}
+                      onClick={() => setCurrentView(navItem.id as any)}
+                      className={`px-4 py-2.5 rounded-2xl text-xs font-black tracking-tight shrink-0 transition-all duration-300 cursor-pointer flex items-center gap-2 border ${
+                        isActive
+                          ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-md border-white dark:border-white/10 scale-[1.02]"
+                          : "bg-white/35 dark:bg-black/15 border-slate-200/50 dark:border-slate-800/40 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" style={{ color: navItem.color }} />
+                      <span>{navItem.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            {activeTab === "calendar" && (
-              <motion.div
-                key="calendar"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <CalendarView 
-                  studyLogs={studyLogs} 
-                  subjects={synchronizedSubjects}
-                  onAddStudyMinutes={handleAddStudyMinutes}
-                  userXp={userXp}
-                />
-              </motion.div>
-            )}
+            {/* 3. Main Workspace Area */}
+            <div className="flex-1 min-w-0 w-full relative">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentView}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.22, ease: "easeInOut" }}
+                  className="w-full"
+                >
+                  {currentView === "focus" && (
+                    <TimelineView
+                      subjects={synchronizedSubjects}
+                      studyLogs={studyLogs}
+                      setSubjects={setSubjects}
+                      onAddStudyMinutes={handleAddStudyMinutes}
+                      onAddRestMinutes={handleAddRestMinutes}
+                      onAddSubject={handleAddSubject}
+                      onRemoveSubject={handleRemoveSubject}
+                      activeSubjectId={activeSubjectId}
+                      setActiveSubjectId={setActiveSubjectId}
+                      isStudying={isStudyingUser}
+                      setIsStudying={setIsStudyingUser}
+                      activeSeconds={activeSecondsUser}
+                      setActiveSeconds={setActiveSecondsUser}
+                      onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                      onResetTimer={handleResetStudyTimer}
+                      timerType={timerType}
+                      setTimerType={setTimerType}
+                      pomoState={pomoState}
+                      setPomoState={setPomoState}
+                      pomoRound={pomoRound}
+                      setPomoRound={setPomoRound}
+                      pomoFocusDuration={pomoFocusDuration}
+                      setPomoFocusDuration={setPomoFocusDuration}
+                      pomoShortBreakDuration={pomoShortBreakDuration}
+                      setPomoShortBreakDuration={setPomoShortBreakDuration}
+                      pomoLongBreakDuration={pomoLongBreakDuration}
+                      setPomoLongBreakDuration={setPomoLongBreakDuration}
+                      pomoSecondsLeft={pomoSecondsLeft}
+                      setPomoSecondsLeft={setPomoSecondsLeft}
+                      onUpdateSubjectGoal={handleUpdateSubjectGoal}
+                      themePreset={themePreset}
+                      onThemeSelect={(themeId) => setThemePreset(themeId)}
+                      userXp={userXp}
+                      onAddXp={handleAddXp}
+                      onChangeView={setCurrentView}
+                      showSystemNotification={showSystemNotification}
+                      setFiredNotification={setFiredNotification}
+                      notificationSettings={notificationSettings}
+                      ownerEmail={ownerEmail}
+                      currentUser={currentUser}
+                      isTrialActive={isTrialActive}
+                      trialDaysRemaining={trialDaysRemaining}
+                      isPermanentlyUnlocked={isPermanentlyUnlocked}
+                      onResetTrial={handleResetTrial}
+                      tasks={tasks}
+                      onToggleTask={handleToggleTask}
+                      onAddTask={handleAddTask}
+                    />
+                  )}
 
-            {activeTab === "rewards" && (
-              <motion.div
-                key="rewards"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="liquid-glass p-0 rounded-3xl shadow-xl transition-all duration-300 relative z-10 overflow-hidden text-left"
-              >
-                <RewardSystem
-                  userXp={userXp}
-                  rewards={rewards}
-                  xpLogs={xpLogs}
-                  quests={quests}
-                  onAddReward={handleAddReward}
-                  onEditReward={handleEditReward}
-                  onDeleteReward={handleDiscardReward}
-                  onClaimReward={handleClaimReward}
-                  onAddXp={handleAddXp}
-                  onCompleteQuest={handleCompleteQuest}
-                  totalStudiedTodayMins={totalStudiedTodayMins}
-                  completedTasksCountToday={completedTasksCountToday}
-                  themePreset={themePreset}
-                  studyLogs={studyLogs}
-                />
-              </motion.div>
-            )}
+                  {currentView === "planner" && (
+                    <PlannerHub
+                      subjects={synchronizedSubjects}
+                      tasks={tasks}
+                      habits={habits}
+                      onAddTask={handleAddTask}
+                      onToggleTask={handleToggleTask}
+                      onRemoveTask={handleRemoveTask}
+                      onToggleSubtask={handleToggleSubtask}
+                      onAddSubtask={handleAddSubtask}
+                      onStartTaskFocus={handleStartTaskFocus}
+                      onToggleHabit={handleToggleHabit}
+                    />
+                  )}
 
-            {activeTab === "target-suite" && (
-              <motion.div
-                key="target-suite"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <TargetRoadmap 
-                  subjects={synchronizedSubjects}
-                  userXp={userXp}
-                  onAddXp={handleAddXp}
-                  themePreset={themePreset}
-                  currentUser={currentUser}
-                />
-              </motion.div>
-            )}
+                  {currentView === "target-suite" && (
+                    <TargetRoadmap
+                      subjects={synchronizedSubjects}
+                      userXp={userXp}
+                      onAddXp={handleAddXp}
+                      themePreset={themePreset}
+                      currentUser={currentUser}
+                      habits={habits}
+                      onToggleHabit={handleToggleHabit}
+                      onAddHabit={handleAddHabit}
+                      onRemoveHabit={handleRemoveHabit}
+                    />
+                  )}
 
-            {activeTab === "analytics" && (
-              <motion.div
-                key="analytics"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
-              >
-                <AnalyticsDashboard
-                  subjects={synchronizedSubjects}
-                  studyLogs={studyLogs}
-                  streak={activeStreakCount}
-                  dailyTargetMinutes={dailyTargetMinutes}
-                  totalMinutesToday={totalStudiedTodayMins}
-                />
-              </motion.div>
-            )}
+                  {currentView === "analytics" && (
+                    <AnalyticsDashboard
+                      subjects={synchronizedSubjects}
+                      studyLogs={studyLogs}
+                      streak={activeStreakCount}
+                      dailyTargetMinutes={240}
+                      totalMinutesToday={totalStudiedTodayMins}
+                    />
+                  )}
 
-            {activeTab === "ai-coach" && (
-              <motion.div
-                key="ai-coach"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
-              >
-                <AICoachCard
-                  subjects={synchronizedSubjects}
-                  streak={activeStreakCount}
-                  dailyTargetMinutes={dailyTargetMinutes}
-                />
-              </motion.div>
-            )}
+                  {currentView === "ai-coach" && (
+                    <AICoachCard
+                      subjects={synchronizedSubjects}
+                      streak={activeStreakCount}
+                      dailyTargetMinutes={240}
+                      onAddXp={handleAddXp}
+                    />
+                  )}
 
-            {activeTab === "workspace" && (
-              <motion.div
-                key="workspace"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
-              >
-                <WorkspaceHub
-                  streak={activeStreakCount}
-                  aiCoachAdvice={aiCoachAdvice}
-                  globalCurrentUser={currentUser}
-                  onGlobalLogin={handleHeaderLogin}
-                  onGlobalLogout={handleHeaderLogout}
-                />
-              </motion.div>
-            )}
+                  {currentView === "workspace" && (
+                    <WorkspaceHub
+                      streak={activeStreakCount}
+                      aiCoachAdvice={aiCoachAdvice}
+                      globalCurrentUser={currentUser}
+                      onGlobalLogin={handleHeaderLogin}
+                      onGlobalLogout={handleHeaderLogout}
+                    />
+                  )}
 
-            {activeTab === "reminders" && (
-              <motion.div
-                key="reminders"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="liquid-glass p-6 rounded-3xl shadow-xl transition-all duration-300 relative z-10"
-              >
-                <RemindersHub
-                  subjects={synchronizedSubjects}
-                  reminders={reminders}
-                  onAddReminder={handleAddReminder}
-                  onToggleReminder={handleToggleReminder}
-                  onRemoveReminder={handleRemoveReminder}
-                  notificationPermission={notificationPermission}
-                  audioAutoplayApproved={audioAutoplayApproved}
-                  onGrantPermissions={handleGrantAllPermissions}
-                  notificationSettings={notificationSettings}
-                  onUpdateNotificationSettings={setNotificationSettings}
-                  currentUser={currentUser}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  {currentView === "calendar" && (
+                    <CalendarView
+                      studyLogs={studyLogs}
+                      subjects={synchronizedSubjects}
+                      onAddStudyMinutes={handleAddStudyMinutes}
+                      userXp={userXp}
+                    />
+                  )}
+
+                  {currentView === "reminders" && (
+                    <RemindersHub
+                      subjects={synchronizedSubjects}
+                      reminders={reminders}
+                      onAddReminder={handleAddReminder}
+                      onToggleReminder={handleToggleReminder}
+                      onRemoveReminder={handleRemoveReminder}
+                      notificationPermission={notificationPermission}
+                      audioAutoplayApproved={audioAutoplayApproved}
+                      onGrantPermissions={handleGrantAllPermissions}
+                      notificationSettings={notificationSettings}
+                      onUpdateNotificationSettings={setNotificationSettings}
+                      currentUser={currentUser}
+                    />
+                  )}
+
+                  {currentView === "rewards" && (
+                    <RewardSystem
+                      userXp={userXp}
+                      rewards={rewards}
+                      xpLogs={xpLogs}
+                      quests={quests}
+                      onAddReward={handleAddReward}
+                      onEditReward={handleEditReward}
+                      onDeleteReward={handleDiscardReward}
+                      onClaimReward={handleClaimReward}
+                      onAddXp={handleAddXp}
+                      onCompleteQuest={handleCompleteQuest}
+                      totalStudiedTodayMins={totalStudiedTodayMins}
+                      completedTasksCountToday={tasks.filter(t => t.completed).length}
+                      themePreset={themePreset}
+                      studyLogs={studyLogs}
+                    />
+                  )}
+
+                  {currentView === "beast" && (
+                    <BeastHub
+                      themePreset={themePreset}
+                      userXp={userXp}
+                      onAddXp={handleAddXp}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+          </div>
 
           </div>
         </div>
@@ -4273,8 +4702,6 @@ export default function App() {
       <FeatureSidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         onThemeSelect={(themeId) => setThemePreset(themeId)}
         isOfflineMode={isOfflineMode}
         setIsOfflineMode={setIsOfflineMode}
@@ -4293,70 +4720,13 @@ export default function App() {
         trialDaysRemaining={trialDaysRemaining}
         isPermanentlyUnlocked={isPermanentlyUnlocked}
         onResetTrial={handleResetTrial}
+        setActiveView={setCurrentView}
       />
 
-      {/* Floating Centered bottom navigation Dock pills + Companion Button (Image 4 & 5) */}
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center items-center gap-2.5 sm:gap-3 z-40 px-3 sm:px-4">
-        
-        {/* Navigation dock bar */}
-        <div className="liquid-glass px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-full flex items-center justify-center gap-1.5 xs:gap-2.5 sm:gap-5 md:gap-6 shadow-2xl border">
-          {[
-            { id: "focus", label: "Home", icon: Home },
-            { id: "planner", label: "To-Do", icon: ClipboardCheck },
-            { id: "beast", label: "Focus Citadel", icon: Sparkles },
-            { id: "rewards", label: "Wishlist", icon: Award },
-            { id: "calendar", label: "Calendar", icon: Calendar },
-            { id: "target-suite", label: "Targets", icon: Target }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setIsSidebarOpen(false);
-                }}
-                className={`flex flex-col items-center gap-0.5 px-2 xs:px-3 py-0.5 sm:py-1 rounded-full cursor-pointer transition-all ${
-                  isSelected 
-                    ? "font-black scale-105" 
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                }`}
-                style={isSelected ? { color: currentThemeStyle.primary } : {}}
-                title={tab.label}
-              >
-                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isSelected ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
-                <span className="text-[8px] sm:text-[9px] font-bold tracking-tight">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        
-        {/* Hover/Float companion separate circle indicator action button (Image 4 & 5) */}
-        <button 
-          onClick={() => {
-            if (activeTab === "focus" || activeTab === "planner" || activeTab === "beast" || activeTab === "calendar" || activeTab === "target-suite" || activeTab === "reminders" || activeTab === "rewards") {
-              setIsSidebarOpen(!isSidebarOpen);
-            }
-          }}
-          className="w-11 h-11 sm:w-13 sm:h-13 liquid-glass active:scale-95 rounded-full flex items-center justify-center shadow-xl cursor-pointer hover:scale-105 transition-all shrink-0 border"
-          style={{ color: currentThemeStyle.primary }}
-          title="Flash5tudy Menu & Settings"
-        >
-          {activeTab === "focus" && <Layers className="w-5 h-5 animate-pulse" style={{ color: currentThemeStyle.primary }} />}
-          {activeTab === "planner" && <Sparkles className="w-5 h-5 text-pink-500" />}
-          {activeTab === "beast" && <Sparkles className="w-5 h-5 text-amber-500 animate-spin-slow" />}
-          {activeTab === "rewards" && <Award className="w-5 h-5 text-amber-500 animate-bounce" />}
-          {activeTab === "calendar" && <TrendingUp className="w-5 h-5 text-emerald-500" />}
-          {activeTab === "target-suite" && <Target className="w-5 h-5" style={{ color: currentThemeStyle.primary }} />}
-          {activeTab === "reminders" && <Bell className="w-5 h-5 text-violet-500 animate-pulse" />}
-          {!["focus", "planner", "beast", "rewards", "calendar", "target-suite", "reminders"].includes(activeTab) && <Sparkles className="w-5 h-5 text-indigo-500 animate-spin-slow" />}
-        </button>
 
-      </div>
 
       {/* Tiny descriptive brand footer */}
-      <footer className="w-full text-center text-slate-650 text-[10px] select-none pb-4 font-mono opacity-50">
+      <footer className="w-full text-center text-slate-500 dark:text-slate-500 text-[10px] select-none pb-4 font-mono opacity-60 relative z-10">
         <p>© 2026 Flash5tudy. Built for consistent habit builders.</p>
       </footer>
 
@@ -4452,12 +4822,13 @@ export default function App() {
               <button 
                 id="auth-modal-close-btn"
                 onClick={() => {
+                  localStorage.setItem("f5_auth_dismissed", "true");
                   setShowAuthModal(false);
                   setAuthError(null);
                   setAuthSuccessMsg(null);
                 }}
                 disabled={authLoading}
-                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer transition-colors disabled:opacity-50 z-10"
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer transition-all disabled:opacity-50 z-10"
                 title="Continue as Guest"
               >
                 <X className="w-4 h-4" />
@@ -4546,7 +4917,7 @@ export default function App() {
                         }
                         let errMsg = err?.message || String(err);
                         if (err?.code === "auth/unauthorized-domain" || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized client") || errMsg.includes("unauthorized_client")) {
-                          errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (last tab) > Authorized domains.`;
+                          errMsg = `This domain (${window.location.hostname}) is not authorized in your Firebase Console. Please add '${window.location.hostname}' to Firebase > Authentication > Settings (Authorized domains).`;
                         } else {
                           errMsg = `Popup failed: ${errMsg}. Please ensure popups are allowed in your browser settings.`;
                         }
@@ -4607,7 +4978,7 @@ export default function App() {
             {/* Close Button */}
             <button 
               onClick={() => setShowFullscreenModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-650 dark:hover:text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-650 dark:hover:text-white transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -4638,7 +5009,7 @@ export default function App() {
               <div className="flex gap-3 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-900">
                 <span className="text-xs font-mono font-black text-blue-500 bg-blue-500/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">2</span>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal">
-                  Open the app directly in a <strong>new tab</strong> to bypass iframe restrictions. Chrome will then support 100% borderless Fullscreen flawlessly.
+                  Open the app directly in a <strong>standalone window</strong> to bypass iframe restrictions. Chrome will then support 100% borderless Fullscreen flawlessly.
                 </p>
               </div>
 
@@ -4660,7 +5031,7 @@ export default function App() {
                 style={{ boxShadow: `0 4px 14px -4px ${currentThemeStyle.primary}60` }}
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open in New Tab</span>
+                <span>Open Standalone Window</span>
               </a>
               <button
                 onClick={() => {
@@ -4746,7 +5117,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setLevelUpModal(null);
-                    setActiveTab("rewards");
+                    setCurrentView("rewards");
                   }}
                   className="w-full py-3 bg-gradient-to-r from-amber-500 to-[#f26419] hover:from-amber-400 hover:to-[#df5214] text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
